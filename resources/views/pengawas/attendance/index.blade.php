@@ -1,0 +1,134 @@
+<x-layouts.pengawas title="Absensi Peserta">
+    <div class="space-y-6">
+        <div>
+            <h2 class="text-xl font-bold text-gray-900">Absensi Peserta</h2>
+            <p class="mt-1 text-sm text-gray-500">Catat kehadiran peserta pada sesi ujian yang sedang berlangsung di ruangan {{ $room->name }}.</p>
+        </div>
+
+        @include('admin.partials.flash')
+
+        @if ($schedule === null)
+            <div class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+                <p class="text-sm text-gray-500">Tidak ada sesi ujian yang sedang berlangsung di ruangan Anda.</p>
+            </div>
+        @else
+            @if ($schedules->count() > 1)
+                <form method="GET" action="{{ route('pengawas.attendance.index') }}" class="flex items-end gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                    <div class="flex-1">
+                        <label for="schedule" class="mb-1 block text-sm font-medium text-gray-700">Pilih Mata Pelajaran</label>
+                        <select name="schedule" id="schedule" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
+                            @foreach ($schedules as $item)
+                                <option value="{{ $item->id }}" @selected($item->id === $schedule->id)>{{ $item->subject?->name }} ({{ $item->class_name }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </form>
+            @endif
+
+            <div class="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900">{{ $schedule->subject?->name }}</h3>
+                    <p class="mt-1 text-sm text-gray-500">
+                        Kelas {{ $schedule->class_name }} &middot; {{ $schedule->room?->name }} &middot;
+                        {{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }} - {{ \Illuminate\Support\Str::substr($schedule->end_time, 0, 5) }} WIB
+                    </p>
+                </div>
+                <x-badge-status :status="'berlangsung'" label="Sedang Berlangsung" />
+            </div>
+
+            <x-table :headers="['No', 'NISN', 'Nama Peserta', 'Kelas', 'Kehadiran']">
+                @foreach ($students as $index => $student)
+                    @php
+                        $session = $student->examSession;
+                        $locked = $session->locked_by_admin;
+                        $autoDisabled = ! $session->attendance_confirmed && (int) $session->violations_count > 0;
+                    @endphp
+                    <tr class="transition hover:bg-gray-50 {{ $autoDisabled ? 'bg-amber-50' : '' }} {{ $locked ? 'bg-gray-100' : '' }}">
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ $index + 1 }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700">{{ $student->nisn }}</td>
+                        <td class="px-4 py-3 text-sm font-semibold text-gray-900">{{ $student->user?->name }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700">{{ $student->class_name }}</td>
+                        <td class="px-4 py-3 text-sm">
+                            @if ($locked)
+                                <div class="flex items-center gap-2 text-xs font-medium text-gray-500">
+                                    <svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                                    </svg>
+                                    Dikunci oleh Admin &mdash; hubungi Admin untuk membuka kembali
+                                </div>
+                            @else
+                                <div
+                                    x-data="{
+                                        confirmed: @js($session->attendance_confirmed),
+                                        saving: false,
+                                        error: '',
+                                        async toggle(target) {
+                                            this.saving = true;
+                                            this.error = '';
+                                            try {
+                                                const res = await fetch('{{ route('pengawas.attendance.confirm', $schedule->id) }}', {
+                                                    method: 'PATCH',
+                                                    headers: {
+                                                        'Content-Type': 'application/json',
+                                                        'Accept': 'application/json',
+                                                        'X-CSRF-TOKEN': document.querySelector('meta[name=&quot;csrf-token&quot;]').content,
+                                                    },
+                                                    body: JSON.stringify({ student_id: {{ $student->id }}, confirmed: target }),
+                                                });
+                                                if (res.status === 419) {
+                                                    window.location.reload();
+                                                    return;
+                                                }
+                                                const data = await res.json().catch(() => ({}));
+                                                if (!res.ok) {
+                                                    this.confirmed = !target;
+                                                    this.error = data.error ?? 'Gagal menyimpan absensi.';
+                                                }
+                                            } catch (e) {
+                                                this.confirmed = !target;
+                                                this.error = 'Gagal menyimpan absensi.';
+                                            } finally {
+                                                this.saving = false;
+                                            }
+                                        }
+                                    }"
+                                    class="flex flex-wrap items-center gap-2"
+                                >
+                                    @if ($autoDisabled)
+                                        <span
+                                            class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20"
+                                            title="Absensi sempat aktif lalu dinonaktifkan otomatis oleh sistem karena adanya pelanggaran."
+                                        >
+                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                                            </svg>
+                                            Nonaktif otomatis - ada pelanggaran
+                                        </span>
+                                    @endif
+
+                                    <label class="inline-flex cursor-pointer items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            x-model="confirmed"
+                                            @change="toggle($event.target.checked)"
+                                            :disabled="saving"
+                                            class="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
+                                        >
+                                        <span class="text-sm" x-text="confirmed ? 'Hadir' : 'Tidak Hadir'"></span>
+                                    </label>
+
+                                    <svg x-show="saving" class="h-4 w-4 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                    </svg>
+
+                                    <p x-show="error" x-text="error" class="text-xs font-medium text-rose-600"></p>
+                                </div>
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+            </x-table>
+        @endif
+    </div>
+</x-layouts.pengawas>

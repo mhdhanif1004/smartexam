@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="VdfD4W9Rul7eH8I49iR9sCIbZQr599mPDd6lkbbf">
+
+    <title>Login - SmartExam</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .focus-ring:focus {
+            box-shadow: 0 0 0 2px white, 0 0 0 4px #00288e;
+            outline: none;
+        }
+    </style>
+
+    <!-- Scripts -->
+    <link rel="preload" as="style" href="http://127.0.0.1:8000/build/assets/app-BvYZCOtF.css" /><link rel="modulepreload" as="script" href="http://127.0.0.1:8000/build/assets/app-f8WKwBht.js" /><link rel="stylesheet" href="http://127.0.0.1:8000/build/assets/app-BvYZCOtF.css" /><script type="module" src="http://127.0.0.1:8000/build/assets/app-f8WKwBht.js"></script></head>
+<body class="bg-surface font-body-md text-on-surface min-h-screen flex flex-col overflow-x-hidden">
+            <main class="flex-grow flex flex-col md:flex-row items-stretch">
+        <!-- Illustration -->
+        <section
+            class="hidden md:flex flex-1 relative bg-surface-container-low items-center justify-center overflow-hidden">
+            <div class="absolute inset-0 opacity-20 pointer-events-none">
+                <div
+                    class="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-secondary-container rounded-full blur-[120px]">
+                </div>
+                <div
+                    class="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-primary-container opacity-30 rounded-full blur-[100px]">
+                </div>
+            </div>
+            <div class="relative z-10 w-full h-full max-h-[80%] flex items-center justify-center p-xl">
+                <img alt="SmartExam CBT Illustration" class="max-w-full max-h-full object-contain drop-shadow-xl"
+                    src="http://127.0.0.1:8000/images/cbt-illustration.svg">
+            </div>
+        </section>
+
+        <!-- Form -->
+        <section class="flex-1 flex flex-col items-center justify-center p-lg md:p-xl bg-surface">
+            <div class="w-full max-w-md flex flex-col items-center text-center">
+                <div class="mb-xl flex flex-col items-center">
+                    <img alt="SmartExam Logo" class="w-24 h-24 mb-md object-contain"
+                        src="http://127.0.0.1:8000/images/logo.jpg">
+                    <h1 class="font-headline-lg text-headline-lg text-primary tracking-tight">SmartExam</h1>
+                    <p class="font-body-md text-body-md text-on-surface-variant mt-xs">Sistem Computer Based Test
+                        Berbasis Website</p>
+                </div>
+
+                <div class="w-full bg-surface-container-lowest border border-outline-variant p-lg rounded-xl shadow-sm">
+                    <!-- Session Status -->
+                    
+                    <form method="POST" action="http://127.0.0.1:8000/login" class="space-y-md text-left" novalidate>
+                        <input type="hidden" name="_token" value="VdfD4W9Rul7eH8I49iR9sCIbZQr599mPDd6lkbbf" autocomplete="off">
+                        <!-- Email Address (Username/ID Pengguna) -->
+                        <div>
+                            <label for="email"
+                                class="block font-label-md text-label-md text-on-surface-variant mb-xs ml-1">Username/ID
+                                Pengguna</label>
+                            <div class="relative">
+                                <span
+                                    class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">person</span>
+                                <input id="email" name="email" type="email" value="" required
+                                    autofocus autocomplete="username" placeholder="Masukkan ID anda"
+                                    class="w-full pl-10 pr-4 py-3 bg-surface rounded border focus:ring-1 transition-all font-body-md text-body-md border-outline-variant focus:border-primary focus:ring-primary">
+                            </div>
+                                                    </div>
+
+                        <!-- Password -->
+                        <div>
+                            <label for="password"
+                                class="block font-label-md text-label-md text-on-surface-variant mb-xs ml-1">Password</label>
+                            <div class="relative">
+                                <span
+                                    class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">lock</span>
+                                <input id="password" name="password" type="password" required
+                                    autocomplete="current-password" placeholder="••••••••"
+                                    class="w-full pl-10 pr-10 py-3 bg-surface rounded border focus:ring-1 transition-all font-body-md text-body-md border-outline-variant focus:border-primary focus:ring-primary">
+                                <button type="button" id="toggle-password"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-primary transition-colors"
+                                    aria-label="Tampilkan password">
+                                    <span class="material-symbols-outlined">visibility</span>
+                                </button>
+                            </div>
+                                                    </div>
+
+                        <!-- Remember Me -->
+                        <div class="pt-xs">
+                            <label for="remember_me"
+                                class="flex items-center gap-xs cursor-pointer font-label-md text-label-md text-on-surface-variant select-none">
+                                <input id="remember_me" type="checkbox" name="remember"
+                                    class="h-4 w-4 rounded bg-surface border-outline-variant text-primary focus:ring-primary focus:ring-1">
+                                <span>Ingat Saya</span>
+                            </label>
+                        </div>
+
+                        <!-- Submit -->
+                        <div class="pt-sm">
+                            <button type="submit"
+                                class="w-full bg-primary hover:bg-primary-container text-on-primary py-3 rounded-lg font-title-md text-title-md shadow-lg shadow-primary/10 transition-all active:scale-[0.98] flex items-center justify-center gap-sm">
+                                Masuk
+                                <span class="material-symbols-outlined text-[20px]">login</span>
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="mt-lg text-center">
+                        <a href="#"
+                            class="font-label-md text-label-md text-primary hover:text-primary-container transition-colors flex items-center justify-center gap-xs">
+                            <span class="material-symbols-outlined text-[16px]">help_outline</span>
+                            Lupa password? Hubungi Administrator
+                        </a>
+                    </div>
+                </div>
+
+                <p class="mt-xl md:hidden font-label-sm text-label-sm text-on-surface-variant">SMK Negeri 3 Pariaman</p>
+            </div>
+        </section>
+    </main>
+    
+    <footer class="bg-surface-container-low border-t border-outline-variant">
+    <div class="flex flex-col md:flex-row justify-between items-center px-lg py-xl w-full max-w-container-max mx-auto">
+        <div class="mb-md md:mb-0">
+            <span class="font-title-md text-title-md font-semibold text-on-surface">SMK Negeri 3 Pariaman</span>
+        </div>
+        <div class="flex flex-wrap justify-center gap-lg mb-md md:mb-0">
+            <a href="#" class="font-label-sm text-label-sm text-on-surface-variant hover:underline hover:text-primary transition-all duration-200">Privacy Policy</a>
+            <a href="#" class="font-label-sm text-label-sm text-on-surface-variant hover:underline hover:text-primary transition-all duration-200">Terms of Service</a>
+            <a href="#" class="font-label-sm text-label-sm text-on-surface-variant hover:underline hover:text-primary transition-all duration-200">CBT Guidelines</a>
+        </div>
+        <div class="text-center md:text-right">
+            <p class="font-body-md text-body-md text-secondary">© 2024 SMK Negeri 3 Pariaman. All rights reserved.</p>
+        </div>
+    </div>
+</footer>
+
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const toggle = document.getElementById('toggle-password');
+                const password = document.getElementById('password');
+
+                if (toggle && password) {
+                    toggle.addEventListener('click', function() {
+                        const show = password.type === 'password';
+                        password.type = show ? 'text' : 'password';
+                        this.querySelector('.material-symbols-outlined').textContent = show ? 'visibility_off' :
+                            'visibility';
+                    });
+                }
+            });
+        </script>
+    </body>
+</html>

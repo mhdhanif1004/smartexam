@@ -1,0 +1,143 @@
+<x-layouts.admin title="Dashboard Admin">
+    <div class="space-y-6">
+        <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 class="text-xl font-bold text-gray-900">Selamat datang, {{ auth()->user()->name }}!</h2>
+            <p class="mt-1 text-sm text-gray-500">Ringkasan aktivitas Sistem CBT SmartExam hari ini.</p>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <x-card-stat label="Siswa" :value="number_format($totalStudents)" color="indigo" icon="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+            <x-card-stat label="Pengawas" :value="number_format($totalSupervisors)" color="emerald" icon="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+            <x-card-stat label="Mata Pelajaran" :value="number_format($totalSubjects)" color="amber" icon="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+            <x-card-stat label="Ujian Hari Ini" :value="number_format($examsToday)" color="rose" icon="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+        </div>
+
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h3 class="text-base font-bold text-gray-900">Tren Jumlah Ujian (7 Hari Terakhir)</h3>
+                <p class="text-xs text-gray-500">Banyaknya jadwal ujian per hari.</p>
+                <div class="mt-4 h-64">
+                    <canvas id="chart-trend"></canvas>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h3 class="text-base font-bold text-gray-900">Distribusi Nilai Peserta</h3>
+                <p class="text-xs text-gray-500">Sebaran nilai hasil ujian.</p>
+                <div class="mt-4 h-64">
+                    <canvas id="chart-distribution"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
+                <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+                    <div>
+                        <h3 class="text-base font-bold text-gray-900">Jadwal Ujian Terdekat</h3>
+                        <p class="text-xs text-gray-500">5 jadwal berikutnya dari hari ini.</p>
+                    </div>
+                    <a href="{{ route('admin.exam-schedules.index') }}" class="text-xs font-semibold text-indigo-600 hover:text-indigo-500">Lihat semua</a>
+                </div>
+                <ul class="divide-y divide-gray-100">
+                    @forelse ($upcomingSchedules as $schedule)
+                        <li class="flex items-center gap-4 px-5 py-3">
+                            <div class="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg bg-indigo-50 text-indigo-700">
+                                <span class="text-sm font-bold leading-none">{{ $schedule->exam_date->format('d') }}</span>
+                                <span class="text-[10px] uppercase leading-none">{{ $schedule->exam_date->format('M') }}</span>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-sm font-semibold text-gray-900">{{ $schedule->subject?->name }}</p>
+                                <p class="text-xs text-gray-500">{{ $schedule->class_name }} &middot; {{ $schedule->room?->name }}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm font-semibold text-gray-700">{{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }}</p>
+                                <x-badge-status :status="$schedule->status" />
+                            </div>
+                        </li>
+                    @empty
+                        <li class="px-5 py-8 text-center text-sm text-gray-500">Belum ada jadwal ujian.</li>
+                    @endforelse
+                </ul>
+            </div>
+
+            <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
+                <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+                    <div>
+                        <h3 class="text-base font-bold text-gray-900">Pelanggaran Terbaru</h3>
+                        <p class="text-xs text-gray-500">5 pelanggaran terakhir yang dilaporkan.</p>
+                    </div>
+                    <a href="{{ route('admin.violations.index') }}" class="text-xs font-semibold text-indigo-600 hover:text-indigo-500">Lihat semua</a>
+                </div>
+                <ul class="divide-y divide-gray-100">
+                    @forelse ($recentViolations as $violation)
+                        <li class="flex items-center gap-4 px-5 py-3">
+                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                                </svg>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-sm font-semibold text-gray-900">{{ $violation->examSession?->student?->user?->name ?? '-' }}</p>
+                                <p class="text-xs text-gray-500">{{ $violation->examSession?->examSchedule?->subject?->name ?? '-' }} &middot; {{ $violation->examSession?->student?->class_name ?? '' }}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-xs font-semibold text-rose-600">{{ \App\Models\Violation::typeLabel($violation->violation_type) }}</p>
+                                <p class="text-xs text-gray-500">{{ $violation->occurred_at->format('d M H:i') }}</p>
+                            </div>
+                        </li>
+                    @empty
+                        <li class="px-5 py-8 text-center text-sm text-gray-500">Belum ada pelanggaran.</li>
+                    @endforelse
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const trendCanvas = document.getElementById('chart-trend');
+            if (trendCanvas && window.Chart) {
+                new Chart(trendCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: @json($chartTrendLabels),
+                        datasets: [{
+                            label: 'Jumlah Ujian',
+                            data: @json($chartTrendData),
+                            backgroundColor: 'rgba(79, 70, 229, 0.75)',
+                            borderRadius: 6,
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, ticks: { precision: 0 } },
+                        },
+                    },
+                });
+            }
+
+            const distributionCanvas = document.getElementById('chart-distribution');
+            if (distributionCanvas && window.Chart) {
+                new Chart(distributionCanvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: @json($distributionLabels),
+                        datasets: [{
+                            data: @json($distributionData),
+                            backgroundColor: ['#f87171', '#fbbf24', '#facc15', '#34d399', '#6366f1'],
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' } },
+                    },
+                });
+            }
+        });
+    </script>
+</x-layouts.admin>

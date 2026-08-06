@@ -1,0 +1,9 @@
+HTTP/1.1 419 unknown status
+Host: 127.0.0.1:8000
+Connection: close
+X-Powered-By: PHP/8.2.12
+Cache-Control: no-cache, private
+date: Mon, 03 Aug 2026 04:40:59 GMT
+Content-Type: text/html; charset=utf-8
+Set-Cookie: smartexam_session=eyJpdiI6IjIzWFVmWks4TlYvMW9sRVhMZk5NZWc9PSIsInZhbHVlIjoiN3lOSS9yampDRVZMSFFEVWFYUTB4dVlDRGFGVS93aUtwb2NwV3BWTFowbHBJVXVYc2lsUFcwaDcyWGRWSE03M2huV0NjcmxqUWVISURCNm1oWjI0QjRUa1o0RkVmUGtUSmE0aGpiMm5DU2hrWHJXTm5OVEVzcjM4YXQvUHliOWoiLCJtYWMiOiJkNjM4ZDZkZjIyMjFlYTRiOTcyZGUzMWRiZTczNjRkZDFmMzcyOGI1ZmI3NjU3MTA3MjY0MGU4M2EzODRkMDJjIiwidGFnIjoiIn0%3D; expires=Mon, 03 Aug 2026 06:40:59 GMT; Max-Age=7200; path=/; httponly; samesite=lax
+
