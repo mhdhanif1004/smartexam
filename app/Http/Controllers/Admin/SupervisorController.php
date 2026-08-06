@@ -106,4 +106,31 @@ class SupervisorController extends Controller
 
         return redirect()->route('admin.supervisors.index')->with('success', 'Data pengawas berhasil dihapus.');
     }
+
+    public function bulkDelete(Request $request): RedirectResponse
+    {
+        $ids = collect($request->input('ids', []))
+            ->filter(fn ($id) => filter_var($id, FILTER_VALIDATE_INT))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return back()->with('error', 'Pilih minimal satu pengawas untuk dihapus.');
+        }
+
+        $deleted = 0;
+
+        DB::transaction(function () use ($ids, &$deleted) {
+            $supervisors = Supervisor::query()->whereIn('id', $ids)->get();
+
+            foreach ($supervisors as $supervisor) {
+                $supervisor->delete();
+                $supervisor->user?->delete();
+                $deleted++;
+            }
+        });
+
+        return back()->with('success', "{$deleted} data pengawas berhasil dihapus.");
+    }
 }

@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\StudentController;
 use App\Http\Controllers\Admin\StudentImportExportController;
 use App\Http\Controllers\Admin\SubjectController;
 use App\Http\Controllers\Admin\SupervisorController;
+use App\Http\Controllers\Admin\SupervisorImportExportController;
 use App\Http\Controllers\Admin\ViolationController;
 use App\Http\Controllers\Pengawas\AttendanceController;
 use App\Http\Controllers\Pengawas\DashboardController as PengawasDashboardController;
@@ -48,7 +49,17 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
 
         Route::resource('students', StudentController::class)->except(['show']);
         Route::post('students/bulk-delete', [StudentController::class, 'bulkDelete'])->name('students.bulk-delete');
+
+        Route::controller(SupervisorImportExportController::class)->prefix('supervisors')->name('supervisors.')->group(function () {
+            Route::get('/export', 'export')->name('export');
+            Route::get('/import-template', 'importTemplate')->name('import-template');
+            Route::post('/import-validate', 'importValidate')->name('import-validate');
+            Route::post('/import-confirm', 'importConfirm')->name('import-confirm');
+            Route::get('/import-failed/{file}', 'importFailed')->name('import-failed');
+        });
+
         Route::resource('supervisors', SupervisorController::class)->except(['show']);
+        Route::post('supervisors/bulk-delete', [SupervisorController::class, 'bulkDelete'])->name('supervisors.bulk-delete');
         Route::resource('subjects', SubjectController::class)->except(['show']);
         Route::resource('rooms', RoomController::class)->except(['show']);
         Route::resource('classrooms', ClassroomController::class)->except(['show']);
@@ -119,5 +130,5 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     });
 
-    require __DIR__ . '/auth.php';
+    require __DIR__.'/auth.php';
 });
