@@ -22,7 +22,7 @@
             <div class="w-full max-w-md flex flex-col items-center text-center">
                 <div class="mb-xl flex flex-col items-center">
                     <img alt="SmartExam Logo" class="w-24 h-24 mb-md object-contain"
-                        src="{{ asset('images/logo.jpg') }}">
+                        src="{{ asset('images/logo1.png') }}">
                     <h1 class="font-headline-lg text-headline-lg text-primary tracking-tight">SmartExam</h1>
                     <p class="font-body-md text-body-md text-on-surface-variant mt-xs">Sistem Computer Based Test
                         Berbasis Website</p>
@@ -33,7 +33,8 @@
                     <x-auth-session-status class="mb-4" :status="session('status')" />
 
                     @if (session('error'))
-                        <div class="mb-4 flex items-start gap-2 rounded-lg border border-error bg-error-container/20 px-4 py-3 text-sm text-error">
+                        <div
+                            class="mb-4 flex items-start gap-2 rounded-lg border border-error bg-error-container/20 px-4 py-3 text-sm text-error">
                             <span class="material-symbols-outlined mt-0.5 text-[16px]">error</span>
                             <span>{{ session('error') }}</span>
                         </div>
@@ -72,7 +73,8 @@
                                 <input id="password" name="password" type="password" required
                                     autocomplete="current-password" placeholder="••••••••"
                                     class="w-full pl-10 pr-10 py-3 bg-surface rounded border focus:ring-1 transition-all font-body-md text-body-md {{ $errors->has('password') ? 'border-error focus:border-error focus:ring-error' : 'border-outline-variant focus:border-primary focus:ring-primary' }}">
-                                <x-password-toggle position="absolute right-3 top-1/2 -translate-y-1/2" color="text-outline hover:text-primary" />
+                                <x-password-toggle position="absolute right-3 top-1/2 -translate-y-1/2"
+                                    color="text-outline hover:text-primary" />
                             </div>
                             @error('password')
                                 <p class="mt-2 flex items-center gap-xs text-label-md text-error" role="alert">

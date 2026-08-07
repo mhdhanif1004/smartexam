@@ -56,7 +56,7 @@
             {{-- Pilihan Ganda (satu jawaban) --}}
             <template x-if="type === 'single_choice'">
                 <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h3 class="text-lg font-bold text-gray-900">Opsi Jawaban (Pilihan Ganda - Satu Jawaban)</h3>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Opsi Jawaban (Pilihan Ganda - Satu Jawaban)</h3>
                     <p class="mt-1 text-sm text-gray-500">Isi minimal 2 opsi dan tandai satu jawaban yang benar.</p>
                     <div class="mt-5 space-y-3">
                         @foreach ($letters as $letter)
@@ -75,7 +75,7 @@
             {{-- Pilihan Ganda (banyak jawaban) --}}
             <template x-if="type === 'multiple_choice'">
                 <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h3 class="text-lg font-bold text-gray-900">Opsi Jawaban (Pilihan Ganda - Banyak Jawaban)</h3>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Opsi Jawaban (Pilihan Ganda - Banyak Jawaban)</h3>
                     <p class="mt-1 text-sm text-gray-500">Isi minimal 2 opsi dan centang semua jawaban yang benar.</p>
                     <div class="mt-5 space-y-3">
                         @foreach ($letters as $letter)
@@ -94,7 +94,7 @@
             {{-- Benar / Salah --}}
             <template x-if="type === 'true_false'">
                 <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h3 class="text-lg font-bold text-gray-900">Kunci Jawaban (Benar / Salah)</h3>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Kunci Jawaban (Benar / Salah)</h3>
                     <p class="mt-1 text-sm text-gray-500">Pilih salah satu kunci jawaban yang benar.</p>
                     <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
                         <label class="flex items-center gap-3 rounded-lg border border-gray-200 px-4 py-3 dark:border-gray-700">
@@ -113,7 +113,7 @@
             {{-- Menjodohkan --}}
             <template x-if="type === 'matching'">
                 <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h3 class="text-lg font-bold text-gray-900">Pasangan Menjodohkan (Kiri - Kanan)</h3>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Pasangan Menjodohkan (Kiri - Kanan)</h3>
                     <p class="mt-1 text-sm text-gray-500">Setiap item kolom kiri dipasangkan dengan item kolom kanan berdasarkan urutan baris. Minimal 2 pasangan.</p>
                     <div class="mt-5 space-y-3">
                         <template x-for="(pair, index) in pairs" :key="index">
@@ -145,7 +145,7 @@
             {{-- Essay --}}
             <template x-if="type === 'essay'">
                 <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h3 class="text-lg font-bold text-gray-900">Kunci Jawaban / Rubrik Penilaian (Essay)</h3>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Kunci Jawaban / Rubrik Penilaian (Essay)</h3>
                     <p class="mt-1 text-sm text-gray-500">Opsional. Tulis kunci jawaban atau rubrik sebagai referensi koreksi manual nanti.</p>
                     <div class="mt-5">
                         <textarea id="essay_answer" name="essay_answer" rows="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" placeholder="Tulis kunci jawaban atau rubrik (opsional)...">{{ old('essay_answer') }}</textarea>

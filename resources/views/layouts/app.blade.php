@@ -7,11 +7,7 @@
 
         <title>{{ config('app.name', 'Laravel') }}</title>
 
-        <script>
-            try {
-                if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
-            } catch (e) {}
-        </script>
+        @include('layouts.partials.theme-init')
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">

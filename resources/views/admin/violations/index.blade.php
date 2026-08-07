@@ -107,7 +107,7 @@
                                 :class="locked ? 'bg-rose-600 text-white shadow-sm' : 'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700'"
                                 class="inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition disabled:opacity-50">
                             <span class="relative inline-flex h-4 w-8 items-center rounded-full transition" :class="locked ? 'bg-rose-500' : 'bg-gray-300 dark:bg-gray-600'">
-                                <span class="inline-block h-3 w-3 transform rounded-full bg-white transition" :class="locked ? 'translate-x-4' : 'translate-x-0.5'"></span>
+                                <span class="inline-block h-3 w-3 transform rounded-full bg-white transition dark:bg-gray-300" :class="locked ? 'translate-x-4' : 'translate-x-0.5'"></span>
                             </span>
                             <span x-text="locked ? 'Dikunci' : 'Aktif'"></span>
                         </button>

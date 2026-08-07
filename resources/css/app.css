@@ -7,6 +7,20 @@
         display: none !important;
     }
 
+    /* Transisi halus saat toggle tema aktif (dipasang sebentar oleh komponen theme-toggle). */
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+        transition:
+            background-color 250ms ease,
+            border-color 250ms ease,
+            color 250ms ease,
+            fill 250ms ease,
+            stroke 250ms ease,
+            box-shadow 250ms ease !important;
+    }
+
     :root {
         --color-secondary-container: 134 242 228;
         --color-surface-variant: 213 227 252;

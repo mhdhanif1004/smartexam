@@ -186,7 +186,7 @@ export function examApp(config) {
         questionClass(q) {
             if (this.isAnswered(q)) return 'bg-emerald-600 text-white';
             if (q.id === this.questions[this.current]?.id) return 'bg-indigo-600 text-white';
-            return 'bg-gray-100 text-gray-600 hover:bg-gray-200';
+            return 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600';
         },
 
         goTo(index) {

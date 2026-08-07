@@ -6,6 +6,11 @@
         try {
             localStorage.setItem('theme', value ? 'dark' : 'light');
         } catch (e) {}
+        document.documentElement.classList.add('theme-transition');
+        clearTimeout(window.__smartexamThemeTransition);
+        window.__smartexamThemeTransition = setTimeout(() => {
+            document.documentElement.classList.remove('theme-transition');
+        }, 300);
         window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: value ? 'dark' : 'light' } }));
     })"
     @click="dark = !dark"

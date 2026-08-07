@@ -9,11 +9,7 @@
 
     <title>{{ $title }} - {{ config('app.name', 'SmartExam') }}</title>
 
-    <script>
-        try {
-            if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
-        } catch (e) {}
-    </script>
+    @include('layouts.partials.theme-init')
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
