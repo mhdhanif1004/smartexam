@@ -1,15 +1,15 @@
 <x-layouts.admin title="Tambah Pengawas">
     <div class="space-y-6">
         <div>
-            <h2 class="text-xl font-bold text-gray-900">Tambah Pengawas</h2>
-            <p class="mt-1 text-sm text-gray-500">Akun pengguna ber-role pengawas akan dibuat otomatis. Pengawas baru belum memiliki ruangan sampai Anda menugaskannya lewat halaman Ruangan.</p>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Tambah Pengawas</h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Akun pengguna ber-role pengawas akan dibuat otomatis. Pengawas baru belum memiliki ruangan sampai Anda menugaskannya lewat halaman Ruangan.</p>
         </div>
 
         <form method="POST" action="{{ route('admin.supervisors.store') }}" class="max-w-2xl space-y-6">
             @csrf
 
-            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                <h3 class="text-lg font-bold text-gray-900">Akun Pengguna</h3>
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Akun Pengguna</h3>
                 <div class="mt-5 grid gap-4 sm:grid-cols-2">
                     <div class="sm:col-span-2">
                         <x-input-label for="name" :value="__('Nama Lengkap')" />
@@ -28,9 +28,9 @@
                                 <x-text-input id="password" name="password" type="password" class="block w-full pr-10" autocomplete="new-password" placeholder="Kosongkan untuk generate otomatis" />
                                 <x-password-toggle />
                             </div>
-                            <button type="button" data-password-generator data-target="password" data-confirmation="password_confirmation" class="shrink-0 rounded-md bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100">Generate Otomatis</button>
+                            <button type="button" data-password-generator data-target="password" data-confirmation="password_confirmation" class="shrink-0 rounded-md bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20">Generate Otomatis</button>
                         </div>
-                        <p class="mt-1 text-xs text-gray-500">Opsional. Jika dikosongkan, password akan dibuat otomatis oleh sistem.</p>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Opsional. Jika dikosongkan, password akan dibuat otomatis oleh sistem.</p>
                         <x-input-error :messages="$errors->get('password')" class="mt-2" />
                     </div>
                     <div class="sm:col-span-2">
@@ -39,13 +39,13 @@
                     </div>
                 </div>
                 <label class="mt-5 flex w-fit items-center gap-2">
-                    <input type="checkbox" name="is_active" value="1" @checked(old('is_active', true)) class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                    <span class="text-sm text-gray-700">Akun aktif</span>
+                    <input type="checkbox" name="is_active" value="1" @checked(old('is_active', true)) class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Akun aktif</span>
                 </label>
             </div>
 
             <div class="flex justify-end gap-3">
-                <a href="{{ route('admin.supervisors.index') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50">Batal</a>
+                <a href="{{ route('admin.supervisors.index') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Batal</a>
                 <x-primary-button>Simpan</x-primary-button>
             </div>
         </form>

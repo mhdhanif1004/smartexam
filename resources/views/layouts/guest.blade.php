@@ -1,13 +1,19 @@
 @props(['title' => 'SmartExam', 'full' => false])
 
 <!DOCTYPE html>
-<html class="light" lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <title>{{ $title }} - {{ config('app.name', 'SmartExam') }}</title>
+
+    <script>
+        try {
+            if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
+        } catch (e) {}
+    </script>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,6 +27,9 @@
         .focus-ring:focus {
             box-shadow: 0 0 0 2px white, 0 0 0 4px #00288e;
             outline: none;
+        }
+        .dark .focus-ring:focus {
+            box-shadow: 0 0 0 2px #0d1526, 0 0 0 4px #b8c4ff;
         }
     </style>
 
@@ -39,6 +48,10 @@
     @endif
 
     <x-footer />
+
+    <div class="fixed right-4 bottom-4 z-50">
+        <x-theme-toggle />
+    </div>
 
     @stack('scripts')
 </body>

@@ -1,22 +1,22 @@
 <x-layouts.pengawas title="Token Ujian">
     <div class="space-y-6">
         <div>
-            <h2 class="text-xl font-bold text-gray-900">Token Ujian</h2>
-            <p class="mt-1 text-sm text-gray-500">Kelola token masuk peserta pada sesi ujian di ruangan {{ $room->name }}.</p>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Token Ujian</h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Kelola token masuk peserta pada sesi ujian di ruangan {{ $room->name }}.</p>
         </div>
 
         @include('admin.partials.flash')
 
         @if ($schedule === null)
-            <div class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-                <p class="text-sm text-gray-500">Tidak ada sesi ujian yang sedang berlangsung di ruangan Anda.</p>
+            <div class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada sesi ujian yang sedang berlangsung di ruangan Anda.</p>
             </div>
         @else
             @if ($schedules->count() > 1)
-                <form method="GET" action="{{ route('pengawas.tokens.index') }}" class="flex items-end gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <form method="GET" action="{{ route('pengawas.tokens.index') }}" class="flex items-end gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div class="flex-1">
-                        <label for="schedule" class="mb-1 block text-sm font-medium text-gray-700">Pilih Sesi Ujian</label>
-                        <select name="schedule" id="schedule" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
+                        <label for="schedule" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Pilih Sesi Ujian</label>
+                        <select name="schedule" id="schedule" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" onchange="this.form.submit()">
                             @foreach ($schedules as $item)
                                 <option value="{{ $item->id }}" @selected($item->id === $schedule->id)>{{ $item->subject?->name }} ({{ $item->class_name }})</option>
                             @endforeach
@@ -25,11 +25,11 @@
                 </form>
             @endif
 
-            <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h3 class="text-lg font-bold text-gray-900">{{ $schedule->subject?->name }}</h3>
-                        <p class="mt-1 text-sm text-gray-500">
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ $schedule->subject?->name }}</h3>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                             Kelas {{ $schedule->class_name }} &middot; {{ $schedule->room?->name }} &middot;
                             {{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }} - {{ \Illuminate\Support\Str::substr($schedule->end_time, 0, 5) }} WIB
                         </p>
@@ -46,14 +46,14 @@
                 </div>
 
                 @if ($token)
-                    <div class="mt-5 rounded-xl bg-indigo-50 p-5 text-center">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Token Aktif</p>
-                        <p class="mt-2 font-mono text-4xl font-bold tracking-[0.35em] text-indigo-900">{{ $token->token_code }}</p>
-                        <p class="mt-2 text-xs text-indigo-600">Berlaku sampai {{ $token->valid_until->format('d M Y H:i') }}</p>
+                    <div class="mt-5 rounded-xl bg-indigo-50 p-5 text-center dark:bg-indigo-500/10">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">Token Aktif</p>
+                        <p class="mt-2 font-mono text-4xl font-bold tracking-[0.35em] text-indigo-900 dark:text-indigo-300">{{ $token->token_code }}</p>
+                        <p class="mt-2 text-xs text-indigo-600 dark:text-indigo-400">Berlaku sampai {{ $token->valid_until->format('d M Y H:i') }}</p>
                     </div>
                 @else
-                    <div class="mt-5 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-5 text-center">
-                        <p class="text-sm text-gray-500">Belum ada token aktif. Klik tombol <strong>Generate Token</strong> untuk membuat token.</p>
+                    <div class="mt-5 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-5 text-center dark:border-gray-700 dark:bg-gray-800">
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Belum ada token aktif. Klik tombol <strong>Generate Token</strong> untuk membuat token.</p>
                     </div>
                 @endif
             </div>
@@ -62,20 +62,20 @@
                 @foreach ($students as $index => $student)
                     @php($session = $student->examSessions->first())
                     @php($entered = $session && in_array($session->status, [\App\Models\ExamSession::STATUS_IN_PROGRESS, \App\Models\ExamSession::STATUS_COMPLETED], true))
-                    <tr class="transition hover:bg-gray-50">
-                        <td class="px-4 py-3 text-sm text-gray-500">{{ $index + 1 }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-700">{{ $student->nisn }}</td>
-                        <td class="px-4 py-3 text-sm font-semibold text-gray-900">{{ $student->user?->name }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-700">{{ $student->class_name }}</td>
+                    <tr class="transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                        <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $index + 1 }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $student->nisn }}</td>
+                        <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $student->user?->name }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $student->class_name }}</td>
                         <td class="px-4 py-3 text-sm">
                             @if ($entered)
                                 <x-badge-status :status="'aktif'" />
-                                <span class="ml-1 text-xs text-gray-600">Sudah memasukkan token</span>
+                                <span class="ml-1 text-xs text-gray-600 dark:text-gray-300">Sudah memasukkan token</span>
                             @else
                                 <x-badge-status :status="'belum_mulai'" />
-                                <span class="ml-1 text-xs text-gray-600">Belum memasukkan token</span>
+                                <span class="ml-1 text-xs text-gray-600 dark:text-gray-300">Belum memasukkan token</span>
                                 @if ($session && $session->attendance_confirmed)
-                                    <span class="ml-1 text-xs text-emerald-600">&middot; sudah diabsen hadir</span>
+                                    <span class="ml-1 text-xs text-emerald-600 dark:text-emerald-400">&middot; sudah diabsen hadir</span>
                                 @endif
                             @endif
                         </td>

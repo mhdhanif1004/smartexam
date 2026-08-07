@@ -1,15 +1,15 @@
 <x-layouts.admin title="Edit Mata Pelajaran">
     <div class="space-y-6">
         <div>
-            <h2 class="text-xl font-bold text-gray-900">Edit Mata Pelajaran</h2>
-            <p class="mt-1 text-sm text-gray-500">Perbarui informasi mata pelajaran.</p>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Edit Mata Pelajaran</h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Perbarui informasi mata pelajaran.</p>
         </div>
 
         <form method="POST" action="{{ route('admin.subjects.update', $subject) }}" class="max-w-2xl space-y-6">
             @csrf
             @method('PUT')
 
-            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div>
                         <x-input-label for="code" :value="__('Kode')" />
@@ -30,7 +30,7 @@
             </div>
 
             <div class="flex justify-end gap-3">
-                <a href="{{ route('admin.subjects.index') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50">Batal</a>
+                <a href="{{ route('admin.subjects.index') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Batal</a>
                 <x-primary-button>Perbarui</x-primary-button>
             </div>
         </form>

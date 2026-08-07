@@ -1,8 +1,8 @@
 <x-layouts.admin :title="$type === 'pengawas' ? 'Kartu Login Pengawas' : 'Kartu Login Peserta'">
     <div class="space-y-6">
         <div>
-            <h2 class="text-xl font-bold text-gray-900">Kartu Login</h2>
-            <p class="mt-1 text-sm text-gray-500">
+            <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Kartu Login</h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ $type === 'pengawas'
                     ? 'Cetak kartu berisi akun login (email & password) untuk dibagikan kepada pengawas ujian.'
                     : 'Cetak kartu berisi akun login (username & password) untuk dibagikan kepada peserta ujian.' }}
@@ -11,23 +11,23 @@
 
         @include('admin.partials.flash')
 
-        <div class="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+        <div class="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <a href="{{ route('admin.student-cards.index', ['type' => 'peserta']) }}"
-                class="rounded-md px-4 py-2 text-sm font-semibold transition {{ $type === 'peserta' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-100' }}">
+                class="rounded-md px-4 py-2 text-sm font-semibold transition {{ $type === 'peserta' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700' }}">
                 Peserta
             </a>
             <a href="{{ route('admin.student-cards.index', ['type' => 'pengawas']) }}"
-                class="rounded-md px-4 py-2 text-sm font-semibold transition {{ $type === 'pengawas' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-100' }}">
+                class="rounded-md px-4 py-2 text-sm font-semibold transition {{ $type === 'pengawas' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700' }}">
                 Pengawas
             </a>
         </div>
 
         @if ($type === 'pengawas')
-            <form method="GET" action="{{ route('admin.student-cards.index') }}" class="flex flex-col gap-3 lg:flex-row lg:items-end rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <form method="GET" action="{{ route('admin.student-cards.index') }}" class="flex flex-col gap-3 lg:flex-row lg:items-end rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <input type="hidden" name="type" value="pengawas">
                 <div class="flex-1">
-                    <label for="room" class="mb-1 block text-sm font-medium text-gray-700">Filter Ruangan</label>
-                    <select name="room" id="room" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <label for="room" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Filter Ruangan</label>
+                    <select name="room" id="room" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                         <option value="">Semua Ruangan</option>
                         @foreach ($rooms as $room)
                             <option value="{{ $room->id }}" @selected($selectedRoom === $room->id)>{{ $room->name }}</option>
@@ -39,17 +39,17 @@
                 </div>
             </form>
 
-            <div x-data="{ selectAll: false }" class="rounded-xl border border-gray-200 bg-white shadow-sm">
-                <div class="flex flex-col gap-3 border-b border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <p class="text-sm text-gray-600">
+            <div x-data="{ selectAll: false }" class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div class="flex flex-col gap-3 border-b border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
                         Menampilkan <strong>{{ $supervisors->count() }}</strong> pengawas. Centang pengawas lalu cetak kartunya.
                     </p>
                     <div class="flex flex-wrap items-center gap-3">
-                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" x-model="selectAll" @change="document.querySelectorAll('[name=\'supervisor_ids[]\']').forEach(cb => cb.checked = $event.target.checked)" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="selectAll" @change="document.querySelectorAll('[name=\'supervisor_ids[]\']').forEach(cb => cb.checked = $event.target.checked)" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
                             Pilih Semua
                         </label>
-                        <button type="submit" form="card-form" formaction="{{ route('admin.student-cards.preview') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
+                        <button type="submit" form="card-form" formaction="{{ route('admin.student-cards.preview') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
                             Pratinjau
                         </button>
                         <button type="submit" form="card-form" formaction="{{ route('admin.student-cards.print') }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">
@@ -61,29 +61,29 @@
                     </div>
                 </div>
 
-                <form id="card-form" method="POST" class="divide-y divide-gray-100">
+                <form id="card-form" method="POST" class="divide-y divide-gray-100 dark:divide-gray-800">
                     @csrf
                     <input type="hidden" name="type" value="pengawas">
                     @forelse ($supervisors as $supervisor)
-                        <label class="flex cursor-pointer items-center gap-4 px-4 py-3 transition hover:bg-gray-50">
-                            <input type="checkbox" name="supervisor_ids[]" value="{{ $supervisor->id }}" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <label class="flex cursor-pointer items-center gap-4 px-4 py-3 transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                            <input type="checkbox" name="supervisor_ids[]" value="{{ $supervisor->id }}" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
                             <div class="min-w-0 flex-1">
-                                <p class="truncate text-sm font-semibold text-gray-900">{{ $supervisor->user?->name }}</p>
-                                <p class="text-xs text-gray-500">{{ $supervisor->user?->email }}</p>
+                                <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $supervisor->user?->name }}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $supervisor->user?->email }}</p>
                             </div>
-                            <span class="rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">{{ $supervisor->room?->name ?? 'Belum ditugaskan' }}</span>
+                            <span class="rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-700/60 dark:text-gray-400">{{ $supervisor->room?->name ?? 'Belum ditugaskan' }}</span>
                         </label>
                     @empty
-                        <p class="px-4 py-8 text-center text-sm text-gray-500">Tidak ada pengawas.</p>
+                        <p class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Tidak ada pengawas.</p>
                     @endforelse
                 </form>
             </div>
         @else
-            <form method="GET" action="{{ route('admin.student-cards.index') }}" class="flex flex-col gap-3 lg:flex-row lg:items-end rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <form method="GET" action="{{ route('admin.student-cards.index') }}" class="flex flex-col gap-3 lg:flex-row lg:items-end rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <input type="hidden" name="type" value="peserta">
                 <div class="flex-1">
-                    <label for="class" class="mb-1 block text-sm font-medium text-gray-700">Pilih Kelas</label>
-                    <select name="class" id="class" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <label for="class" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Pilih Kelas</label>
+                    <select name="class" id="class" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                         <option value="">-- Pilih Kelas --</option>
                         @foreach ($classes as $class)
                             <option value="{{ $class }}" @selected($selectedClass === $class)>{{ $class }}</option>
@@ -97,21 +97,21 @@
 
             @if ($selectedClass)
                 @if ($students->isEmpty())
-                    <div class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-                        <p class="text-sm text-gray-500">Tidak ada siswa di kelas <strong>{{ $selectedClass }}</strong>.</p>
+                    <div class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada siswa di kelas <strong>{{ $selectedClass }}</strong>.</p>
                     </div>
                 @else
-                    <div x-data="{ selectAll: false }" class="rounded-xl border border-gray-200 bg-white shadow-sm">
-                        <div class="flex flex-col gap-3 border-b border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between">
-                            <p class="text-sm text-gray-600">
+                    <div x-data="{ selectAll: false }" class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                        <div class="flex flex-col gap-3 border-b border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+                            <p class="text-sm text-gray-600 dark:text-gray-400">
                                 Menampilkan <strong>{{ $students->count() }}</strong> siswa kelas <strong>{{ $selectedClass }}</strong>. Centang siswa lalu cetak kartunya.
                             </p>
                             <div class="flex flex-wrap items-center gap-3">
-                                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
-                                    <input type="checkbox" x-model="selectAll" @change="document.querySelectorAll('[name=\'student_ids[]\']').forEach(cb => cb.checked = $event.target.checked)" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                    <input type="checkbox" x-model="selectAll" @change="document.querySelectorAll('[name=\'student_ids[]\']').forEach(cb => cb.checked = $event.target.checked)" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
                                     Pilih Semua
                                 </label>
-                                <button type="submit" form="card-form" formaction="{{ route('admin.student-cards.preview') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
+                                <button type="submit" form="card-form" formaction="{{ route('admin.student-cards.preview') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
                                     Pratinjau
                                 </button>
                                 <button type="submit" form="card-form" formaction="{{ route('admin.student-cards.print') }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">
@@ -123,27 +123,27 @@
                             </div>
                         </div>
 
-                        <form id="card-form" method="POST" class="divide-y divide-gray-100">
+                        <form id="card-form" method="POST" class="divide-y divide-gray-100 dark:divide-gray-800">
                             @csrf
                             <input type="hidden" name="type" value="peserta">
                             @forelse ($students as $student)
-                                <label class="flex cursor-pointer items-center gap-4 px-4 py-3 transition hover:bg-gray-50">
-                                    <input type="checkbox" name="student_ids[]" value="{{ $student->id }}" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <label class="flex cursor-pointer items-center gap-4 px-4 py-3 transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                    <input type="checkbox" name="student_ids[]" value="{{ $student->id }}" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
                                     <div class="min-w-0 flex-1">
-                                        <p class="truncate text-sm font-semibold text-gray-900">{{ $student->user?->name }}</p>
-                                        <p class="text-xs text-gray-500">NISN {{ $student->nisn }} &middot; {{ $student->user?->username }}</p>
+                                        <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $student->user?->name }}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">NISN {{ $student->nisn }} &middot; {{ $student->user?->username }}</p>
                                     </div>
-                                    <span class="rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">{{ $student->class_name }}</span>
+                                    <span class="rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-700/60 dark:text-gray-400">{{ $student->class_name }}</span>
                                 </label>
                             @empty
-                                <p class="px-4 py-8 text-center text-sm text-gray-500">Belum ada siswa yang dipilih.</p>
+                                <p class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada siswa yang dipilih.</p>
                             @endforelse
                         </form>
                     </div>
                 @endif
             @else
-                <div class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-                    <p class="text-sm text-gray-500">Silakan pilih kelas terlebih dahulu untuk melihat daftar siswa.</p>
+                <div class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Silakan pilih kelas terlebih dahulu untuk melihat daftar siswa.</p>
                 </div>
             @endif
         @endif

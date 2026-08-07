@@ -1,6 +1,6 @@
 @props([
     'position' => 'absolute right-2 top-1/2 -translate-y-1/2',
-    'color' => 'text-gray-400 hover:text-gray-600',
+    'color' => 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300',
 ])
 
 <button

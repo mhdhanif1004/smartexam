@@ -1,8 +1,8 @@
 <x-layouts.peserta title="Dashboard Peserta">
     <div class="space-y-6">
-        <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 class="text-xl font-bold text-gray-900">Selamat datang, {{ auth()->user()->name }}!</h2>
-            <p class="mt-1 text-sm text-gray-500">Berikut jadwal ujianmu hari ini. Kerjakan tepat waktu ya!</p>
+        <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Selamat datang, {{ auth()->user()->name }}!</h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Berikut jadwal ujianmu hari ini. Kerjakan tepat waktu ya!</p>
         </div>
 
         @include('admin.partials.flash')
@@ -13,27 +13,27 @@
             <x-card-stat label="Belum Mulai" :value="$stats['upcoming']" color="sky" icon="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
         </div>
 
-        <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
-            <div class="border-b border-gray-200 px-5 py-4">
-                <h3 class="text-base font-bold text-gray-900">Ujian Hari Ini</h3>
+        <div class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div class="border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+                <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Ujian Hari Ini</h3>
             </div>
 
             @if ($schedules->isEmpty())
-                <div class="p-8 text-center text-sm text-gray-500">
+                <div class="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
                     Tidak ada jadwal ujian untuk hari ini.
                 </div>
             @else
                 <x-table :headers="['No', 'Mata Pelajaran', 'Ruangan', 'Waktu', 'Durasi', 'Status', 'Aksi']">
                     @foreach ($schedules as $index => $schedule)
                         @php($display = $schedule->display)
-                        <tr class="transition hover:bg-gray-50">
-                            <td class="px-4 py-3 text-sm text-gray-500">{{ $index + 1 }}</td>
-                            <td class="px-4 py-3 text-sm font-semibold text-gray-900">{{ $schedule->subject?->name }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-700">{{ $schedule->room?->name }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-700">
+                        <tr class="transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                            <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $index + 1 }}</td>
+                            <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $schedule->subject?->name }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $schedule->room?->name }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
                                 {{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }} - {{ \Illuminate\Support\Str::substr($schedule->end_time, 0, 5) }} WIB
                             </td>
-                            <td class="px-4 py-3 text-sm text-gray-700">{{ $schedule->duration_minutes }} menit</td>
+                            <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $schedule->duration_minutes }} menit</td>
                             <td class="px-4 py-3 text-sm">
                                 <x-badge-status :status="$display['key']" />
                             </td>
@@ -54,7 +54,7 @@
                                         Lihat Hasil
                                     </a>
                                 @else
-                                    <span class="cursor-not-allowed rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-400">
+                                    <span class="cursor-not-allowed rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-400 dark:bg-gray-800 dark:text-gray-500">
                                         {{ $display['key'] === 'terlewat' ? 'Tidak Diikuti' : 'Tunggu Jadwal' }}
                                     </span>
                                 @endif

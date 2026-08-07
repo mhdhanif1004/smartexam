@@ -2,8 +2,8 @@
     <div class="space-y-6">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-                <h2 class="text-xl font-bold text-gray-900">Laporan Hasil Ujian</h2>
-                <p class="mt-1 text-sm text-gray-500">Rekap nilai peserta ujian berdasarkan mata pelajaran, kelas, dan tanggal.</p>
+                <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Laporan Hasil Ujian</h2>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Rekap nilai peserta ujian berdasarkan mata pelajaran, kelas, dan tanggal.</p>
             </div>
             <div class="flex items-center gap-2">
                 <a href="{{ route('admin.reports.export-excel', request()->query()) }}" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500">
@@ -21,10 +21,10 @@
             </div>
         </div>
 
-        <form method="GET" action="{{ route('admin.reports.index') }}" class="grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:grid-cols-2 lg:grid-cols-5">
+        <form method="GET" action="{{ route('admin.reports.index') }}" class="grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 md:grid-cols-2 lg:grid-cols-5">
             <div>
-                <label for="subject_id" class="mb-1 block text-sm font-medium text-gray-700">Mata Pelajaran</label>
-                <select name="subject_id" id="subject_id" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <label for="subject_id" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Mata Pelajaran</label>
+                <select name="subject_id" id="subject_id" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                     <option value="">Semua Mata Pelajaran</option>
                     @foreach ($subjects as $subject)
                         <option value="{{ $subject->id }}" @selected($filters['subject_id'] === $subject->id)>{{ $subject->name }}</option>
@@ -32,8 +32,8 @@
                 </select>
             </div>
             <div>
-                <label for="class_name" class="mb-1 block text-sm font-medium text-gray-700">Kelas</label>
-                <select name="class_name" id="class_name" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <label for="class_name" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Kelas</label>
+                <select name="class_name" id="class_name" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                     <option value="">Semua Kelas</option>
                     @foreach ($classes as $class)
                         <option value="{{ $class }}" @selected($filters['class_name'] === $class)>{{ $class }}</option>
@@ -41,17 +41,17 @@
                 </select>
             </div>
             <div>
-                <label for="date_from" class="mb-1 block text-sm font-medium text-gray-700">Tanggal Mulai</label>
-                <input type="date" name="date_from" id="date_from" value="{{ $filters['date_from'] }}" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <label for="date_from" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Tanggal Mulai</label>
+                <input type="date" name="date_from" id="date_from" value="{{ $filters['date_from'] }}" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
             </div>
             <div>
-                <label for="date_to" class="mb-1 block text-sm font-medium text-gray-700">Tanggal Selesai</label>
-                <input type="date" name="date_to" id="date_to" value="{{ $filters['date_to'] }}" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <label for="date_to" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Tanggal Selesai</label>
+                <input type="date" name="date_to" id="date_to" value="{{ $filters['date_to'] }}" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
             </div>
             <div class="flex items-end gap-2">
                 <button type="submit" class="inline-flex items-center rounded-lg bg-gray-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-700">Terapkan</button>
                 @if ($filters['subject_id'] || $filters['class_name'] || $filters['date_from'] || $filters['date_to'])
-                    <a href="{{ route('admin.reports.index') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50">Reset</a>
+                    <a href="{{ route('admin.reports.index') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Reset</a>
                 @endif
             </div>
         </form>
@@ -71,14 +71,14 @@
                     $student = $result->examSession?->student;
                     $schedule = $result->examSession?->examSchedule;
                 @endphp
-                <tr class="transition hover:bg-gray-50">
-                    <td class="px-4 py-3 text-sm text-gray-500">{{ $results->firstItem() + $index }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-700">{{ $student?->nisn ?? '-' }}</td>
-                    <td class="px-4 py-3 text-sm font-semibold text-gray-900">{{ $student?->user?->name ?? '-' }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-700">{{ $student?->class_name ?? '-' }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-700">{{ $schedule?->subject?->name ?? '-' }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-500">{{ $schedule?->exam_date?->format('d M Y') ?? '-' }}</td>
-                    <td class="px-4 py-3 text-sm font-semibold text-gray-900">{{ $result->total_score ?? '-' }}</td>
+                <tr class="transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                    <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $results->firstItem() + $index }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $student?->nisn ?? '-' }}</td>
+                    <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $student?->user?->name ?? '-' }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $student?->class_name ?? '-' }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $schedule?->subject?->name ?? '-' }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $schedule?->exam_date?->format('d M Y') ?? '-' }}</td>
+                    <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $result->total_score ?? '-' }}</td>
                     <td class="px-4 py-3 text-sm">
                         <x-badge-status :status="$result->is_passed ? 'lulus' : 'gagal'" />
                     </td>

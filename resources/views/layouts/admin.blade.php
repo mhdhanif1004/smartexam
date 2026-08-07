@@ -7,10 +7,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title }} - {{ config('app.name', 'SmartExam') }}</title>
+    <script>
+        try {
+            if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
+        } catch (e) {}
+    </script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="font-sans antialiased text-gray-800">
-    <div x-data="{ sidebarOpen: false }" class="flex min-h-screen bg-gray-100">
+<body class="font-sans antialiased text-gray-800 dark:text-gray-200">
+    <div x-data="{ sidebarOpen: false }" class="flex min-h-screen bg-gray-100 dark:bg-gray-950">
         <x-sidebar :role="'admin'" />
 
         <div x-show="sidebarOpen" x-cloak @click="sidebarOpen = false" class="fixed inset-0 z-30 bg-gray-900/50 md:hidden"></div>

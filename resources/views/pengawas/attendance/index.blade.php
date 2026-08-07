@@ -1,22 +1,22 @@
 <x-layouts.pengawas title="Absensi Peserta">
     <div class="space-y-6">
         <div>
-            <h2 class="text-xl font-bold text-gray-900">Absensi Peserta</h2>
-            <p class="mt-1 text-sm text-gray-500">Catat kehadiran peserta pada sesi ujian yang sedang berlangsung di ruangan {{ $room->name }}.</p>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Absensi Peserta</h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Catat kehadiran peserta pada sesi ujian yang sedang berlangsung di ruangan {{ $room->name }}.</p>
         </div>
 
         @include('admin.partials.flash')
 
         @if ($schedule === null)
-            <div class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-                <p class="text-sm text-gray-500">Tidak ada sesi ujian yang sedang berlangsung di ruangan Anda.</p>
+            <div class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada sesi ujian yang sedang berlangsung di ruangan Anda.</p>
             </div>
         @else
             @if ($schedules->count() > 1)
-                <form method="GET" action="{{ route('pengawas.attendance.index') }}" class="flex items-end gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <form method="GET" action="{{ route('pengawas.attendance.index') }}" class="flex items-end gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div class="flex-1">
-                        <label for="schedule" class="mb-1 block text-sm font-medium text-gray-700">Pilih Mata Pelajaran</label>
-                        <select name="schedule" id="schedule" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
+                        <label for="schedule" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Pilih Mata Pelajaran</label>
+                        <select name="schedule" id="schedule" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" onchange="this.form.submit()">
                             @foreach ($schedules as $item)
                                 <option value="{{ $item->id }}" @selected($item->id === $schedule->id)>{{ $item->subject?->name }} ({{ $item->class_name }})</option>
                             @endforeach
@@ -25,10 +25,10 @@
                 </form>
             @endif
 
-            <div class="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-gray-800 dark:bg-gray-900">
                 <div>
-                    <h3 class="text-lg font-bold text-gray-900">{{ $schedule->subject?->name }}</h3>
-                    <p class="mt-1 text-sm text-gray-500">
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ $schedule->subject?->name }}</h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                         Kelas {{ $schedule->class_name }} &middot; {{ $schedule->room?->name }} &middot;
                         {{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }} - {{ \Illuminate\Support\Str::substr($schedule->end_time, 0, 5) }} WIB
                     </p>
@@ -43,15 +43,15 @@
                         $locked = $session->locked_by_admin;
                         $autoDisabled = ! $session->attendance_confirmed && (int) $session->violations_count > 0;
                     @endphp
-                    <tr class="transition hover:bg-gray-50 {{ $autoDisabled ? 'bg-amber-50' : '' }} {{ $locked ? 'bg-gray-100' : '' }}">
-                        <td class="px-4 py-3 text-sm text-gray-500">{{ $index + 1 }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-700">{{ $student->nisn }}</td>
-                        <td class="px-4 py-3 text-sm font-semibold text-gray-900">{{ $student->user?->name }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-700">{{ $student->class_name }}</td>
+                    <tr class="transition hover:bg-gray-50 dark:hover:bg-gray-800/50 {{ $autoDisabled ? 'bg-amber-50 dark:bg-amber-500/10' : '' }} {{ $locked ? 'bg-gray-100 dark:bg-gray-800' : '' }}">
+                        <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $index + 1 }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $student->nisn }}</td>
+                        <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $student->user?->name }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $student->class_name }}</td>
                         <td class="px-4 py-3 text-sm">
                             @if ($locked)
-                                <div class="flex items-center gap-2 text-xs font-medium text-gray-500">
-                                    <svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <div class="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                    <svg class="h-4 w-4 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                                     </svg>
                                     Dikunci oleh Admin &mdash; hubungi Admin untuk membuka kembali
@@ -96,7 +96,7 @@
                                 >
                                     @if ($autoDisabled)
                                         <span
-                                            class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20"
+                                            class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-400 dark:ring-amber-500/30"
                                             title="Absensi sempat aktif lalu dinonaktifkan otomatis oleh sistem karena adanya pelanggaran."
                                         >
                                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -112,7 +112,7 @@
                                             x-model="confirmed"
                                             @change="toggle($event.target.checked)"
                                             :disabled="saving"
-                                            class="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
+                                            class="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800"
                                         >
                                         <span class="text-sm" x-text="confirmed ? 'Hadir' : 'Tidak Hadir'"></span>
                                     </label>
@@ -122,7 +122,7 @@
                                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
                                     </svg>
 
-                                    <p x-show="error" x-text="error" class="text-xs font-medium text-rose-600"></p>
+                                    <p x-show="error" x-text="error" class="text-xs font-medium text-rose-600 dark:text-rose-400"></p>
                                 </div>
                             @endif
                         </td>

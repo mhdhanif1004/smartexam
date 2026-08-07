@@ -1,21 +1,21 @@
 @props(['headers' => [], 'empty' => 'Tidak ada data.'])
 
-<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
     <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
             @if (count($headers) > 0)
-                <thead class="bg-gray-50">
+                <thead class="bg-gray-50 dark:bg-gray-800">
                     <tr>
                         @foreach ($headers as $header)
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $header }}</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ $header }}</th>
                         @endforeach
                     </tr>
                 </thead>
             @endif
-            <tbody class="divide-y divide-gray-100 bg-white">
+            <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900">
                 @if (trim($slot) === '')
                     <tr>
-                        <td colspan="{{ max(count($headers), 1) }}" class="px-4 py-8 text-center text-sm text-gray-500">{{ $empty }}</td>
+                        <td colspan="{{ max(count($headers), 1) }}" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">{{ $empty }}</td>
                     </tr>
                 @else
                     {{ $slot }}
