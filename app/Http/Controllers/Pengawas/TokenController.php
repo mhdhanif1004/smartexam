@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Pengawas;
 use App\Http\Controllers\Controller;
 use App\Models\ExamToken;
 use App\Traits\ScopesSupervisorRoom;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -34,10 +35,14 @@ class TokenController extends Controller
 
         ExamToken::where('exam_schedule_id', $schedule->id)->delete();
 
+        // valid_until berbasis waktu SELESAI ujian sesuai jadwal, bukan dari now()
+        $examEndTime = Carbon::parse($schedule->exam_date->format('Y-m-d').' '.$schedule->start_time)
+            ->addMinutes((int) $schedule->duration_minutes);
+
         ExamToken::create([
             'exam_schedule_id' => $schedule->id,
             'token_code' => strtoupper(Str::random(8)),
-            'valid_until' => now()->addMinutes($schedule->duration_minutes ?? 30),
+            'valid_until' => $examEndTime,
         ]);
 
         return back()->with('success', 'Token ujian baru berhasil dibuat.');

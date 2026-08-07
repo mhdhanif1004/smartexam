@@ -5,6 +5,8 @@
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Atur jadwal ujian untuk mata pelajaran, kelas, dan ruangan tertentu.</p>
         </div>
 
+        @include('admin.partials.flash')
+
         <form method="POST" action="{{ route('admin.exam-schedules.store') }}" class="max-w-2xl space-y-6">
             @csrf
 

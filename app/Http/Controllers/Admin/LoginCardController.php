@@ -49,6 +49,15 @@ class LoginCardController extends Controller
                     ->get();
 
                 $selectedClass = $request->string('class')->toString();
+            } else {
+                // Default: show all students from all classes
+                $students = Student::query()
+                    ->with('user')
+                    ->orderBy('class_name')
+                    ->orderBy('nisn')
+                    ->get();
+
+                $selectedClass = 'all';
             }
         }
 

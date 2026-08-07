@@ -299,6 +299,10 @@ class ExamController extends Controller
             ->where('room_id', $this->student->room_id)
             ->first();
 
+        if ($this->schedule !== null) {
+            $this->schedule->syncStatusIfNeeded();
+        }
+
         if ($this->schedule === null) {
             return $this->deny('Anda tidak memiliki akses ke ujian tersebut.');
         }

@@ -5,6 +5,8 @@
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Perbarui jadwal pelaksanaan ujian.</p>
         </div>
 
+        @include('admin.partials.flash')
+
         <form method="POST" action="{{ route('admin.exam-schedules.update', $examSchedule) }}" class="max-w-2xl space-y-6">
             @csrf
             @method('PUT')

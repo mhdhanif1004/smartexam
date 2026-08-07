@@ -44,7 +44,28 @@ class StoreExamScheduleRequest extends FormRequest
                 if ($end->format('H:i') <= $start->format('H:i')) {
                     $validator->errors()->add('duration_minutes', 'Waktu selesai ujian melebihi pukul 24:00. Periksa kembali durasi.');
                 }
+
+                $this->validateNoRoomConflict($validator, $start, $end);
             },
         ];
+    }
+
+    private function validateNoRoomConflict(Validator $validator, Carbon $start, Carbon $end): void
+    {
+        $roomId = (int) $this->input('room_id');
+        $examDate = (string) $this->input('exam_date');
+
+        $conflict = ExamSchedule::query()
+            ->where('room_id', $roomId)
+            ->where('exam_date', $examDate)
+            ->where(function ($query) use ($start, $end) {
+                $query->where('start_time', '<', $end->format('H:i:s'))
+                    ->where('end_time', '>', $start->format('H:i:s'));
+            })
+            ->exists();
+
+        if ($conflict) {
+            $validator->errors()->add('room_id', 'Ruangan ini sudah dipakai jadwal ujian lain pada waktu yang bertabrakan.');
+        }
     }
 }
