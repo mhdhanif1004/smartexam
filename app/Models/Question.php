@@ -40,6 +40,7 @@ class Question extends Model
         'options',
         'answer_key',
         'score_weight',
+        'is_active',
     ];
 
     protected function casts(): array
@@ -48,12 +49,18 @@ class Question extends Model
             'options' => 'array',
             'answer_key' => 'array',
             'score_weight' => 'decimal:2',
+            'is_active' => 'boolean',
         ];
     }
 
     public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class);
+    }
+
+    public function typeLabel(): string
+    {
+        return self::TYPES[$this->type] ?? ucwords(str_replace('_', ' ', $this->type));
     }
 
     /**

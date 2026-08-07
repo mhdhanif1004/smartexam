@@ -31,6 +31,7 @@ class QuestionFactory extends Factory
             'type' => $type,
             'question_text' => rtrim(fake()->sentence(), '.').'?',
             'score_weight' => fake()->randomElement([5, 10, 15, 20]),
+            'is_active' => true,
         ]);
     }
 

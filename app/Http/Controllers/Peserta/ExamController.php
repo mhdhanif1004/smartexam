@@ -133,6 +133,7 @@ class ExamController extends Controller
         }
 
         $questions = $this->schedule->subject->questions()
+            ->where('is_active', true)
             ->orderBy('id')
             ->get();
 
@@ -424,7 +425,10 @@ class ExamController extends Controller
      */
     private function storeAnswers(ExamSession $session, ExamSchedule $schedule, array $answers): void
     {
-        $validQuestionIds = $schedule->subject->questions()->pluck('id')->all();
+        $validQuestionIds = $schedule->subject->questions()
+            ->where('is_active', true)
+            ->pluck('id')
+            ->all();
         $validQuestionSet = array_flip($validQuestionIds);
 
         $toUpsert = [];

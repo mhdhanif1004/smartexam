@@ -13,7 +13,7 @@ use Maatwebsite\Excel\Concerns\WithMapping;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class StudentsTemplateExport implements FromCollection, WithHeadings, WithMapping, WithColumnFormatting, WithColumnWidths, WithEvents
+class StudentsTemplateExport implements FromCollection, WithColumnFormatting, WithColumnWidths, WithEvents, WithHeadings, WithMapping
 {
     use WithSheetStyling;
 

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use Closure;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Tests\TestCase;
 

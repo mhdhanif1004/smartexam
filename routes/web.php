@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\ExamScheduleController;
 use App\Http\Controllers\Admin\LoginCardController;
 use App\Http\Controllers\Admin\PlainPasswordController;
 use App\Http\Controllers\Admin\QuestionController;
+use App\Http\Controllers\Admin\QuestionImportExportController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\StudentController;
@@ -66,9 +67,21 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::resource('rooms', RoomController::class)->except(['show']);
         Route::resource('classrooms', ClassroomController::class)->except(['show']);
         Route::resource('exam-schedules', ExamScheduleController::class)->except(['show']);
+        Route::post('exam-schedules/bulk-delete', [ExamScheduleController::class, 'bulkDelete'])->name('exam-schedules.bulk-delete');
 
         Route::resource('questions', QuestionController::class)->except(['show']);
         Route::post('questions/bulk-delete', [QuestionController::class, 'bulkDelete'])->name('questions.bulk-delete');
+        Route::post('questions/bulk-edit', [QuestionController::class, 'bulkEdit'])->name('questions.bulk-edit');
+        Route::post('questions/{question}/duplicate', [QuestionController::class, 'duplicate'])->name('questions.duplicate');
+        Route::patch('questions/{question}/toggle-active', [QuestionController::class, 'toggleActive'])->name('questions.toggle-active');
+
+        Route::controller(QuestionImportExportController::class)->prefix('questions')->name('questions.')->group(function () {
+            Route::get('/export', 'export')->name('export');
+            Route::get('/import-template', 'importTemplate')->name('import-template');
+            Route::post('/import-validate', 'importValidate')->name('import-validate');
+            Route::post('/import-confirm', 'importConfirm')->name('import-confirm');
+            Route::get('/import-failed/{file}', 'importFailed')->name('import-failed');
+        });
 
         Route::get('/users/{user}/plain-password', [PlainPasswordController::class, 'show'])->name('users.plain-password');
 

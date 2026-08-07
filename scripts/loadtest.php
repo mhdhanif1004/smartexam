@@ -27,6 +27,7 @@
  *   php scripts/loadtest.php --mode=page --users=600 --concurrency=100 --path=/login
  */
 
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 
 $args = [];
@@ -48,7 +49,7 @@ $host = $args['host'] ?? null;
 if ($mode === 'login') {
     require __DIR__.'/../vendor/autoload.php';
     $app = require __DIR__.'/../bootstrap/app.php';
-    $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+    $app->make(Kernel::class)->bootstrap();
 
     $emails = DB::table('users')
         ->where('role', 'peserta')
@@ -175,6 +176,7 @@ do {
             $task['code'] = $http;
             $task['ok'] = $errno === 0 && $http >= 200 && $http < 400;
             $doneCount++;
+
             continue;
         }
 
@@ -184,6 +186,7 @@ do {
                 $task['stage'] = 'done';
                 $task['error'] = $err !== '' ? $err : 'HTTP '.$http;
                 $doneCount++;
+
                 continue;
             }
 
@@ -229,6 +232,7 @@ do {
                     : ($http === 419 ? 'HTTP 419 (CSRF)' : 'HTTP '.$http);
                 $task['lat'] = $latency;
                 $doneCount++;
+
                 continue;
             }
 

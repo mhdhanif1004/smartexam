@@ -10,6 +10,7 @@ use App\Models\Question;
 use App\Models\Subject;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class QuestionController extends Controller
@@ -23,6 +24,11 @@ class QuestionController extends Controller
             })
             ->when($request->filled('subject_id'), fn ($query) => $query->where('subject_id', $request->integer('subject_id')))
             ->when($request->filled('type'), fn ($query) => $query->where('type', $request->string('type')))
+            ->when($request->filled('status'), function ($query) use ($request) {
+                $request->string('status') === 'aktif'
+                    ? $query->where('is_active', true)
+                    : $query->where('is_active', false);
+            })
             ->orderByDesc('id')
             ->paginate(10)
             ->withQueryString();
@@ -102,6 +108,63 @@ class QuestionController extends Controller
         $deleted = Question::query()->whereIn('id', $ids)->delete();
 
         return back()->with('success', "{$deleted} soal berhasil dihapus.");
+    }
+
+    public function duplicate(Question $question): RedirectResponse
+    {
+        Question::create([
+            'subject_id' => $question->subject_id,
+            'type' => $question->type,
+            'question_text' => $question->question_text,
+            'options' => $question->options,
+            'answer_key' => $question->answer_key,
+            'score_weight' => $question->score_weight,
+            'is_active' => true,
+        ]);
+
+        return redirect()->route('admin.questions.index')->with('success', 'Soal berhasil diduplikasi.');
+    }
+
+    public function toggleActive(Question $question): RedirectResponse
+    {
+        $question->update(['is_active' => ! $question->is_active]);
+
+        $state = $question->is_active ? 'diaktifkan' : 'dinonaktifkan';
+
+        return back()->with('success', "Soal berhasil {$state}.");
+    }
+
+    public function bulkEdit(Request $request): RedirectResponse
+    {
+        $ids = collect($request->input('ids', []))
+            ->filter(fn ($id) => filter_var($id, FILTER_VALIDATE_INT))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return back()->with('error', 'Pilih minimal satu soal untuk diubah.');
+        }
+
+        $payload = $request->validate([
+            'subject_id' => ['nullable', 'integer', Rule::exists('subjects', 'id')],
+            'score_weight' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        $updates = array_filter([
+            'subject_id' => $payload['subject_id'] ?? null,
+            'score_weight' => $payload['score_weight'] ?? null,
+            'is_active' => array_key_exists('is_active', $payload) ? (bool) $payload['is_active'] : null,
+        ], fn ($value) => $value !== null);
+
+        if (empty($updates)) {
+            return back()->with('error', 'Tidak ada perubahan yang dipilih.');
+        }
+
+        Question::query()->whereIn('id', $ids)->update($updates);
+
+        return back()->with('success', 'Pengaturan '.count($ids).' soal berhasil diperbarui.');
     }
 
     /**

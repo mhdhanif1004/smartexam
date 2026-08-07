@@ -9,6 +9,7 @@ use App\Models\Classroom;
 use App\Models\Student;
 use App\Models\User;
 use App\Services\CredentialGenerator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -145,9 +146,9 @@ class StudentController extends Controller
     /**
      * Daftar kelas master yang dipakai dropdown form Tambah/Edit Siswa.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, Classroom>
+     * @return Collection<int, Classroom>
      */
-    private function masterClasses(): \Illuminate\Database\Eloquent\Collection
+    private function masterClasses(): Collection
     {
         return Classroom::query()->orderBy('name')->get();
     }

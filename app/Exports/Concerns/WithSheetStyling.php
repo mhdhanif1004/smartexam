@@ -2,7 +2,6 @@
 
 namespace App\Exports\Concerns;
 
-use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -71,7 +70,5 @@ trait WithSheetStyling
     /**
      * Hook tambahan setelah styling dasar (bisa dioverride subclass).
      */
-    protected function afterSheetStyling(Worksheet $sheet): void
-    {
-    }
+    protected function afterSheetStyling(Worksheet $sheet): void {}
 }

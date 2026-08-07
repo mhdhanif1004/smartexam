@@ -101,6 +101,23 @@ class ExamScheduleController extends Controller
         return redirect()->route('admin.exam-schedules.index')->with('success', 'Jadwal ujian berhasil dihapus.');
     }
 
+    public function bulkDelete(Request $request): RedirectResponse
+    {
+        $ids = collect($request->input('ids', []))
+            ->filter(fn ($id) => filter_var($id, FILTER_VALIDATE_INT))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return back()->with('error', 'Pilih minimal satu jadwal untuk dihapus.');
+        }
+
+        $deleted = ExamSchedule::query()->whereIn('id', $ids)->delete();
+
+        return back()->with('success', "{$deleted} jadwal ujian berhasil dihapus.");
+    }
+
     /**
      * @return array<string, mixed>
      */

@@ -10,7 +10,7 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class StudentsFailedImportExport implements FromArray, WithColumnFormatting, WithEvents, WithHeadings, WithTitle
+class QuestionsFailedImportExport implements FromArray, WithColumnFormatting, WithEvents, WithHeadings, WithTitle
 {
     use WithSheetStyling;
 
@@ -29,9 +29,9 @@ class StudentsFailedImportExport implements FromArray, WithColumnFormatting, Wit
 
             return [
                 $invalidRow['row'],
-                $data['nisn'] ?? '-',
-                $data['name'] ?? '-',
-                $data['class_name'] ?? '-',
+                $data['subject'] ?? '-',
+                $data['type'] ?? '-',
+                $data['question_text'] ?? '-',
                 implode(' ', $invalidRow['errors']),
             ];
         }, $this->invalidRows);
@@ -42,7 +42,7 @@ class StudentsFailedImportExport implements FromArray, WithColumnFormatting, Wit
      */
     public function headings(): array
     {
-        return ['Baris', 'NISN', 'Nama', 'Kelas', 'Keterangan'];
+        return ['Baris', 'Mata Pelajaran', 'Jenis', 'Pertanyaan', 'Keterangan'];
     }
 
     public function title(): string
@@ -57,7 +57,6 @@ class StudentsFailedImportExport implements FromArray, WithColumnFormatting, Wit
     {
         return [
             'A' => '0',
-            'B' => '@',
         ];
     }
 

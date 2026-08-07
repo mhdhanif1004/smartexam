@@ -12,7 +12,7 @@ use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 
-class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithColumnFormatting, WithColumnWidths, WithEvents
+class StudentsExport implements FromCollection, WithColumnFormatting, WithColumnWidths, WithEvents, WithHeadings, WithMapping
 {
     use WithSheetStyling;
 
