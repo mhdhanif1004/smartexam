@@ -312,7 +312,7 @@ class AdminCrudTest extends TestCase
             'score_weight' => 10,
             'single_options' => ['A' => 'X', 'B' => '', 'C' => '', 'D' => ''],
             'single_answer' => 'A',
-        ])->assertSessionHasErrors('options');
+        ])->assertSessionHasErrors('single_options');
     }
 
     public function test_admin_can_update_and_delete_question(): void

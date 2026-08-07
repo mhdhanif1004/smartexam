@@ -68,6 +68,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::resource('exam-schedules', ExamScheduleController::class)->except(['show']);
 
         Route::resource('questions', QuestionController::class)->except(['show']);
+        Route::post('questions/bulk-delete', [QuestionController::class, 'bulkDelete'])->name('questions.bulk-delete');
 
         Route::get('/users/{user}/plain-password', [PlainPasswordController::class, 'show'])->name('users.plain-password');
 

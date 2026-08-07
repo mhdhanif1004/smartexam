@@ -56,6 +56,27 @@ class Question extends Model
         return $this->belongsTo(Subject::class);
     }
 
+    /**
+     * Pasangan menjodohkan dari kolom options, dalam bentuk baris-baris
+     * berpasangan agar mudah dipakai ulang oleh form Edit.
+     *
+     * @return array<int, array{left: string, right: string}>
+     */
+    public function matchingPairs(): array
+    {
+        $left = collect($this->options['left'] ?? []);
+        $right = collect($this->options['right'] ?? []);
+
+        return collect(range(0, max($left->count(), $right->count()) - 1))
+            ->map(fn (int $index) => [
+                'left' => (string) ($left[$index] ?? ''),
+                'right' => (string) ($right[$index] ?? ''),
+            ])
+            ->filter(fn (array $pair) => $pair['left'] !== '' || $pair['right'] !== '')
+            ->values()
+            ->all();
+    }
+
     public function examAnswers(): HasMany
     {
         return $this->hasMany(ExamAnswer::class);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreQuestionRequest;
 use App\Http\Requests\Admin\UpdateQuestionRequest;
+use App\Models\ExamAnswer;
 use App\Models\Question;
 use App\Models\Subject;
 use Illuminate\Http\RedirectResponse;
@@ -66,9 +67,53 @@ class QuestionController extends Controller
 
     public function destroy(Question $question): RedirectResponse
     {
+        if ($this->questionAlreadyAnswered($question->id)) {
+            return back()->with('error', 'Soal ini sudah pernah dijawab oleh peserta pada ujian sebelumnya dan tidak bisa dihapus.');
+        }
+
         $question->delete();
 
         return redirect()->route('admin.questions.index')->with('success', 'Soal berhasil dihapus.');
+    }
+
+    public function bulkDelete(Request $request): RedirectResponse
+    {
+        $ids = collect($request->input('ids', []))
+            ->filter(fn ($id) => filter_var($id, FILTER_VALIDATE_INT))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return back()->with('error', 'Pilih minimal satu soal untuk dihapus.');
+        }
+
+        $usedByAnswers = ExamAnswer::query()
+            ->whereIn('question_id', $ids)
+            ->distinct()
+            ->pluck('question_id');
+
+        if ($usedByAnswers->isNotEmpty()) {
+            $labels = $usedByAnswers->map(fn (int $id) => 'soal #'.$id)->implode(', ');
+
+            return back()->with('error', "{$labels} sudah pernah dijawab oleh peserta pada ujian sebelumnya dan tidak bisa dihapus.");
+        }
+
+        $deleted = Question::query()->whereIn('id', $ids)->delete();
+
+        return back()->with('success', "{$deleted} soal berhasil dihapus.");
+    }
+
+    /**
+     * Soal tidak memiliki relasi langsung ke jadwal ujian (exam_schedules
+     * terhubung lewat subject_id), sehingga "sedang dipakai di jadwal aktif"
+     * tidak bisa dicek per soal. Sebagai pengganti, soal yang sudah tercatat
+     * jawabannya oleh peserta mana pun tidak boleh dihapus agar arsip nilai
+     * ujian tidak rusak.
+     */
+    private function questionAlreadyAnswered(int $questionId): bool
+    {
+        return ExamAnswer::query()->where('question_id', $questionId)->exists();
     }
 
     /**
@@ -127,9 +172,8 @@ class QuestionController extends Controller
     private function cleanOptions(array $options): array
     {
         return collect($options)
-            ->filter(fn ($value) => filled($value))
+            ->filter(fn ($value) => $value !== null && trim((string) $value) !== '')
             ->mapWithKeys(fn ($value, $key) => [(string) $key => trim((string) $value)])
-            ->filter(fn ($value) => $value !== '')
             ->all();
     }
 
