@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AttendanceController as AdminAttendanceController;
 use App\Http\Controllers\Admin\ClassroomController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ExamScheduleController;
@@ -15,7 +16,7 @@ use App\Http\Controllers\Admin\SubjectController;
 use App\Http\Controllers\Admin\SupervisorController;
 use App\Http\Controllers\Admin\SupervisorImportExportController;
 use App\Http\Controllers\Admin\ViolationController;
-use App\Http\Controllers\Pengawas\AttendanceController;
+use App\Http\Controllers\Pengawas\AttendanceController as PengawasAttendanceController;
 use App\Http\Controllers\Pengawas\DashboardController as PengawasDashboardController;
 use App\Http\Controllers\Pengawas\TokenController as PengawasTokenController;
 use App\Http\Controllers\Pengawas\ViolationController as PengawasViolationController;
@@ -91,6 +92,8 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
             Route::post('/print', 'print')->name('print');
         });
 
+        Route::resource('attendance', AdminAttendanceController::class)->only(['index'])->names('attendance');
+
         Route::controller(ReportController::class)->prefix('reports')->name('reports.')->group(function () {
             Route::get('/results', 'index')->name('index');
             Route::get('/results/export-excel', 'exportExcel')->name('export-excel');
@@ -110,7 +113,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
             Route::patch('/{violation}/handle', 'handle')->name('handle');
         });
 
-        Route::controller(AttendanceController::class)->prefix('attendance')->name('attendance.')->group(function () {
+        Route::controller(PengawasAttendanceController::class)->prefix('attendance')->name('attendance.')->group(function () {
             Route::get('/', 'index')->name('index');
             Route::patch('/{schedule}/confirm', 'confirm')->name('confirm');
             Route::post('/', 'update')->name('update');

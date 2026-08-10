@@ -84,7 +84,7 @@
                 <div class="flex-1">
                     <label for="class" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Pilih Kelas</label>
                     <select name="class" id="class" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
-                        <option value="">-- Pilih Kelas --</option>
+                        <option value="" @selected($selectedClass === '' || $selectedClass === 'all')>Semua Kelas</option>
                         @foreach ($classes as $class)
                             <option value="{{ $class }}" @selected($selectedClass === $class)>{{ $class }}</option>
                         @endforeach
@@ -104,7 +104,7 @@
                     <div x-data="{ selectAll: false }" class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <div class="flex flex-col gap-3 border-b border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
                             <p class="text-sm text-gray-600 dark:text-gray-400">
-                                Menampilkan <strong>{{ $students->count() }}</strong> siswa kelas <strong>{{ $selectedClass }}</strong>. Centang siswa lalu cetak kartunya.
+                                Menampilkan <strong>{{ $students->count() }}</strong> siswa {{ $selectedClass === 'all' ? 'dari semua kelas' : 'kelas <strong>' . $selectedClass . '</strong>' }}. Centang siswa lalu cetak kartunya.
                             </p>
                             <div class="flex flex-wrap items-center gap-3">
                                 <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">

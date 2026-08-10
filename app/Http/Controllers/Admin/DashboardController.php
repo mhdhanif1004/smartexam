@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ExamResult;
 use App\Models\ExamSchedule;
+use App\Models\ExamSession;
 use App\Models\Question;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Supervisor;
+use App\Models\SupervisorAttendance;
 use App\Models\Violation;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
@@ -57,6 +59,37 @@ class DashboardController extends Controller
             }
         }
 
+        $today = Carbon::today();
+        $tomorrow = $today->copy()->addDay();
+
+        $todaySchedules = ExamSchedule::query()
+            ->whereDate('exam_date', '>=', $today)
+            ->whereDate('exam_date', '<', $tomorrow)
+            ->get();
+
+        $presentCount = 0;
+        $absentCount = 0;
+
+        foreach ($todaySchedules as $schedule) {
+            $sessions = ExamSession::query()
+                ->where('exam_schedule_id', $schedule->id)
+                ->get();
+
+            foreach ($sessions as $session) {
+                if ($session->attendance_confirmed) {
+                    $presentCount++;
+                } else {
+                    $absentCount++;
+                }
+            }
+        }
+
+        $recentSupervisorAttendances = SupervisorAttendance::query()
+            ->with(['supervisor.user', 'examSchedule.subject', 'room'])
+            ->latest('checked_in_at')
+            ->take(5)
+            ->get();
+
         return view('admin.dashboard', [
             'totalStudents' => Student::count(),
             'totalSupervisors' => Supervisor::count(),
@@ -80,6 +113,9 @@ class DashboardController extends Controller
                 ->latest('occurred_at')
                 ->take(5)
                 ->get(),
+            'attendancePresentCount' => $presentCount,
+            'attendanceAbsentCount' => $absentCount,
+            'recentSupervisorAttendances' => $recentSupervisorAttendances,
         ]);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Database\Factories\ExamScheduleFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -43,6 +44,55 @@ class ExamSchedule extends Model
         return [
             'exam_date' => 'date',
         ];
+    }
+
+    protected $appends = ['current_status'];
+
+    public function getCurrentStatusAttribute(): string
+    {
+        $now = now();
+        $examDateTime = Carbon::parse($this->exam_date->format('Y-m-d').' '.$this->start_time);
+        $endDateTime = $examDateTime->copy()->addMinutes($this->duration_minutes);
+
+        if ($now->lt($examDateTime)) {
+            return self::STATUS_SCHEDULED;
+        }
+
+        if ($now->gte($examDateTime) && $now->lt($endDateTime)) {
+            return self::STATUS_ONGOING;
+        }
+
+        return self::STATUS_FINISHED;
+    }
+
+    public function isStatusOutdated(): bool
+    {
+        return $this->status !== $this->current_status;
+    }
+
+    public function syncStatusIfNeeded(): void
+    {
+        $current = $this->current_status;
+
+        if ($this->status !== $current) {
+            $this->updateQuietly(['status' => $current]);
+        }
+    }
+
+    public static function syncAllStatuses(): int
+    {
+        $updated = 0;
+
+        self::chunkById(100, function ($schedules) use (&$updated) {
+            foreach ($schedules as $schedule) {
+                if ($schedule->isStatusOutdated()) {
+                    $schedule->updateQuietly(['status' => $schedule->current_status]);
+                    $updated++;
+                }
+            }
+        });
+
+        return $updated;
     }
 
     public function subject(): BelongsTo

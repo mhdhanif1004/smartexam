@@ -70,6 +70,8 @@ class ExamScheduleController extends Controller
 
     public function edit(ExamSchedule $examSchedule): View
     {
+        $examSchedule->syncStatusIfNeeded();
+
         $data = $this->formOptions();
         $data['examSchedule'] = $examSchedule;
 

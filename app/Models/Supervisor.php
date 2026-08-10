@@ -6,6 +6,7 @@ use Database\Factories\SupervisorFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Supervisor extends Model
 {
@@ -25,5 +26,10 @@ class Supervisor extends Model
     public function room(): BelongsTo
     {
         return $this->belongsTo(Room::class);
+    }
+
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(SupervisorAttendance::class);
     }
 }

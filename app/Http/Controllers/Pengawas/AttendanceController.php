@@ -34,6 +34,8 @@ class AttendanceController extends Controller
      */
     public function confirm(Request $request, ExamSchedule $schedule): JsonResponse
     {
+        $schedule->syncStatusIfNeeded();
+
         $room = $this->supervisorRoom();
         $ongoing = $this->currentSchedule($room, $schedule->id);
 
@@ -82,6 +84,8 @@ class AttendanceController extends Controller
         $schedule = $this->currentSchedule($room, $request->integer('schedule') ?: null);
 
         abort_if($schedule === null, 404, 'Tidak ada sesi ujian yang sedang berlangsung di ruangan Anda.');
+
+        $schedule->syncStatusIfNeeded();
 
         $validator = Validator::make($request->all(), [
             'attendance' => ['required', 'array'],
