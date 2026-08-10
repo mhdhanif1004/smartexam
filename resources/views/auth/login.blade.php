@@ -1,26 +1,23 @@
 <x-guest-layout title="Login" :full="true">
-    <main class="flex-grow flex flex-col md:flex-row items-stretch">
-        <!-- Illustration -->
-        <section
-            class="hidden md:flex flex-1 relative bg-surface-container-low items-center justify-center overflow-hidden">
-            <div class="absolute inset-0 opacity-20 pointer-events-none">
-                <div
-                    class="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-secondary-container rounded-full blur-[120px]">
-                </div>
-                <div
-                    class="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-primary-container opacity-30 rounded-full blur-[100px]">
-                </div>
-            </div>
-            <div class="relative z-10 w-full h-full max-h-[80%] flex items-center justify-center p-xl">
-                <img alt="SmartExam CBT Illustration" class="max-w-full max-h-full object-contain drop-shadow-xl"
-                    src="{{ asset('images/cbt-illustration.svg') }}">
-            </div>
+    <main class="min-h-screen flex flex-col md:flex-row">
+        <!-- Panel Kiri: Gambar Ilustrasi (~48%) -->
+        <section class="hidden md:block md:w-[48%] h-screen relative overflow-hidden" aria-hidden="true">
+            <img
+                src="{{ asset('images/login-illustration-baru.jpg') }}"
+                alt="Ilustrasi siswa menuju sekolah SmartExam"
+                class="w-full h-full object-cover object-center-top"
+                loading="eager"
+            >
+            <!-- Overlay transisi halus ke panel kanan (background surface) -->
+            <div class="absolute inset-y-0 right-0 w-32 pointer-events-none bg-gradient-to-r from-transparent to-[rgb(var(--color-surface))]" aria-hidden="true"></div>
+            <!-- Subtle separator line -->
+            <div class="absolute right-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-outline/30 to-transparent" aria-hidden="true"></div>
         </section>
 
-        <!-- Form -->
-        <section class="flex-1 flex flex-col items-center justify-center p-lg md:p-xl bg-surface">
-            <div class="w-full max-w-md flex flex-col items-center text-center">
-                <div class="mb-xl flex flex-col items-center">
+        <!-- Panel Kanan: Form Login (~52%) -->
+        <section class="flex-1 flex flex-col items-center justify-center bg-surface p-lg md:p-xl">
+            <div class="w-full max-w-md">
+                <div class="mb-xl flex flex-col items-center text-center">
                     <img alt="SmartExam Logo" class="w-24 h-24 mb-md object-contain"
                         src="{{ asset('images/logo1.png') }}">
                     <h1 class="font-headline-lg text-headline-lg text-primary tracking-tight">SmartExam</h1>
@@ -28,7 +25,7 @@
                         Berbasis Website</p>
                 </div>
 
-                <div class="w-full bg-surface-container-lowest border border-outline-variant p-lg rounded-xl shadow-sm">
+                <div class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm p-lg md:p-xl">
                     <!-- Session Status -->
                     <x-auth-session-status class="mb-4" :status="session('status')" />
 
@@ -117,5 +114,4 @@
             </div>
         </section>
     </main>
-
 </x-guest-layout>
