@@ -31,4 +31,9 @@ class Room extends Model
     {
         return $this->hasMany(ExamSchedule::class);
     }
+
+    public function roomAssignments(): HasMany
+    {
+        return $this->hasMany(ExamRoomAssignment::class);
+    }
 }

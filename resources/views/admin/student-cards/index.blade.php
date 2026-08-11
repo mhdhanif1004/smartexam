@@ -156,11 +156,20 @@
                                     </div>
                                     <div class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
                                         <span class="rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-700/60 dark:text-gray-400">{{ $student->class_name }}</span>
-                                        @if ($student->room)
-                                            <span class="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">{{ $student->room->name }}</span>
+                                        @php
+                                            $assignments = $roomAssignments[$student->id] ?? collect();
+                                            $assignmentRoom = $assignments->isNotEmpty()
+                                                ? $assignments->first()->room?->name
+                                                : $student->room?->name;
+                                            $assignmentSessions = $assignments->isNotEmpty()
+                                                ? $assignments->map(fn ($a) => $a->examPeriod?->name)->filter()->unique()->values()->implode(', ')
+                                                : ($student->room && ! empty($sessionNamesByRoom[$student->room->id]) ? $sessionNamesByRoom[$student->room->id] : '');
+                                        @endphp
+                                        @if ($assignmentRoom)
+                                            <span class="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">{{ $assignmentRoom }}</span>
                                         @endif
-                                        @if ($student->room && !empty($sessionNamesByRoom[$student->room->id]))
-                                            <span class="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">{{ $sessionNamesByRoom[$student->room->id] }}</span>
+                                        @if ($assignmentSessions)
+                                            <span class="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">{{ $assignmentSessions }}</span>
                                         @endif
                                     </div>
                                 </label>

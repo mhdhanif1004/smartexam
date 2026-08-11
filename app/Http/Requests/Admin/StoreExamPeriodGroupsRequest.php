@@ -24,7 +24,8 @@ class StoreExamPeriodGroupsRequest extends FormRequest
         $classNames = $this->classes();
 
         return [
-            'class_name' => ['required', 'string', 'max:100', Rule::in($classNames)],
+            'class_names' => ['required', 'array', 'min:1'],
+            'class_names.*' => ['required', 'string', 'max:100', Rule::in($classNames)],
             'rooms' => ['required', 'array', 'min:1'],
             'rooms.*' => ['integer', Rule::exists('rooms', 'id')],
             'subjects' => ['required', 'array', 'min:1'],
@@ -104,7 +105,8 @@ class StoreExamPeriodGroupsRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'class_name' => 'kelas',
+            'class_names' => 'kelas',
+            'class_names.*' => 'kelas',
             'rooms' => 'ruangan',
             'subjects' => 'mata pelajaran',
             'subjects.*.subject_id' => 'mata pelajaran',

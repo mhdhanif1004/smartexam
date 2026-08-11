@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreExamPeriodGroupsRequest;
 use App\Http\Requests\Admin\StoreExamPeriodRequest;
 use App\Models\ExamPeriod;
+use App\Models\ExamRoomAssignment;
 use App\Models\ExamSchedule;
 use App\Models\Room;
 use App\Models\Student;
@@ -76,11 +77,15 @@ class ExamPeriodController extends Controller
     {
         $roomIds = array_map('intval', $request->input('rooms'));
         $subjectRows = $request->input('subjects');
-        $className = $request->input('class_name');
+        $classNames = collect($request->input('class_names'))
+            ->map(fn ($name) => (string) $name)
+            ->values()
+            ->all();
+        $className = implode(', ', $classNames);
         $examDate = $examPeriod->exam_date->toDateString();
         $created = 0;
 
-        DB::transaction(function () use ($roomIds, $subjectRows, $className, $examDate, $examPeriod, &$created): void {
+        DB::transaction(function () use ($roomIds, $subjectRows, $className, $classNames, $examDate, $examPeriod, &$created): void {
             $rooms = Room::query()->whereIn('id', $roomIds)->get()->keyBy('id');
             $subjects = Subject::query()
                 ->whereIn('id', collect($subjectRows)->pluck('subject_id'))
@@ -154,6 +159,8 @@ class ExamPeriodController extends Controller
                     $created++;
                 }
             }
+
+            $this->placeStudentsIntoRooms($examPeriod, $roomIds, $classNames);
         });
 
         return redirect()->route('admin.exam-periods.show', $examPeriod)
@@ -175,5 +182,92 @@ class ExamPeriodController extends Controller
         $end = $endMinutes % 1440;
 
         return sprintf('%02d:%02d–%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60, intdiv($end, 60), $end % 60);
+    }
+
+    /**
+     * Penempatan otomatis siswa ke ruangan untuk satu sesi ujian.
+     *
+     * Kelas diproses sesuai urutan pemilihan; siswa di dalam tiap kelas
+     * diurutkan alfabetis berdasarkan nama. Ruangan diurutkan ascending
+     * berdasarkan nama dan diisi sequential: ruangan pertama penuh dulu,
+     * lalu lanjut ke ruangan berikutnya (boleh ada campuran ekor kelas A dan
+     * awal kelas B dalam satu ruangan). Nomor kursi dihitung ulang dari 1 di
+     * tiap ruangan. Dipanggil di dalam transaksi yang sama dengan pembuatan
+     * ExamSchedule sehingga kegagalan membatalkan seluruhnya (all-or-nothing).
+     *
+     * @param  array<int, int>  $roomIds
+     * @param  array<int, string>  $classNames
+     */
+    private function placeStudentsIntoRooms(ExamPeriod $examPeriod, array $roomIds, array $classNames): void
+    {
+        $rooms = Room::query()
+            ->whereIn('id', $roomIds)
+            ->orderBy('name')
+            ->get();
+
+        $students = [];
+        foreach ($classNames as $className) {
+            $students = array_merge(
+                $students,
+                Student::query()
+                    ->join('users', 'users.id', '=', 'students.user_id')
+                    ->where('students.class_name', $className)
+                    ->orderBy('users.name')
+                    ->orderBy('students.nisn')
+                    ->select('students.*')
+                    ->get()
+                    ->all()
+            );
+        }
+
+        $placedStudentIds = array_map(fn (Student $student) => $student->id, $students);
+
+        $alreadyPlaced = ExamRoomAssignment::query()
+            ->where('exam_period_id', $examPeriod->id)
+            ->whereIn('student_id', $placedStudentIds)
+            ->count();
+
+        if ($alreadyPlaced > 0) {
+            throw ValidationException::withMessages([
+                'class_names' => "{$alreadyPlaced} siswa dari kelas terpilih sudah memiliki penempatan ruangan pada sesi ini.",
+            ]);
+        }
+
+        $totalStudents = count($students);
+        $totalCapacity = $rooms->sum('capacity');
+
+        if ($totalStudents > $totalCapacity) {
+            throw ValidationException::withMessages([
+                'rooms' => "Kapasitas ruangan tidak mencukupi: {$totalStudents} siswa akan ditempatkan, tetapi total kapasitas ruangan terpilih hanya {$totalCapacity} kursi.",
+            ]);
+        }
+
+        $assignments = [];
+        $roomIndex = 0;
+        $seat = 0;
+
+        foreach ($students as $student) {
+            while ($roomIndex < $rooms->count() && $seat >= $rooms[$roomIndex]->capacity) {
+                $roomIndex++;
+                $seat = 0;
+            }
+
+            if ($roomIndex >= $rooms->count()) {
+                break;
+            }
+
+            $seat++;
+
+            $assignments[] = [
+                'exam_period_id' => $examPeriod->id,
+                'student_id' => $student->id,
+                'room_id' => $rooms[$roomIndex]->id,
+                'seat_number' => $seat,
+            ];
+        }
+
+        if ($assignments !== []) {
+            ExamRoomAssignment::insert($assignments);
+        }
     }
 }

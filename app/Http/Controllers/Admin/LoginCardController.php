@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\CardSetting;
+use App\Models\ExamPeriod;
+use App\Models\ExamRoomAssignment;
 use App\Models\ExamSchedule;
 use App\Models\Room;
 use App\Models\Student;
@@ -65,6 +67,7 @@ class LoginCardController extends Controller
         }
 
         $sessionNamesByRoom = $type === 'pengawas' ? [] : $this->sessionNamesByRoom($students);
+        $roomAssignments = $type === 'pengawas' ? collect() : $this->roomAssignmentsByStudent($students);
 
         return view('admin.student-cards.index', compact(
             'type',
@@ -75,6 +78,7 @@ class LoginCardController extends Controller
             'supervisors',
             'selectedRoom',
             'sessionNamesByRoom',
+            'roomAssignments',
         ));
     }
 
@@ -91,8 +95,9 @@ class LoginCardController extends Controller
 
         $students = $this->resolveStudents($request);
         $sessionNamesByRoom = $this->sessionNamesByRoom($students);
+        $roomAssignments = $this->roomAssignmentsByStudent($students);
 
-        return view('admin.student-cards.preview', compact('students', 'setting', 'tanggalCetak', 'sessionNamesByRoom'));
+        return view('admin.student-cards.preview', compact('students', 'setting', 'tanggalCetak', 'sessionNamesByRoom', 'roomAssignments'));
     }
 
     public function print(Request $request): Response
@@ -111,8 +116,9 @@ class LoginCardController extends Controller
 
         $students = $this->resolveStudents($request);
         $sessionNamesByRoom = $this->sessionNamesByRoom($students);
+        $roomAssignments = $this->roomAssignmentsByStudent($students);
 
-        $pdf = Pdf::loadView('admin.student-cards.print', compact('students', 'setting', 'tanggalCetak', 'sessionNamesByRoom'))
+        $pdf = Pdf::loadView('admin.student-cards.print', compact('students', 'setting', 'tanggalCetak', 'sessionNamesByRoom', 'roomAssignments'))
             ->setPaper('a4', 'portrait');
 
         return $pdf->download('kartu-login-peserta.pdf');
@@ -205,5 +211,34 @@ class LoginCardController extends Controller
                 return [(int) $roomId => $names->implode(', ')];
             })
             ->all();
+    }
+
+    /**
+     * Peta student_id => koleksi penempatan ruangan (ExamRoomAssignment) siswa,
+     * lengkap dengan ruangan dan sesi (ExamPeriod), diurutkan berdasarkan sesi
+     * (tanggal & jam mulai) lalu nama ruangan. Sumber kebenaran penempatan
+     * siswa untuk Kartu Login adalah tabel exam_room_assignments, bukan
+     * kolom students.room_id (asumsi lama).
+     *
+     * @param  Collection<int, Student>  $students
+     * @return \Illuminate\Support\Collection<int, \Illuminate\Support\Collection<int, ExamRoomAssignment>>
+     */
+    private function roomAssignmentsByStudent(Collection $students): \Illuminate\Support\Collection
+    {
+        $studentIds = $students->pluck('id')->all();
+
+        if ($studentIds === []) {
+            return collect();
+        }
+
+        return ExamRoomAssignment::query()
+            ->with(['room', 'examPeriod'])
+            ->join('exam_periods', 'exam_periods.id', '=', 'exam_room_assignments.exam_period_id')
+            ->whereIn('exam_room_assignments.student_id', $studentIds)
+            ->orderBy('exam_periods.exam_date')
+            ->orderBy('exam_periods.start_time')
+            ->orderBy('exam_room_assignments.room_id')
+            ->get(['exam_room_assignments.*'])
+            ->groupBy('student_id');
     }
 }

@@ -30,6 +30,7 @@ class ExamSessionBulkCreateTest extends TestCase
 
         $this->admin = User::factory()->admin()->create();
         Student::factory()->create(['class_name' => 'XI RPL 1']);
+        Student::factory()->create(['class_name' => 'XII RPL 1']);
 
         $this->subjectA = Subject::factory()->create(['name' => 'Matematika']);
         $this->subjectB = Subject::factory()->create(['name' => 'B. Indonesia']);
@@ -51,7 +52,7 @@ class ExamSessionBulkCreateTest extends TestCase
     private function payload(array $overrides = []): array
     {
         return array_merge([
-            'class_name' => 'XI RPL 1',
+            'class_names' => ['XI RPL 1'],
             'rooms' => [1],
             'subjects' => [
                 ['subject_id' => $this->subjectA->id, 'start_time' => '07:30', 'duration_minutes' => 70],
@@ -171,7 +172,7 @@ class ExamSessionBulkCreateTest extends TestCase
 
         $this->actingAs($this->admin)
             ->post(route('admin.exam-periods.groups.store', $this->period), $this->payload([
-                'class_name' => 'XI RPL 1',
+                'class_names' => ['XI RPL 1'],
                 'rooms' => [$roomA->id],
                 'subjects' => [
                     ['subject_id' => $this->subjectA->id, 'start_time' => '07:30', 'duration_minutes' => 60],
@@ -181,7 +182,7 @@ class ExamSessionBulkCreateTest extends TestCase
 
         $this->actingAs($this->admin)
             ->post(route('admin.exam-periods.groups.store', $this->period), $this->payload([
-                'class_name' => 'XI RPL 1',
+                'class_names' => ['XII RPL 1'],
                 'rooms' => [$roomB->id],
                 'subjects' => [
                     ['subject_id' => $this->subjectB->id, 'start_time' => '07:30', 'duration_minutes' => 60],

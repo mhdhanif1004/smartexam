@@ -20,6 +20,25 @@
     $sessionNamesByRoom = $sessionNamesByRoom ?? [];
     $sessions = $student->room ? ($sessionNamesByRoom[$student->room->id] ?? '-') : '-';
 
+    // Penempatan ruangan siswa dari exam_room_assignments (sumber kebenaran
+    // baru), peta student_id => koleksi assignment. Bila belum ada penempatan
+    // (data lama), fallback ke kolom students.room_id seperti sebelumnya.
+    $roomAssignments = $roomAssignments ?? collect();
+    $assignments = $roomAssignments[$student->id] ?? collect();
+
+    $sessionNames = $assignments
+        ->map(fn ($assignment) => $assignment->examPeriod?->name)
+        ->filter()
+        ->unique()
+        ->values();
+
+    if ($sessionNames->isNotEmpty()) {
+        $sessions = $sessionNames->implode(', ');
+    }
+
+    $assignmentRooms = $assignments->map(fn ($assignment) => $assignment->room?->name ?? '-');
+    $assignmentSeats = $assignments->map(fn ($assignment) => $assignment->seat_number);
+
     // Gelar (token berakhiran titik) dilem dengan non-breaking space agar tidak
     // turun ke baris berikutnya; nama tetap bisa wrap di antara kata biasa.
     $nbsp = "\u{00A0}";
@@ -76,7 +95,25 @@
         </tr>
         <tr>
             <td class="lbl">Ruangan</td>
-            <td class="val">{{ $student->room?->name ?? '-' }}</td>
+            <td class="val">
+                @forelse ($assignmentRooms as $assignmentRoom)
+                    @unless ($loop->first)<br>@endunless
+                    {{ $assignmentRoom }}
+                @empty
+                    {{ $student->room?->name ?? '-' }}
+                @endforelse
+            </td>
+        </tr>
+        <tr>
+            <td class="lbl">No. Kursi</td>
+            <td class="val">
+                @forelse ($assignmentSeats as $assignmentSeat)
+                    @unless ($loop->first)<br>@endunless
+                    {{ $assignmentSeat }}
+                @empty
+                    -
+                @endforelse
+            </td>
         </tr>
         <tr>
             <td class="lbl">Sesi</td>
