@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AttendanceController as AdminAttendanceController;
+use App\Http\Controllers\Admin\CardSettingsController;
 use App\Http\Controllers\Admin\ClassroomController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ExamScheduleController;
@@ -90,6 +91,11 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
             Route::get('/', 'index')->name('index');
             Route::post('/preview', 'preview')->name('preview');
             Route::post('/print', 'print')->name('print');
+        });
+
+        Route::controller(CardSettingsController::class)->prefix('card-settings')->name('card-settings.')->group(function () {
+            Route::get('/', 'edit')->name('edit');
+            Route::put('/', 'update')->name('update');
         });
 
         Route::resource('attendance', AdminAttendanceController::class)->only(['index'])->names('attendance');

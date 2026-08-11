@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Student extends Model
 {
+    public const SHIFTS = ['Shift 1', 'Shift 2', 'Shift 3'];
+
     /** @use HasFactory<StudentFactory> */
     use HasFactory;
 
@@ -18,6 +20,7 @@ class Student extends Model
         'nisn',
         'class_name',
         'room_id',
+        'shift',
     ];
 
     public function user(): BelongsTo

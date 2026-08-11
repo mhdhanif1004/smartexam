@@ -39,8 +39,9 @@ class RoomController extends Controller
     {
         $validated = $request->validated();
         $studentIds = $this->studentIds($request->input('student_ids'));
+        $shift = $validated['shift'] ?? null;
 
-        $room = DB::transaction(function () use ($validated, $studentIds) {
+        $room = DB::transaction(function () use ($validated, $studentIds, $shift) {
             $this->assertStudentsAllowed($studentIds, null);
 
             $room = Room::create([
@@ -49,7 +50,10 @@ class RoomController extends Controller
             ]);
 
             if ($studentIds !== []) {
-                Student::query()->whereIn('id', $studentIds)->update(['room_id' => $room->id]);
+                Student::query()->whereIn('id', $studentIds)->update([
+                    'room_id' => $room->id,
+                    'shift' => $shift,
+                ]);
             }
 
             $this->assignSupervisor($validated['supervisor_id'] ?? null, $room);
@@ -69,8 +73,9 @@ class RoomController extends Controller
     {
         $validated = $request->validated();
         $studentIds = $this->studentIds($request->input('student_ids'));
+        $shift = $validated['shift'] ?? null;
 
-        DB::transaction(function () use ($validated, $studentIds, $room) {
+        DB::transaction(function () use ($validated, $studentIds, $room, $shift) {
             $this->assertStudentsAllowed($studentIds, $room);
 
             $room->update([
@@ -83,7 +88,15 @@ class RoomController extends Controller
                 Student::query()
                     ->whereIn('id', $studentIds)
                     ->whereNull('room_id')
-                    ->update(['room_id' => $room->id]);
+                    ->update(['room_id' => $room->id, 'shift' => $shift]);
+            }
+
+            // Siswa yang tetap berada di ruangan ini diperbarui shift-nya.
+            if ($studentIds !== []) {
+                Student::query()
+                    ->where('room_id', $room->id)
+                    ->whereIn('id', $studentIds)
+                    ->update(['shift' => $shift]);
             }
 
             // Siswa yang tadinya di ruangan ini tetapi tidak dicentang lagi

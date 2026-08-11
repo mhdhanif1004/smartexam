@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\CardSetting;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Supervisor;
@@ -10,6 +11,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 class LoginCardController extends Controller
@@ -42,7 +44,7 @@ class LoginCardController extends Controller
 
             if ($request->filled('class')) {
                 $students = Student::query()
-                    ->with('user')
+                    ->with(['user', 'room'])
                     ->where('class_name', $request->string('class'))
                     ->orderBy('class_name')
                     ->orderBy('nisn')
@@ -52,7 +54,7 @@ class LoginCardController extends Controller
             } else {
                 // Default: show all students from all classes
                 $students = Student::query()
-                    ->with('user')
+                    ->with(['user', 'room'])
                     ->orderBy('class_name')
                     ->orderBy('nisn')
                     ->get();
@@ -74,32 +76,38 @@ class LoginCardController extends Controller
 
     public function preview(Request $request): View
     {
+        $setting = CardSetting::current() ?? new CardSetting;
+        $tanggalCetak = $this->formatTanggalIndonesia(now());
+
         if ($this->isPengawas($request)) {
             $supervisors = $this->resolveSupervisors($request);
 
-            return view('admin.student-cards.print-pengawas', ['supervisors' => $supervisors]);
+            return view('admin.student-cards.preview-pengawas', compact('supervisors', 'setting', 'tanggalCetak'));
         }
 
         $students = $this->resolveStudents($request);
 
-        return view('admin.student-cards.print', ['students' => $students]);
+        return view('admin.student-cards.preview', compact('students', 'setting', 'tanggalCetak'));
     }
 
     public function print(Request $request): Response
     {
+        $setting = CardSetting::current() ?? new CardSetting;
+        $tanggalCetak = $this->formatTanggalIndonesia(now());
+
         if ($this->isPengawas($request)) {
             $supervisors = $this->resolveSupervisors($request);
 
-            $pdf = Pdf::loadView('admin.student-cards.print-pengawas', ['supervisors' => $supervisors])
-                ->setPaper('a4', 'landscape');
+            $pdf = Pdf::loadView('admin.student-cards.print-pengawas', compact('supervisors', 'setting', 'tanggalCetak'))
+                ->setPaper('a4', 'portrait');
 
             return $pdf->download('kartu-login-pengawas.pdf');
         }
 
         $students = $this->resolveStudents($request);
 
-        $pdf = Pdf::loadView('admin.student-cards.print', ['students' => $students])
-            ->setPaper('a4', 'landscape');
+        $pdf = Pdf::loadView('admin.student-cards.print', compact('students', 'setting', 'tanggalCetak'))
+            ->setPaper('a4', 'portrait');
 
         return $pdf->download('kartu-login-peserta.pdf');
     }
@@ -107,6 +115,16 @@ class LoginCardController extends Controller
     private function isPengawas(Request $request): bool
     {
         return $request->string('type')->toString() === 'pengawas';
+    }
+
+    private function formatTanggalIndonesia(Carbon $date): string
+    {
+        $bulan = [
+            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+        ];
+
+        return $date->format('j').' '.$bulan[$date->month - 1].' '.$date->year;
     }
 
     /**
@@ -122,7 +140,7 @@ class LoginCardController extends Controller
         ]);
 
         return Student::query()
-            ->with('user')
+            ->with(['user', 'room'])
             ->whereIn('id', $validated['student_ids'])
             ->orderBy('class_name')
             ->orderBy('nisn')
