@@ -29,7 +29,7 @@ class DashboardController extends Controller
         $activeSchedule = null;
 
         foreach ($schedules as $schedule) {
-            $schedule->setAttribute('live_status', $this->liveStatus($schedule));
+            $schedule->setAttribute('live_status', $schedule->computedStatus());
 
             if ($schedule->live_status === ExamSchedule::STATUS_ONGOING) {
                 $scheduleStats[$schedule->id] = $this->scheduleStats($schedule);
@@ -45,24 +45,6 @@ class DashboardController extends Controller
             'students' => $activeSchedule !== null ? $this->participants($activeSchedule) : collect(),
             'recentViolations' => $this->roomViolations($room, 5),
         ]);
-    }
-
-    /**
-     * Status tampilan jadwal berdasarkan waktu saat ini.
-     */
-    protected function liveStatus(ExamSchedule $schedule): string
-    {
-        $now = now()->format('H:i:s');
-
-        if ($now < $schedule->start_time) {
-            return ExamSchedule::STATUS_SCHEDULED;
-        }
-
-        if ($now <= $schedule->end_time) {
-            return ExamSchedule::STATUS_ONGOING;
-        }
-
-        return ExamSchedule::STATUS_FINISHED;
     }
 
     /**

@@ -18,20 +18,21 @@ class TokenController extends Controller
     public function index(Request $request): View
     {
         $room = $this->supervisorRoom();
-        $schedules = $this->ongoingSchedules($room);
-        $schedule = $this->currentSchedule($room, $request->integer('schedule') ?: null);
+        $schedules = $this->windowSchedules($room, 5);
+        $schedule = $this->currentSchedule($room, $request->integer('schedule') ?: null, 5);
         $students = $schedule !== null ? $this->participants($schedule) : collect();
         $token = $schedule !== null ? $this->activeToken($schedule->id) : null;
+        $upcomingSchedules = $this->upcomingSchedules($room, 5);
 
-        return view('pengawas.tokens.index', compact('room', 'schedules', 'schedule', 'students', 'token'));
+        return view('pengawas.tokens.index', compact('room', 'schedules', 'schedule', 'students', 'token', 'upcomingSchedules'));
     }
 
     public function generate(Request $request): RedirectResponse
     {
         $room = $this->supervisorRoom();
-        $schedule = $this->currentSchedule($room, $request->integer('schedule') ?: null);
+        $schedule = $this->currentSchedule($room, $request->integer('schedule') ?: null, 5);
 
-        abort_if($schedule === null, 404, 'Tidak ada sesi ujian yang sedang berlangsung di ruangan Anda.');
+        abort_if($schedule === null, 404, 'Tidak ada sesi ujian yang sedang dalam jendela token di ruangan Anda.');
 
         ExamToken::where('exam_schedule_id', $schedule->id)->delete();
 

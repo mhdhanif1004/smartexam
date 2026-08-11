@@ -9,7 +9,18 @@
 
         @if ($schedule === null)
             <div class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada sesi ujian yang sedang berlangsung di ruangan Anda.</p>
+                @if ($upcomingSchedules->isEmpty())
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada sesi ujian yang sedang dalam jendela token di ruangan Anda.</p>
+                @else
+                    <p class="text-sm font-semibold text-gray-700 dark:text-gray-300">Belum ada sesi ujian dalam jendela token.</p>
+                    <ul class="mx-auto mt-3 max-w-lg space-y-2 text-sm text-gray-500 dark:text-gray-400">
+                        @foreach ($upcomingSchedules as $item)
+                            <li>
+                                Token untuk <strong>{{ $item->subject?->name }}</strong> akan tersedia mulai pukul <strong>{{ $item->window_start }}</strong> (5 menit sebelum ujian dimulai).
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
             </div>
         @else
             @if ($schedules->count() > 1)
@@ -44,6 +55,13 @@
                         </button>
                     </form>
                 </div>
+
+                @if ($schedule->computedStatus() === \App\Models\ExamSchedule::STATUS_SCHEDULED)
+                    <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+                        Token tersedia. Ujian resmi dimulai pukul
+                        <strong>{{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }}</strong>.
+                    </div>
+                @endif
 
                 @if ($token)
                     <div class="mt-5 rounded-xl bg-indigo-50 p-5 text-center dark:bg-indigo-500/10">

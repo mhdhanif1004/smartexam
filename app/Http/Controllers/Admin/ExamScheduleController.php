@@ -33,7 +33,7 @@ class ExamScheduleController extends Controller
                         });
                 });
             })
-            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
+            ->when($request->filled('status'), fn ($query) => $query->whereComputedStatus($request->string('status')))
             ->orderBy('exam_date', 'desc')
             ->orderBy('start_time')
             ->paginate(10)

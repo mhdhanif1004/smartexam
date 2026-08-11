@@ -91,6 +91,10 @@ class ExamController extends Controller
             return redirect()->route('peserta.exams.work', $this->schedule->id);
         }
 
+        if (! $this->subjectHasActiveQuestions()) {
+            return back()->with('error', 'Belum ada soal tersedia untuk ujian ini. Silakan hubungi pengawas/admin.');
+        }
+
         $tokenCode = strtoupper(trim((string) $request->string('token_code')));
 
         $token = ExamToken::query()
@@ -152,6 +156,11 @@ class ExamController extends Controller
             ->keyBy('question_id')
             ->map(fn (ExamAnswer $answer) => $answer->student_answer);
 
+        $doubtfulQuestions = $session->examAnswers()
+            ->where('is_doubtful', true)
+            ->pluck('question_id')
+            ->mapWithKeys(fn (int $id) => [$id => true]);
+
         $deadline = $this->deadline($session)->timestamp;
 
         return view('peserta.exams.work', [
@@ -159,6 +168,7 @@ class ExamController extends Controller
             'session' => $session,
             'questionsData' => $questionsData,
             'savedAnswers' => $savedAnswers,
+            'doubtfulQuestions' => $doubtfulQuestions,
             'deadline' => $deadline,
         ]);
     }
@@ -197,6 +207,72 @@ class ExamController extends Controller
         $this->storeAnswers($session, $schedule, (array) $request->input('answers', []));
 
         return response()->json(['ok' => true]);
+    }
+
+    public function toggleDoubtful(Request $request, int $schedule, int $question): JsonResponse
+    {
+        $student = auth()->user()?->student;
+        if (! $student instanceof Student) {
+            return response()->json(['error' => 'Akun ini tidak terdaftar sebagai peserta.'], 403);
+        }
+
+        $schedule = ExamSchedule::query()
+            ->with('subject')
+            ->whereKey($schedule)
+            ->where('room_id', $student->room_id)
+            ->first();
+
+        if ($schedule === null) {
+            return response()->json(['error' => 'Anda tidak memiliki akses ke ujian tersebut.'], 403);
+        }
+
+        $session = $this->firstOrCreateSession($student->id, $schedule->id);
+
+        if (($error = $this->midExamBlock($session)) !== null) {
+            return response()->json(['error' => $error], 403);
+        }
+
+        if ($session->status !== ExamSession::STATUS_IN_PROGRESS || $session->started_at === null) {
+            return response()->json(['error' => 'Sesi ujian belum dimulai.'], 403);
+        }
+
+        if (now()->gt($this->deadline($session, $schedule))) {
+            return response()->json(['expired' => true], 422);
+        }
+
+        $belongsToExam = $schedule->subject->questions()
+            ->where('is_active', true)
+            ->whereKey($question)
+            ->exists();
+
+        if (! $belongsToExam) {
+            return response()->json(['error' => 'Soal tidak tersedia.'], 422);
+        }
+
+        $answer = ExamAnswer::query()
+            ->where('exam_session_id', $session->id)
+            ->where('question_id', $question)
+            ->first();
+
+        if ($answer === null) {
+            ExamAnswer::create([
+                'exam_session_id' => $session->id,
+                'question_id' => $question,
+                'is_doubtful' => true,
+            ]);
+
+            return response()->json(['ok' => true, 'question_id' => $question, 'is_doubtful' => true]);
+        }
+
+        $isDoubtful = ! $answer->is_doubtful;
+
+        if (! $isDoubtful && $answer->student_answer === null) {
+            $answer->delete();
+        } else {
+            $answer->update(['is_doubtful' => $isDoubtful]);
+        }
+
+        return response()->json(['ok' => true, 'question_id' => $question, 'is_doubtful' => $isDoubtful]);
     }
 
     public function status(Request $request, int $schedule): JsonResponse
@@ -277,7 +353,7 @@ class ExamController extends Controller
 
         $result = $session->examResult;
         $workingSeconds = (int) $session->finished_at->diffInSeconds($session->started_at);
-        $answeredCount = $session->examAnswers()->count();
+        $answeredCount = $session->examAnswers()->whereNotNull('student_answer')->count();
 
         return view('peserta.exams.finished', compact('session', 'result', 'workingSeconds', 'answeredCount'));
     }
@@ -311,8 +387,10 @@ class ExamController extends Controller
     }
 
     /**
-     * Periksa waktu ujian: harus hari ini, belum lewat jam mulai, dan belum
-     * melewati jam selesai.
+     * Periksa waktu ujian: harus hari ini, dan jadwal sedang dalam status
+     * 'ongoing' real-time. Peserta hanya boleh MENGERJAKAN saat waktu sudah
+     * masuk rentang resmi start_time s.d. end_time (jendela 10/5 menit di
+     * sisi pengawas TIDAK membuka akses peserta lebih awal).
      */
     private function timingGuard(): ?RedirectResponse
     {
@@ -320,12 +398,12 @@ class ExamController extends Controller
             return $this->deny('Ujian ini tidak dijadwalkan hari ini.');
         }
 
-        if (now()->format('H:i:s') < $this->schedule->start_time) {
-            return $this->deny('Ujian belum waktunya dimulai.');
-        }
+        if ($this->schedule->computedStatus() !== ExamSchedule::STATUS_ONGOING) {
+            $message = $this->schedule->computedStatus() === ExamSchedule::STATUS_SCHEDULED
+                ? 'Ujian belum waktunya dimulai.'
+                : 'Waktu ujian sudah berakhir.';
 
-        if (now()->format('H:i:s') > $this->schedule->end_time) {
-            return $this->deny('Waktu ujian sudah berakhir.');
+            return $this->deny($message);
         }
 
         return null;
@@ -386,6 +464,14 @@ class ExamController extends Controller
         }
 
         return null;
+    }
+
+    private function subjectHasActiveQuestions(): bool
+    {
+        return $this->schedule->subject
+            ?->questions()
+            ->where('is_active', true)
+            ->exists() ?? false;
     }
 
     /**
@@ -463,10 +549,25 @@ class ExamController extends Controller
         }
 
         if ($toDelete !== []) {
+            $doubtfulIds = ExamAnswer::query()
+                ->where('exam_session_id', $session->id)
+                ->whereIn('question_id', $toDelete)
+                ->where('is_doubtful', true)
+                ->pluck('question_id')
+                ->all();
+
             ExamAnswer::query()
                 ->where('exam_session_id', $session->id)
                 ->whereIn('question_id', $toDelete)
+                ->whereNotIn('question_id', $doubtfulIds)
                 ->delete();
+
+            if ($doubtfulIds !== []) {
+                ExamAnswer::query()
+                    ->where('exam_session_id', $session->id)
+                    ->whereIn('question_id', $doubtfulIds)
+                    ->update(['student_answer' => null]);
+            }
         }
     }
 

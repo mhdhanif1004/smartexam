@@ -11,6 +11,7 @@ class ExamAnswer extends Model
         'exam_session_id',
         'question_id',
         'student_answer',
+        'is_doubtful',
         'is_correct',
         'score',
     ];
@@ -19,6 +20,7 @@ class ExamAnswer extends Model
     {
         return [
             'student_answer' => 'array',
+            'is_doubtful' => 'boolean',
             'is_correct' => 'boolean',
             'score' => 'decimal:2',
         ];

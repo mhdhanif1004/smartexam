@@ -54,7 +54,10 @@
                             </div>
                             <div class="text-right">
                                 <p class="text-sm font-semibold text-gray-700 dark:text-gray-300">{{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }}</p>
-                                <x-badge-status :status="$schedule->status" />
+                                @php
+                                    $computedStatus = $schedule->computedStatus();
+                                @endphp
+                                <x-badge-status :status="$computedStatus" :label="\App\Models\ExamSchedule::STATUSES[$computedStatus] ?? $computedStatus" />
                             </div>
                         </li>
                     @empty

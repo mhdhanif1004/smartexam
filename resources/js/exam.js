@@ -12,6 +12,7 @@ export function examApp(config) {
     return {
         questions: config.questions,
         answers: config.answers,
+        doubtful: config.doubtful || {},
         current: 0,
         remaining: Math.max(0, config.deadline - Math.floor(Date.now() / 1000)),
         saving: false,
@@ -183,10 +184,35 @@ export function examApp(config) {
             return this.questions.filter((q) => this.isAnswered(q)).length;
         },
 
+        isDoubtful(q) {
+            return !!this.doubtful[q.id];
+        },
+
+        doubtfulCount() {
+            return this.questions.filter((q) => this.isDoubtful(q)).length;
+        },
+
         questionClass(q) {
             if (this.isAnswered(q)) return 'bg-emerald-600 text-white';
+            if (this.isDoubtful(q)) return 'bg-amber-400 text-amber-950';
             if (q.id === this.questions[this.current]?.id) return 'bg-indigo-600 text-white';
             return 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600';
+        },
+
+        async toggleDoubtful(q) {
+            try {
+                const response = await this.post(config.doubtUrl.replace(':question', q.id), {});
+                if (response.status === 422) {
+                    this.submit(true);
+                    return;
+                }
+                if (response.ok) {
+                    const data = await response.json();
+                    this.doubtful[q.id] = !!data.is_doubtful;
+                }
+            } catch (e) {
+                this.showToast('Gagal menyimpan status ragu-ragu. Coba lagi.');
+            }
         },
 
         goTo(index) {

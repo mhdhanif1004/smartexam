@@ -30,7 +30,6 @@ class AttendanceController extends Controller
             $schedule = ExamSchedule::query()
                 ->with(['subject', 'room'])
                 ->where('room_id', $room->id)
-                ->whereIn('status', [ExamSchedule::STATUS_SCHEDULED, ExamSchedule::STATUS_ONGOING, ExamSchedule::STATUS_FINISHED])
                 ->where('exam_date', '>=', $today)
                 ->where('exam_date', '<', $tomorrow)
                 ->first();

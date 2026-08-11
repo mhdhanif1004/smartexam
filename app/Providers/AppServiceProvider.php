@@ -4,7 +4,6 @@ namespace App\Providers;
 
 use App\Models\ExamSchedule;
 use App\Models\SupervisorAttendance;
-use Carbon\Carbon;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Middleware\RedirectIfAuthenticated;
 use Illuminate\Http\Request;
@@ -46,20 +45,22 @@ class AppServiceProvider extends ServiceProvider
             $now = now();
             $today = $now->copy()->startOfDay();
             $tomorrow = $today->copy()->addDay();
-            $nowTime = $now->format('H:i:s');
 
-            // Gunakan filter WAKTU sebagai filter utama (lebih andal dari kolom status statis)
-            // Ambil semua jadwal hari ini di ruangan pengawas yang statusnya BUKAN finished
+            // Ambil semua jadwal hari ini di ruangan pengawas; status real-time
+            // dihitung via computedStatus() (jangan pakai kolom status statis).
             $todaysSchedules = ExamSchedule::query()
                 ->where('room_id', $supervisor->room_id)
                 ->where('exam_date', '>=', $today)
                 ->where('exam_date', '<', $tomorrow)
-                ->where('status', '!=', ExamSchedule::STATUS_FINISHED)
                 ->get();
 
             foreach ($todaysSchedules as $schedule) {
-                $start = Carbon::parse($schedule->exam_date->format('Y-m-d').' '.$schedule->start_time);
-                $end = $start->copy()->addMinutes($schedule->duration_minutes);
+                if ($schedule->computedStatus() === ExamSchedule::STATUS_FINISHED) {
+                    continue;
+                }
+
+                $start = $schedule->examStart();
+                $end = $schedule->examEnd();
 
                 // Jika pengawas login SEBELUM ujian dimulai, tandai "Hadir" dengan check_in = start_time jadwal
                 // Jika login SAAT ujian berlangsung, gunakan now()

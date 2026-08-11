@@ -70,31 +70,25 @@ class DashboardController extends Controller
             ];
         }
 
-        $now = now()->format('H:i:s');
-
-        if ($now < $schedule->start_time) {
-            return [
+        return match ($schedule->computedStatus()) {
+            ExamSchedule::STATUS_SCHEDULED => [
                 'key' => 'belum_mulai',
                 'label' => 'Belum Mulai',
                 'can_start' => false,
                 'url' => null,
-            ];
-        }
-
-        if ($now <= $schedule->end_time) {
-            return [
+            ],
+            ExamSchedule::STATUS_ONGOING => [
                 'key' => 'bisa_dimulai',
                 'label' => 'Bisa Dimulai',
                 'can_start' => true,
                 'url' => route('peserta.exams.token', $schedule),
-            ];
-        }
-
-        return [
-            'key' => 'terlewat',
-            'label' => 'Waktu Terlewat',
-            'can_start' => false,
-            'url' => null,
-        ];
+            ],
+            default => [
+                'key' => 'terlewat',
+                'label' => 'Waktu Terlewat',
+                'can_start' => false,
+                'url' => null,
+            ],
+        };
     }
 }

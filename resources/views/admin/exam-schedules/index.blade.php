@@ -137,7 +137,10 @@
                                 <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }} - {{ \Illuminate\Support\Str::substr($schedule->end_time, 0, 5) }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $schedule->duration_minutes }} menit</td>
                                 <td class="px-4 py-3 text-sm">
-                                    <x-badge-status :status="$schedule->current_status" />
+                                    @php
+                                        $computedStatus = $schedule->computedStatus();
+                                    @endphp
+                                    <x-badge-status :status="$computedStatus" :label="$statuses[$computedStatus] ?? $computedStatus" />
                                 </td>
                                 <td class="px-4 py-3 text-sm">
                                     <div class="flex items-center gap-2">

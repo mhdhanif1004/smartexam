@@ -22,11 +22,12 @@ class AttendanceController extends Controller
     public function index(Request $request): View
     {
         $room = $this->supervisorRoom();
-        $schedules = $this->ongoingSchedules($room);
-        $schedule = $this->currentSchedule($room, $request->integer('schedule') ?: null);
+        $schedules = $this->windowSchedules($room, 10);
+        $schedule = $this->currentSchedule($room, $request->integer('schedule') ?: null, 10);
         $students = $schedule !== null ? $this->attendanceRows($schedule) : collect();
+        $upcomingSchedules = $this->upcomingSchedules($room, 10);
 
-        return view('pengawas.attendance.index', compact('room', 'schedules', 'schedule', 'students'));
+        return view('pengawas.attendance.index', compact('room', 'schedules', 'schedule', 'students', 'upcomingSchedules'));
     }
 
     /**
@@ -37,10 +38,10 @@ class AttendanceController extends Controller
         $schedule->syncStatusIfNeeded();
 
         $room = $this->supervisorRoom();
-        $ongoing = $this->currentSchedule($room, $schedule->id);
+        $ongoing = $this->currentSchedule($room, $schedule->id, 10);
 
         if ($ongoing === null) {
-            return response()->json(['error' => 'Jadwal ujian tidak sedang berlangsung di ruangan Anda.'], 404);
+            return response()->json(['error' => 'Jadwal ujian tidak sedang dalam jendela absensi di ruangan Anda.'], 404);
         }
 
         $validated = $request->validate([
@@ -81,9 +82,9 @@ class AttendanceController extends Controller
     public function update(Request $request): RedirectResponse
     {
         $room = $this->supervisorRoom();
-        $schedule = $this->currentSchedule($room, $request->integer('schedule') ?: null);
+        $schedule = $this->currentSchedule($room, $request->integer('schedule') ?: null, 10);
 
-        abort_if($schedule === null, 404, 'Tidak ada sesi ujian yang sedang berlangsung di ruangan Anda.');
+        abort_if($schedule === null, 404, 'Tidak ada sesi ujian yang sedang dalam jendela absensi di ruangan Anda.');
 
         $schedule->syncStatusIfNeeded();
 

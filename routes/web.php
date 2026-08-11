@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AttendanceController as AdminAttendanceController;
 use App\Http\Controllers\Admin\ClassroomController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\ExamPeriodController;
 use App\Http\Controllers\Admin\ExamScheduleController;
 use App\Http\Controllers\Admin\LoginCardController;
 use App\Http\Controllers\Admin\PlainPasswordController;
@@ -70,6 +71,10 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::resource('exam-schedules', ExamScheduleController::class)->except(['show']);
         Route::post('exam-schedules/bulk-delete', [ExamScheduleController::class, 'bulkDelete'])->name('exam-schedules.bulk-delete');
 
+        Route::resource('exam-periods', ExamPeriodController::class)->except(['edit', 'update']);
+        Route::get('exam-periods/{examPeriod}/groups/create', [ExamPeriodController::class, 'groupsCreate'])->name('exam-periods.groups.create');
+        Route::post('exam-periods/{examPeriod}/groups', [ExamPeriodController::class, 'groupsStore'])->name('exam-periods.groups.store');
+
         Route::resource('questions', QuestionController::class)->except(['show']);
         Route::post('questions/bulk-delete', [QuestionController::class, 'bulkDelete'])->name('questions.bulk-delete');
         Route::post('questions/bulk-edit', [QuestionController::class, 'bulkEdit'])->name('questions.bulk-edit');
@@ -134,6 +139,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
             Route::get('/{schedule}/work', 'work')->name('work');
             Route::get('/{schedule}/status', 'status')->name('status');
             Route::post('/{schedule}/save-answer', 'saveAnswer')->name('save-answer');
+            Route::post('/{schedule}/questions/{question}/toggle-doubtful', 'toggleDoubtful')->name('questions.toggle-doubtful');
             Route::post('/{schedule}/submit', 'submit')->name('submit');
             Route::get('/{schedule}/finished', 'finished')->name('finished');
         });

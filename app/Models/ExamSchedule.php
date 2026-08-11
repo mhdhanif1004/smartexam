@@ -31,6 +31,7 @@ class ExamSchedule extends Model
     protected $fillable = [
         'subject_id',
         'room_id',
+        'exam_period_id',
         'class_name',
         'exam_date',
         'start_time',
@@ -48,31 +49,91 @@ class ExamSchedule extends Model
 
     protected $appends = ['current_status'];
 
-    public function getCurrentStatusAttribute(): string
+    /**
+     * Status yang dihitung REAL-TIME berdasarkan waktu sekarang (Carbon::now())
+     * dibandingkan dengan exam_date + start_time dan exam_date + end_time,
+     * BUKAN dari kolom status yang tersimpan statis di database.
+     */
+    public function computedStatus(): string
     {
-        $now = now();
-        $examDateTime = Carbon::parse($this->exam_date->format('Y-m-d').' '.$this->start_time);
-        $endDateTime = $examDateTime->copy()->addMinutes($this->duration_minutes);
+        $now = Carbon::now();
 
-        if ($now->lt($examDateTime)) {
+        if ($now->lt($this->examStart())) {
             return self::STATUS_SCHEDULED;
         }
 
-        if ($now->gte($examDateTime) && $now->lt($endDateTime)) {
+        if ($now->lt($this->examEnd())) {
             return self::STATUS_ONGOING;
         }
 
         return self::STATUS_FINISHED;
     }
 
+    /**
+     * Jendela absensi pengawas: terbuka 10 menit sebelum ujian dimulai dan
+     * menutup saat waktu selesai (inklusif), sesuai exam_date + start_time/end_time.
+     */
+    public function isAttendanceWindowOpen(): bool
+    {
+        return $this->windowOpen(10);
+    }
+
+    /**
+     * Jendela token ujian: tersedia 5 menit sebelum ujian dimulai dan
+     * menutup saat waktu selesai (inklusif).
+     */
+    public function isTokenWindowOpen(): bool
+    {
+        return $this->windowOpen(5);
+    }
+
+    /**
+     * Apakah waktu sekarang berada dalam jendela [start_time - earlyMinutes, end_time].
+     */
+    public function windowOpen(int $earlyMinutes = 0): bool
+    {
+        $now = Carbon::now();
+
+        return $now->gte($this->windowOpensAt($earlyMinutes)) && $now->lte($this->examEnd());
+    }
+
+    /**
+     * Datetime penuh mulai ujian = exam_date + start_time.
+     */
+    public function examStart(): Carbon
+    {
+        return Carbon::parse($this->exam_date->format('Y-m-d').' '.$this->start_time);
+    }
+
+    /**
+     * Datetime penuh selesai ujian = exam_date + end_time.
+     */
+    public function examEnd(): Carbon
+    {
+        return Carbon::parse($this->exam_date->format('Y-m-d').' '.$this->end_time);
+    }
+
+    /**
+     * Datetime jendela dibuka = exam_date + start_time - earlyMinutes.
+     */
+    public function windowOpensAt(int $earlyMinutes = 0): Carbon
+    {
+        return $this->examStart()->subMinutes($earlyMinutes);
+    }
+
+    public function getCurrentStatusAttribute(): string
+    {
+        return $this->computedStatus();
+    }
+
     public function isStatusOutdated(): bool
     {
-        return $this->status !== $this->current_status;
+        return $this->status !== $this->computedStatus();
     }
 
     public function syncStatusIfNeeded(): void
     {
-        $current = $this->current_status;
+        $current = $this->computedStatus();
 
         if ($this->status !== $current) {
             $this->updateQuietly(['status' => $current]);
@@ -86,13 +147,44 @@ class ExamSchedule extends Model
         self::chunkById(100, function ($schedules) use (&$updated) {
             foreach ($schedules as $schedule) {
                 if ($schedule->isStatusOutdated()) {
-                    $schedule->updateQuietly(['status' => $schedule->current_status]);
+                    $schedule->updateQuietly(['status' => $schedule->computedStatus()]);
                     $updated++;
                 }
             }
         });
 
         return $updated;
+    }
+
+    /**
+     * Filter jadwal berdasarkan computedStatus() real-time di level database,
+     * tanpa bergantung pada kolom status statis.
+     */
+    public function scopeWhereComputedStatus(Builder $query, string $status): Builder
+    {
+        $today = now()->toDateString();
+        $time = now()->format('H:i:s');
+
+        return match ($status) {
+            self::STATUS_SCHEDULED => $query->where(function (Builder $q) use ($today, $time) {
+                $q->whereDate('exam_date', '>', $today)
+                    ->orWhere(function (Builder $q) use ($today, $time) {
+                        $q->whereDate('exam_date', $today)
+                            ->whereTime('start_time', '>', $time);
+                    });
+            }),
+            self::STATUS_ONGOING => $query->whereDate('exam_date', $today)
+                ->whereTime('start_time', '<=', $time)
+                ->whereTime('end_time', '>', $time),
+            self::STATUS_FINISHED => $query->where(function (Builder $q) use ($today, $time) {
+                $q->whereDate('exam_date', '<', $today)
+                    ->orWhere(function (Builder $q) use ($today, $time) {
+                        $q->whereDate('exam_date', $today)
+                            ->whereTime('end_time', '<=', $time);
+                    });
+            }),
+            default => $query,
+        };
     }
 
     public function subject(): BelongsTo
@@ -103,6 +195,11 @@ class ExamSchedule extends Model
     public function room(): BelongsTo
     {
         return $this->belongsTo(Room::class);
+    }
+
+    public function examPeriod(): BelongsTo
+    {
+        return $this->belongsTo(ExamPeriod::class);
     }
 
     public function examTokens(): HasMany
@@ -139,5 +236,88 @@ class ExamSchedule extends Model
     public function scopeForParticipant(Builder $query, int $studentId): Builder
     {
         return $query->whereHas('room.students', fn ($students) => $students->whereKey($studentId));
+    }
+
+    /**
+     * Rentang waktu jadwal dalam menit sejak tengah malam (0-1439 dst).
+     * Menggunakan duration_minutes sebagai sumber kebenaran, bukan kolom
+     * end_time yang tersimpan, supaya konsisten dengan perhitungan start_time
+     * + duration di controller. Jadwal yang melewati tengah malam (end <= start)
+     * otomatis ditambah 1440 menit sehingga urutannya benar.
+     *
+     * @return array{0: int, 1: int}
+     */
+    public function timeWindowMinutes(): array
+    {
+        [$hour, $minute] = array_map('intval', explode(':', (string) $this->start_time));
+        $start = $hour * 60 + $minute;
+
+        if ($this->duration_minutes !== null && (int) $this->duration_minutes > 0) {
+            $end = $start + (int) $this->duration_minutes;
+        } else {
+            [$endHour, $endMinute] = array_map('intval', explode(':', (string) $this->end_time));
+            $end = $endHour * 60 + $endMinute;
+        }
+
+        return [$start, $end <= $start ? $end + 1440 : $end];
+    }
+
+    /**
+     * Cari jadwal lain di ruangan dan tanggal yang sama yang waktunya bentrok
+     * dengan rentang [startMinutes, endMinutes). Mengembalikan jadwal pertama
+     * yang bentrok, atau null bila aman. Memakai rumus interval standar:
+     * overlap = start_baru < end_lama AND end_baru > start_lama.
+     * Bila suatu saat ada status "batal", jadwal tersebut tidak dihitung.
+     */
+    public static function findConflicting(
+        int $roomId,
+        string $examDate,
+        int $startMinutes,
+        int $endMinutes,
+        ?int $excludeId = null,
+    ): ?ExamSchedule {
+        return self::query()
+            ->with('subject')
+            ->where('room_id', $roomId)
+            ->whereDate('exam_date', $examDate)
+            ->when($excludeId !== null, fn ($query) => $query->where('id', '!=', $excludeId))
+            ->when(in_array('cancelled', array_keys(self::STATUSES), true), fn ($query) => $query->where('status', '!=', 'cancelled'))
+            ->get()
+            ->first(function (ExamSchedule $existing) use ($startMinutes, $endMinutes) {
+                [$existingStart, $existingEnd] = $existing->timeWindowMinutes();
+
+                if ($startMinutes < $existingEnd && $endMinutes > $existingStart) {
+                    return true;
+                }
+
+                // Bila jadwal lama melewati tengah malam, bagian 00:00–waktu
+                // selesai jatuh pada hari berikutnya; cek bagian terbungkus itu.
+                if ($existingEnd > 1440) {
+                    $wrappedEnd = $existingEnd - 1440;
+
+                    return $startMinutes < $wrappedEnd;
+                }
+
+                return false;
+            });
+    }
+
+    /**
+     * Label waktu mulai (H:i) untuk pesan konflik.
+     */
+    public function startLabel(): string
+    {
+        return Carbon::parse((string) $this->start_time)->format('H:i');
+    }
+
+    /**
+     * Label waktu selesai (H:i) untuk pesan konflik, dihitung dari rentang
+     * menit agar konsisten dengan durasi (termasuk saat melewati tengah malam).
+     */
+    public function endLabel(): string
+    {
+        $end = $this->timeWindowMinutes()[1] % 1440;
+
+        return sprintf('%02d:%02d', intdiv($end, 60), $end % 60);
     }
 }

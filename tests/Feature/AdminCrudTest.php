@@ -183,6 +183,7 @@ class AdminCrudTest extends TestCase
     public function test_admin_can_create_exam_schedule(): void
     {
         $subject = Subject::factory()->create();
+        Question::factory()->create(['subject_id' => $subject->id]);
         $room = Room::factory()->create();
 
         $this->actingAs($this->admin)->post('/admin/exam-schedules', [
@@ -205,6 +206,7 @@ class AdminCrudTest extends TestCase
     public function test_exam_schedule_cannot_pass_midnight(): void
     {
         $subject = Subject::factory()->create();
+        Question::factory()->create(['subject_id' => $subject->id]);
         $room = Room::factory()->create();
 
         $this->actingAs($this->admin)->from(route('admin.exam-schedules.create'))->post('/admin/exam-schedules', [

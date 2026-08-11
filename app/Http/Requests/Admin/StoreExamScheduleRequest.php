@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin;
 
 use App\Models\ExamSchedule;
+use App\Models\Subject;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -45,27 +46,47 @@ class StoreExamScheduleRequest extends FormRequest
                     $validator->errors()->add('duration_minutes', 'Waktu selesai ujian melebihi pukul 24:00. Periksa kembali durasi.');
                 }
 
-                $this->validateNoRoomConflict($validator, $start, $end);
+                $this->validateNoRoomConflict($validator, $start);
+                $this->validateSubjectHasActiveQuestions($validator);
             },
         ];
     }
 
-    private function validateNoRoomConflict(Validator $validator, Carbon $start, Carbon $end): void
+    private function validateSubjectHasActiveQuestions(Validator $validator): void
     {
-        $roomId = (int) $this->input('room_id');
-        $examDate = (string) $this->input('exam_date');
+        $subject = Subject::query()->withCount(['questions as active_count' => fn ($query) => $query->where('is_active', true)])
+            ->find((int) $this->input('subject_id'));
 
-        $conflict = ExamSchedule::query()
-            ->where('room_id', $roomId)
-            ->where('exam_date', $examDate)
-            ->where(function ($query) use ($start, $end) {
-                $query->where('start_time', '<', $end->format('H:i:s'))
-                    ->where('end_time', '>', $start->format('H:i:s'));
-            })
-            ->exists();
-
-        if ($conflict) {
-            $validator->errors()->add('room_id', 'Ruangan ini sudah dipakai jadwal ujian lain pada waktu yang bertabrakan.');
+        if ($subject === null || (int) $subject->active_count === 0) {
+            $validator->errors()->add('subject_id', 'Mata pelajaran ini belum memiliki soal aktif. Tambahkan soal terlebih dahulu di Bank Soal sebelum membuat jadwal.');
         }
+    }
+
+    private function validateNoRoomConflict(Validator $validator, Carbon $start): void
+    {
+        $startMinutes = (int) $start->format('H') * 60 + (int) $start->format('i');
+        $endMinutes = $startMinutes + (int) $this->input('duration_minutes');
+
+        $conflict = ExamSchedule::findConflicting(
+            roomId: (int) $this->input('room_id'),
+            examDate: (string) $this->input('exam_date'),
+            startMinutes: $startMinutes,
+            endMinutes: $endMinutes,
+        );
+
+        if ($conflict !== null) {
+            $validator->errors()->add('room_id', $this->conflictMessage($conflict));
+        }
+    }
+
+    private function conflictMessage(ExamSchedule $conflict): string
+    {
+        return 'Ruangan ini bentrok dengan ujian '
+            .($conflict->subject?->name ?? 'tanpa nama')
+            .' pukul '
+            .$conflict->startLabel()
+            .'–'
+            .$conflict->endLabel()
+            .'.';
     }
 }

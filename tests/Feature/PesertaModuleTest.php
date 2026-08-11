@@ -96,6 +96,15 @@ class PesertaModuleTest extends TestCase
         ]);
     }
 
+    private function scheduleForSubjectWithoutQuestions(): ExamSchedule
+    {
+        $emptySubject = Subject::factory()->create();
+        $schedule = $this->scheduleToday('XI RPL 1', '08:30:00', '10:30:00');
+        $schedule->update(['subject_id' => $emptySubject->id]);
+
+        return $schedule;
+    }
+
     public function test_dashboard_lists_only_own_class_today_exams(): void
     {
         $other = Subject::factory()->create(['name' => 'Fisika']);
@@ -166,6 +175,7 @@ class PesertaModuleTest extends TestCase
     public function test_valid_token_starts_session(): void
     {
         $this->confirmAttendance();
+        Question::factory()->create(['subject_id' => $this->subject->id]);
         $token = $this->validToken($this->schedule);
 
         $this->actingAs($this->user)->post(route('peserta.exams.token.validate', $this->schedule->id), [
@@ -177,6 +187,47 @@ class PesertaModuleTest extends TestCase
             'exam_schedule_id' => $this->schedule->id,
             'status' => ExamSession::STATUS_IN_PROGRESS,
         ]);
+    }
+
+    public function test_token_rejected_when_subject_has_no_active_questions(): void
+    {
+        $emptySchedule = $this->scheduleForSubjectWithoutQuestions();
+        $this->validToken($emptySchedule);
+
+        ExamSession::create([
+            'student_id' => $this->student->id,
+            'exam_schedule_id' => $emptySchedule->id,
+            'status' => ExamSession::STATUS_NOT_STARTED,
+            'attendance_confirmed' => true,
+        ]);
+
+        $this->actingAs($this->user)->post(route('peserta.exams.token.validate', $emptySchedule->id), [
+            'token_code' => 'ABC12345',
+        ])->assertRedirect()->assertSessionHas('error');
+
+        $this->assertDatabaseMissing('exam_sessions', [
+            'student_id' => $this->student->id,
+            'exam_schedule_id' => $emptySchedule->id,
+            'status' => ExamSession::STATUS_IN_PROGRESS,
+        ]);
+    }
+
+    public function test_work_page_shows_empty_state_when_subject_has_no_active_questions(): void
+    {
+        $emptySchedule = $this->scheduleForSubjectWithoutQuestions();
+
+        ExamSession::create([
+            'student_id' => $this->student->id,
+            'exam_schedule_id' => $emptySchedule->id,
+            'status' => ExamSession::STATUS_IN_PROGRESS,
+            'started_at' => now(),
+            'attendance_confirmed' => true,
+        ]);
+
+        $this->actingAs($this->user)->get(route('peserta.exams.work', $emptySchedule->id))
+            ->assertOk()
+            ->assertSee('Belum ada soal yang tersedia untuk ujian ini')
+            ->assertDontSee('x-for="(q, index) in questions"');
     }
 
     public function test_token_blocks_student_without_exam_session_record(): void

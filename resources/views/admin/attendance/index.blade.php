@@ -35,7 +35,10 @@
                         {{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }} - {{ \Illuminate\Support\Str::substr($schedule->end_time, 0, 5) }} WIB
                     </p>
                 </div>
-                <x-badge-status :status="$schedule->status" />
+                @php
+                    $computedStatus = $schedule->computedStatus();
+                @endphp
+                <x-badge-status :status="$computedStatus" :label="\App\Models\ExamSchedule::STATUSES[$computedStatus] ?? $computedStatus" />
             </div>
 
             <div class="space-y-6">

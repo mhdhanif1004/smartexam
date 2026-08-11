@@ -24,35 +24,34 @@ trait ScopesSupervisorRoom
     }
 
     /**
-     * Sesi ujian yang sedang berlangsung di ruangan pengawas hari ini.
+     * Sesi ujian hari ini di ruangan pengawas yang sedang berada dalam jendela
+     * waktu tertentu (jendela absensi/token). Filter murni berbasis WAKTU
+     * real-time via ExamSchedule::windowOpen(), bukan kolom status statis.
      *
      * @return Collection<int, ExamSchedule>
      */
-    protected function ongoingSchedules(Room $room): Collection
+    protected function windowSchedules(Room $room, int $earlyMinutes): Collection
     {
-        $now = now();
-        $today = $now->copy()->startOfDay();
-        $tomorrow = $today->copy()->addDay();
+        $today = now()->startOfDay();
 
         return ExamSchedule::query()
             ->with(['subject', 'room'])
             ->where('room_id', $room->id)
-            ->whereIn('status', [ExamSchedule::STATUS_SCHEDULED, ExamSchedule::STATUS_ONGOING])
             ->where('exam_date', '>=', $today)
-            ->where('exam_date', '<', $tomorrow)
+            ->where('exam_date', '<', $today->copy()->addDay())
             ->orderBy('start_time')
             ->get()
-            ->filter(fn (ExamSchedule $schedule) => $schedule->status === ExamSchedule::STATUS_ONGOING
-                || ($now->format('H:i:s') >= $schedule->start_time && $now->format('H:i:s') <= $schedule->end_time))
+            ->filter(fn (ExamSchedule $schedule) => $schedule->windowOpen($earlyMinutes))
             ->values();
     }
 
     /**
-     * Sesi yang sedang berjalan untuk halaman absensi/token (dengan pilihan lewat query param).
+     * Sesi yang sedang dalam jendela untuk halaman absensi/token
+     * (dengan pilihan lewat query param).
      */
-    protected function currentSchedule(Room $room, ?int $requestedId = null): ?ExamSchedule
+    protected function currentSchedule(Room $room, ?int $requestedId = null, int $earlyMinutes = 0): ?ExamSchedule
     {
-        $schedules = $this->ongoingSchedules($room);
+        $schedules = $this->windowSchedules($room, $earlyMinutes);
 
         if ($schedules->isEmpty()) {
             return null;
@@ -63,6 +62,34 @@ trait ScopesSupervisorRoom
         }
 
         return $schedules->first();
+    }
+
+    /**
+     * Sesi ujian hari ini di ruangan pengawas yang BELUM masuk jendela
+     * (masih berstatus scheduled real-time). Dipakai untuk menampilkan
+     * informasi "akan aktif mulai pukul HH:MM" kepada pengawas.
+     *
+     * @return Collection<int, ExamSchedule>
+     */
+    protected function upcomingSchedules(Room $room, int $earlyMinutes): Collection
+    {
+        $today = now()->startOfDay();
+
+        return ExamSchedule::query()
+            ->with(['subject', 'room'])
+            ->where('room_id', $room->id)
+            ->where('exam_date', '>=', $today)
+            ->where('exam_date', '<', $today->copy()->addDay())
+            ->orderBy('start_time')
+            ->get()
+            ->filter(fn (ExamSchedule $schedule) => $schedule->computedStatus() === ExamSchedule::STATUS_SCHEDULED
+                && ! $schedule->windowOpen($earlyMinutes))
+            ->map(function (ExamSchedule $schedule) use ($earlyMinutes) {
+                $schedule->setAttribute('window_start', $schedule->windowOpensAt($earlyMinutes)->format('H:i'));
+
+                return $schedule;
+            })
+            ->values();
     }
 
     /**

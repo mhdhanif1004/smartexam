@@ -9,7 +9,18 @@
 
         @if ($schedule === null)
             <div class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada sesi ujian yang sedang berlangsung di ruangan Anda.</p>
+                @if ($upcomingSchedules->isEmpty())
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada sesi ujian yang sedang dalam jendela absensi di ruangan Anda.</p>
+                @else
+                    <p class="text-sm font-semibold text-gray-700 dark:text-gray-300">Belum ada sesi ujian dalam jendela absensi.</p>
+                    <ul class="mx-auto mt-3 max-w-lg space-y-2 text-sm text-gray-500 dark:text-gray-400">
+                        @foreach ($upcomingSchedules as $item)
+                            <li>
+                                Absensi untuk <strong>{{ $item->subject?->name }}</strong> akan aktif mulai pukul <strong>{{ $item->window_start }}</strong> (10 menit sebelum ujian dimulai).
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
             </div>
         @else
             @if ($schedules->count() > 1)
@@ -25,6 +36,10 @@
                 </form>
             @endif
 
+            @php
+                $earlyWindow = $schedule->computedStatus() === \App\Models\ExamSchedule::STATUS_SCHEDULED;
+            @endphp
+
             <div class="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-gray-800 dark:bg-gray-900">
                 <div>
                     <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ $schedule->subject?->name }}</h3>
@@ -33,8 +48,15 @@
                         {{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }} - {{ \Illuminate\Support\Str::substr($schedule->end_time, 0, 5) }} WIB
                     </p>
                 </div>
-                <x-badge-status :status="'berlangsung'" label="Sedang Berlangsung" />
+                <x-badge-status :status="$earlyWindow ? 'belum_mulai' : 'berlangsung'" :label="$earlyWindow ? 'Jendela Absensi' : 'Sedang Berlangsung'" />
             </div>
+
+            @if ($earlyWindow)
+                <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+                    Jendela absensi telah dibuka (10 menit sebelum ujian). Ujian resmi dimulai pukul
+                    <strong>{{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }}</strong>.
+                </div>
+            @endif
 
             <x-table :headers="['No', 'NISN', 'Nama Peserta', 'Kelas', 'Kehadiran']">
                 @foreach ($students as $index => $student)
