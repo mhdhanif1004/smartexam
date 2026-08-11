@@ -5,6 +5,7 @@
     $buttonLabel = $isEdit ? 'Perbarui' : 'Simpan';
     $currentRoomName = $isEdit ? $room->name : '';
     $assignedSet = array_flip($assigned->pluck('id')->all());
+    $defaultShift = $isEdit ? $assigned->pluck('shift')->first() : null;
     $allStudents = $assigned->concat($available)
         ->sortBy(fn ($student) => $student->class_name.'|'.$student->nisn)
         ->values();
@@ -72,6 +73,17 @@
         </div>
 
         <div class="mt-4 flex flex-col gap-3 sm:flex-row">
+            <div class="sm:w-56">
+                <label for="shift" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Shift Ujian</label>
+                <select id="shift" name="shift" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                    <option value="">-- Pilih Shift --</option>
+                    @foreach (\App\Models\Student::SHIFTS as $shift)
+                        <option value="{{ $shift }}" @selected(old('shift', $defaultShift) === $shift)>{{ $shift }}</option>
+                    @endforeach
+                </select>
+                <x-input-error :messages="$errors->get('shift')" class="mt-2" />
+                <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Berlaku untuk semua siswa yang ditempatkan di ruangan ini.</p>
+            </div>
             <div class="sm:w-56">
                 <label for="class-filter" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Filter Kelas</label>
                 <select id="class-filter" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">

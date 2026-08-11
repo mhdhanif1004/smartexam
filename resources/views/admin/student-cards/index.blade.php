@@ -22,6 +22,27 @@
             </a>
         </div>
 
+        <div class="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-gray-800 dark:bg-gray-900">
+            <div class="flex items-center gap-3">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-500/10">
+                    <svg class="h-5 w-5 text-indigo-600 dark:text-indigo-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+                    </svg>
+                </span>
+                <div>
+                    <p class="text-sm text-gray-700 dark:text-gray-300">
+                        Kartu {{ $type }} dicetak dengan desain bawaan SmartExam: maksimal 6 kartu per halaman A4.
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        Atur logo, nama sekolah, dan kepala sekolah pada halaman Pengaturan Kartu.
+                    </p>
+                </div>
+            </div>
+            <a href="{{ route('admin.card-settings.edit') }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                Pengaturan Kartu
+            </a>
+        </div>
+
         @if ($type === 'pengawas')
             <form method="GET" action="{{ route('admin.student-cards.index') }}" class="flex flex-col gap-3 lg:flex-row lg:items-end rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <input type="hidden" name="type" value="pengawas">
@@ -133,7 +154,15 @@
                                         <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $student->user?->name }}</p>
                                         <p class="text-xs text-gray-500 dark:text-gray-400">NISN {{ $student->nisn }} &middot; {{ $student->user?->username }}</p>
                                     </div>
-                                    <span class="rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-700/60 dark:text-gray-400">{{ $student->class_name }}</span>
+                                    <div class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                                        <span class="rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-700/60 dark:text-gray-400">{{ $student->class_name }}</span>
+                                        @if ($student->room)
+                                            <span class="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">{{ $student->room->name }}</span>
+                                        @endif
+                                        @if ($student->shift)
+                                            <span class="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">{{ $student->shift }}</span>
+                                        @endif
+                                    </div>
                                 </label>
                             @empty
                                 <p class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada siswa yang dipilih.</p>

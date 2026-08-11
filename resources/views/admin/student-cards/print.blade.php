@@ -2,148 +2,144 @@
 <html lang="id">
 <head>
     <meta charset="utf-8">
-    <title>Kartu Login Peserta - SmartExam</title>
+    <title>Kartu Login Ujian - {{ $setting?->nama_sekolah ?: 'SmartExam' }}</title>
     <style>
         * { box-sizing: border-box; }
+        @page {
+            size: A4;
+            margin: 8mm;
+        }
         body {
             font-family: 'DejaVu Sans', 'Helvetica Neue', Arial, sans-serif;
             color: #111827;
             margin: 0;
-            padding: 20px;
-            font-size: 12px;
+            font-size: 10px;
         }
+
         .print-header {
             text-align: center;
-            margin-bottom: 18px;
-            border-bottom: 2px solid #1d4ed8;
-            padding-bottom: 10px;
+            border-bottom: 0.4mm solid #1d4ed8;
+            padding-bottom: 2mm;
+            margin-bottom: 3mm;
         }
-        .print-header h1 { font-size: 18px; margin: 0; color: #1d4ed8; }
-        .print-header p { margin: 2px 0 0; color: #4b5563; font-size: 11px; }
-        .card-grid { text-align: left; }
+        .print-header h1 { font-size: 15px; margin: 0 0 0.6mm; color: #1d4ed8; }
+        .print-header p { margin: 0; color: #4b5563; font-size: 9px; }
+
+        /* 2 kolom × 3 baris per halaman A4.
+           190mm lebar konten: 92mm + 5mm gutter + 92mm.
+           88mm tinggi baris: kartu 80mm + gap antar baris 8mm.
+           nowrap mencegah kartu kedua turun ke baris berikutnya. */
+        .card-grid { display: block; }
+        .grid-row {
+            height: 88mm;
+            page-break-inside: avoid;
+            white-space: nowrap;
+        }
+
         .card {
             display: inline-block;
             vertical-align: top;
-            width: 32.2%;
-            min-height: 118px;
-            margin: 0 0.5% 12px 0;
-            border: 1.5px solid #1d4ed8;
-            border-radius: 10px;
-            padding: 10px 12px;
-            page-break-inside: avoid;
+            white-space: normal;
+            width: 92mm;
+            height: 80mm;
+            border: 0.4mm solid #1d4ed8;
+            border-radius: 3mm;
+            position: relative;
+            margin-right: 5mm;
         }
+        .grid-row .card + .card { margin-right: 0; }
+        .card-inner { padding: 3mm 3mm 0 3mm; }
+
+        /* Header kartu */
         .card-head {
-            border-bottom: 1px dashed #93c5fd;
-            padding-bottom: 6px;
-            margin-bottom: 8px;
+            border-bottom: 0.3mm dashed #93c5fd;
+            padding-bottom: 1.5mm;
+            margin-bottom: 2.2mm;
         }
-        .card-head .brand-row {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .card-head .brand-row img {
-            height: 16px;
-            width: auto;
-        }
-        .card-head .brand {
-            font-size: 13px;
-            font-weight: bold;
-            color: #1d4ed8;
-        }
-        .card-head .title {
-            margin-top: 1px;
-            font-size: 9px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        .brand-row { width: 100%; border-collapse: collapse; }
+        .brand-row td { vertical-align: middle; }
+        .brand-logo { width: 18mm; }
+        .brand-logo img { height: 9mm; width: auto; max-width: 17mm; object-fit: contain; }
+        .brand-mid { text-align: center; }
+        .brand-school { font-size: 11px; font-weight: bold; color: #1d4ed8; line-height: 1.15; }
+        .brand-title { font-size: 6.5px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; margin-top: 0.5mm; }
+
+        /* Data peserta */
+        .card-data { width: 100%; border-collapse: collapse; }
+        .card-data td { padding: 0 0 2.0mm 0; vertical-align: middle; }
+        .card-data .lbl {
+            width: 24mm;
+            font-size: 8px;
             color: #6b7280;
+            white-space: nowrap;
         }
-        .card-row {
-            margin-bottom: 3px;
-            font-size: 11px;
-            line-height: 1.35;
-        }
-        .card-row .label {
-            display: inline-block;
-            width: 62px;
-            color: #6b7280;
-            font-size: 10px;
-        }
-        .card-row .value {
-            font-weight: bold;
-            color: #111827;
-        }
-        .card-row .value.password {
+        .card-data .val { font-size: 11px; font-weight: bold; color: #111827; }
+        .card-data .val.password {
             font-family: 'DejaVu Sans Mono', monospace;
             letter-spacing: 0.5px;
             background: #eef2ff;
-            padding: 1px 5px;
-            border-radius: 3px;
+            padding: 0.6mm 1.6mm;
+            border-radius: 1.2mm;
+            font-weight: bold;
         }
+
+        /* Footer kartu: tanggal & tanda tangan di kanan */
         .card-foot {
-            margin-top: 7px;
-            border-top: 1px dashed #93c5fd;
-            padding-top: 5px;
-            font-size: 8.5px;
-            color: #6b7280;
+            position: absolute;
+            left: 3mm;
+            right: 3mm;
+            bottom: 2mm;
         }
-        .note {
-            margin-top: 14px;
+        .card-foot .place-date {
+            text-align: right;
+            font-size: 8px;
+            color: #6b7280;
+            margin-bottom: 1.4mm;
+        }
+        .card-foot .sign { text-align: right; padding-top: 1mm; }
+        .card-foot .sign-title { font-size: 8px; color: #374151; margin-bottom: 0.4mm; }
+        .card-foot .sign-name {
+            display: inline-block;
             font-size: 9.5px;
-            color: #6b7280;
-            border-top: 1px solid #d1d5db;
-            padding-top: 8px;
+            font-weight: bold;
+            color: #111827;
+            border-bottom: 0.3mm solid #111827;
+            padding: 0 1.5mm 0.6mm;
+            line-height: 1.1;
+            margin-top: 5.5mm;
         }
+        .card-foot .sign-name.sign-name--long { font-size: 8.5px; }
     </style>
 </head>
 <body>
     <div class="print-header">
-        <h1>SmartExam</h1>
-        <p>Kartu Login Peserta Ujian CBT &middot; Dicetak {{ now()->format('d M Y H:i') }}</p>
+        <h1>{{ $setting?->nama_sekolah ?: 'SmartExam' }}</h1>
+        <p>Kartu Login Ujian CBT &middot; Dicetak {{ $tanggalCetak }} &middot; {{ $students->count() }} peserta</p>
     </div>
 
     <div class="card-grid">
         @php
-            $logoData = base64_encode(file_get_contents(public_path('images/logo.jpg')));
+            // Logo dibaca sekali, bukan per kartu (hemat I/O disk & memori PDF).
+            $logoKiri = $setting?->logoKiriDataUri();
+            $logoKanan = $setting?->logoKananDataUri();
         @endphp
-        @forelse ($students as $student)
-            <div class="card">
-                <div class="card-head">
-                    <div class="brand-row">
-                        <img src="data:image/jpeg;base64,{{ $logoData }}" alt="Logo Sekolah">
-                        <span class="brand">SmartExam</span>
-                    </div>
-                    <div class="title">Kartu Login Peserta Ujian</div>
-                </div>
-                <div class="card-row">
-                    <span class="label">Nama</span>
-                    <span class="value">{{ $student->user?->name ?? '-' }}</span>
-                </div>
-                <div class="card-row">
-                    <span class="label">NISN</span>
-                    <span class="value">{{ $student->nisn }}</span>
-                </div>
-                <div class="card-row">
-                    <span class="label">Kelas</span>
-                    <span class="value">{{ $student->class_name }}</span>
-                </div>
-                <div class="card-row">
-                    <span class="label">Username</span>
-                    <span class="value">{{ $student->user?->username ?? '-' }}</span>
-                </div>
-                <div class="card-row">
-                    <span class="label">Password</span>
-                    <span class="value password">{{ $student->user?->plain_password ?? '-' }}</span>
-                </div>
-                <div class="card-foot">Simpan kartu ini dengan aman. Jangan tunjukkan password kepada orang lain.</div>
-            </div>
-        @empty
-            <p>Tidak ada data siswa untuk dicetak.</p>
-        @endforelse
-    </div>
+        @foreach ($students as $index => $student)
+            @if ($index % 2 === 0)
+                <div class="grid-row">
+            @endif
 
-    <div class="note">
-        Kartu ini berisi kredensial login sistem ujian SmartExam. Harap diserahkan kepada peserta yang bersangkutan dan diminta untuk segera mengganti password setelah login.
+            @include('admin.student-cards.partials.card', [
+                'student' => $student,
+                'setting' => $setting,
+                'tanggalCetak' => $tanggalCetak,
+                'logoKiri' => $logoKiri,
+                'logoKanan' => $logoKanan,
+            ])
+
+            @if ($index % 2 === 1 || $loop->last)
+                </div>
+            @endif
+        @endforeach
     </div>
 </body>
 </html>

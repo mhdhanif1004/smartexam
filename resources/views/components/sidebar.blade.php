@@ -31,6 +31,7 @@
             ['label' => 'Jadwal Ujian', 'route' => 'admin.exam-schedules.index', 'icon' => 'calendar-days'],
             ['label' => 'Sesi Ujian', 'route' => 'admin.exam-periods.index', 'icon' => 'clock'],
             ['label' => 'Kartu Login', 'route' => 'admin.student-cards.index', 'icon' => 'key'],
+            ['label' => 'Pengaturan Kartu', 'route' => 'admin.card-settings.edit', 'icon' => 'document-text'],
             ['label' => 'Absensi', 'route' => 'admin.attendance.index', 'icon' => 'clipboard-check'],
             ['label' => 'Laporan Hasil Ujian', 'route' => 'admin.reports.index', 'icon' => 'chart-bar'],
             ['label' => 'Pelanggaran', 'route' => 'admin.violations.index', 'icon' => 'eye'],
