@@ -159,8 +159,8 @@
                                         @if ($student->room)
                                             <span class="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">{{ $student->room->name }}</span>
                                         @endif
-                                        @if ($student->shift)
-                                            <span class="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">{{ $student->shift }}</span>
+                                        @if ($student->room && !empty($sessionNamesByRoom[$student->room->id]))
+                                            <span class="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">{{ $sessionNamesByRoom[$student->room->id] }}</span>
                                         @endif
                                     </div>
                                 </label>

@@ -5,7 +5,7 @@
             'nisn' => '0123456789',
             'kelas' => 'XI RPL 1',
             'ruangan' => 'Ruang 1',
-            'shift' => 'Shift 1',
+            'sesi' => 'Sesi 1',
             'username' => 'budi0123456789',
             'password' => 'rahasia123',
         ];
@@ -28,7 +28,7 @@
             <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Pengaturan Kartu Login</h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Atur logo, nama sekolah, dan tanda tangan pada kartu login peserta. Isi kartu lainnya (nama, NISN, kelas,
-                ruangan, shift, username, password) memakai data siswa secara otomatis.
+                ruangan, sesi, username, password) memakai data siswa secara otomatis.
             </p>
         </div>
 
@@ -161,7 +161,7 @@
                                     <p><span class="inline-block w-16 text-gray-500">NISN</span> <span class="font-bold" x-text="sample.nisn"></span></p>
                                     <p><span class="inline-block w-16 text-gray-500">Kelas</span> <span class="font-bold" x-text="sample.kelas"></span></p>
                                     <p><span class="inline-block w-16 text-gray-500">Ruangan</span> <span class="font-bold" x-text="sample.ruangan"></span></p>
-                                    <p><span class="inline-block w-16 text-gray-500">Shift</span> <span class="font-bold" x-text="sample.shift"></span></p>
+                                    <p><span class="inline-block w-16 text-gray-500">Sesi</span> <span class="font-bold" x-text="sample.sesi"></span></p>
                                     <p><span class="inline-block w-16 text-gray-500">Username</span> <span class="font-bold" x-text="sample.username"></span></p>
                                     <p><span class="inline-block w-16 text-gray-500">Password</span>
                                         <span class="rounded bg-indigo-50 px-1 font-mono font-bold" x-text="sample.password"></span>

@@ -15,6 +15,11 @@
     $logoKanan = $logoKanan ?? $setting?->logoKananDataUri();
     $placeDate = $tempat ? rtrim(trim($tempat), ',').', '.$tanggalCetak : $tanggalCetak;
 
+    // Nama sesi ujian (ExamPeriod) yang mewadahi jadwal ujian di ruangan siswa.
+    // Dikirim dari controller sebagai peta room_id => "Sesi 1, Sesi 2"; fallback "-".
+    $sessionNamesByRoom = $sessionNamesByRoom ?? [];
+    $sessions = $student->room ? ($sessionNamesByRoom[$student->room->id] ?? '-') : '-';
+
     // Gelar (token berakhiran titik) dilem dengan non-breaking space agar tidak
     // turun ke baris berikutnya; nama tetap bisa wrap di antara kata biasa.
     $nbsp = "\u{00A0}";
@@ -74,8 +79,8 @@
             <td class="val">{{ $student->room?->name ?? '-' }}</td>
         </tr>
         <tr>
-            <td class="lbl">Shift</td>
-            <td class="val">{{ $student->shift ?? '-' }}</td>
+            <td class="lbl">Sesi</td>
+            <td class="val">{{ $sessions }}</td>
         </tr>
         <tr>
             <td class="lbl">Username</td>

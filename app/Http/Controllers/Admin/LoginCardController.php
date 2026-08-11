@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\CardSetting;
+use App\Models\ExamSchedule;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Supervisor;
@@ -63,6 +64,8 @@ class LoginCardController extends Controller
             }
         }
 
+        $sessionNamesByRoom = $type === 'pengawas' ? [] : $this->sessionNamesByRoom($students);
+
         return view('admin.student-cards.index', compact(
             'type',
             'classes',
@@ -71,6 +74,7 @@ class LoginCardController extends Controller
             'rooms',
             'supervisors',
             'selectedRoom',
+            'sessionNamesByRoom',
         ));
     }
 
@@ -86,8 +90,9 @@ class LoginCardController extends Controller
         }
 
         $students = $this->resolveStudents($request);
+        $sessionNamesByRoom = $this->sessionNamesByRoom($students);
 
-        return view('admin.student-cards.preview', compact('students', 'setting', 'tanggalCetak'));
+        return view('admin.student-cards.preview', compact('students', 'setting', 'tanggalCetak', 'sessionNamesByRoom'));
     }
 
     public function print(Request $request): Response
@@ -105,8 +110,9 @@ class LoginCardController extends Controller
         }
 
         $students = $this->resolveStudents($request);
+        $sessionNamesByRoom = $this->sessionNamesByRoom($students);
 
-        $pdf = Pdf::loadView('admin.student-cards.print', compact('students', 'setting', 'tanggalCetak'))
+        $pdf = Pdf::loadView('admin.student-cards.print', compact('students', 'setting', 'tanggalCetak', 'sessionNamesByRoom'))
             ->setPaper('a4', 'portrait');
 
         return $pdf->download('kartu-login-peserta.pdf');
@@ -164,5 +170,40 @@ class LoginCardController extends Controller
             ->whereIn('id', $validated['supervisor_ids'])
             ->orderBy('user_id')
             ->get();
+    }
+
+    /**
+     * Peta room_id => nama sesi ujian (ExamPeriod) yang terhubung melalui
+     * jadwal ujian ruangan tersebut. Beberapa jadwal pada sesi yang sama
+     * dijadikan satu nilai distinct; lebih dari satu sesi dipisahkan koma.
+     * Ruangan tanpa jadwal ber-sesi tidak ikut dalam peta (fallback "-").
+     *
+     * @param  Collection<int, Student>  $students
+     * @return array<int, string>
+     */
+    private function sessionNamesByRoom(Collection $students): array
+    {
+        $roomIds = $students->pluck('room_id')->filter()->unique()->values();
+
+        if ($roomIds->isEmpty()) {
+            return [];
+        }
+
+        return ExamSchedule::query()
+            ->with('examPeriod')
+            ->whereIn('room_id', $roomIds)
+            ->whereNotNull('exam_period_id')
+            ->get()
+            ->groupBy('room_id')
+            ->mapWithKeys(function ($schedules, $roomId) {
+                $names = $schedules
+                    ->map(fn (ExamSchedule $schedule) => $schedule->examPeriod?->name)
+                    ->filter()
+                    ->unique()
+                    ->values();
+
+                return [(int) $roomId => $names->implode(', ')];
+            })
+            ->all();
     }
 }
