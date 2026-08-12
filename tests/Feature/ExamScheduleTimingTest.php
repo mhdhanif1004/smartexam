@@ -230,11 +230,11 @@ class ExamScheduleTimingTest extends TestCase
 
         $this->actingAs($admin)->get(route('admin.exam-schedules.index', ['status' => ExamSchedule::STATUS_FINISHED]))
             ->assertOk()
-            ->assertSee($finished->subject->name);
+            ->assertSee('10 Agustus 2026');
 
         $this->actingAs($admin)->get(route('admin.exam-schedules.index', ['status' => ExamSchedule::STATUS_SCHEDULED]))
             ->assertOk()
-            ->assertDontSee($finished->subject->name);
+            ->assertDontSee('10 Agustus 2026');
     }
 
     public function test_peserta_dashboard_badge_uses_computed_status_not_static_column(): void

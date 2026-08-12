@@ -9,6 +9,7 @@ use App\Models\ExamSchedule;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -18,30 +19,35 @@ class ExamScheduleController extends Controller
 {
     public function index(Request $request): View
     {
-        $schedules = ExamSchedule::query()
-            ->with(['subject', 'room'])
-            ->when($request->filled('search'), function ($query) use ($request) {
-                $search = $request->string('search')->trim();
-                $query->where(function ($builder) use ($search) {
-                    $builder->where('class_name', 'like', "%{$search}%")
-                        ->orWhere('exam_date', 'like', "%{$search}%")
-                        ->orWhereHas('subject', function ($subject) use ($search) {
-                            $subject->where('name', 'like', "%{$search}%");
-                        })
-                        ->orWhereHas('room', function ($room) use ($search) {
-                            $room->where('name', 'like', "%{$search}%");
-                        });
-                });
-            })
-            ->when($request->filled('status'), fn ($query) => $query->whereComputedStatus($request->string('status')))
+        $dates = $this->applySearchFilters(ExamSchedule::query(), $request)
+            ->selectRaw('exam_date, count(*) as total')
+            ->groupBy('exam_date')
             ->orderBy('exam_date', 'desc')
-            ->orderBy('start_time')
             ->paginate(10)
             ->withQueryString();
 
         return view('admin.exam-schedules.index', [
+            'dates' => $dates,
+            'statuses' => ExamSchedule::STATUSES,
+        ]);
+    }
+
+    public function byDate(Request $request): View
+    {
+        $validated = $request->validate([
+            'date' => ['required', 'date'],
+        ]);
+
+        $schedules = $this->schedulesForDate($request, $validated['date'])
+            ->with(['subject', 'room'])
+            ->orderBy('start_time')
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('admin.exam-schedules.by-date', [
             'schedules' => $schedules,
             'statuses' => ExamSchedule::STATUSES,
+            'examDate' => $validated['date'],
         ]);
     }
 
@@ -118,6 +124,29 @@ class ExamScheduleController extends Controller
         $deleted = ExamSchedule::query()->whereIn('id', $ids)->delete();
 
         return back()->with('success', "{$deleted} jadwal ujian berhasil dihapus.");
+    }
+
+    private function schedulesForDate(Request $request, string $date): Builder
+    {
+        return $this->applySearchFilters(
+            ExamSchedule::query()->whereDate('exam_date', $date),
+            $request,
+        );
+    }
+
+    private function applySearchFilters(Builder $query, Request $request): Builder
+    {
+        return $query
+            ->when($request->filled('search'), function (Builder $query) use ($request) {
+                $search = $request->string('search')->trim();
+                $query->where(function (Builder $builder) use ($search) {
+                    $builder->where('class_name', 'like', "%{$search}%")
+                        ->orWhere('exam_date', 'like', "%{$search}%")
+                        ->orWhereHas('subject', fn ($subject) => $subject->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('room', fn ($room) => $room->where('name', 'like', "%{$search}%"));
+                });
+            })
+            ->when($request->filled('status'), fn (Builder $query) => $query->whereComputedStatus($request->string('status')));
     }
 
     /**

@@ -267,10 +267,11 @@ class QuestionModuleEnhancementTest extends TestCase
 
     public function test_questions_index_renders_new_ui_elements(): void
     {
-        $question = Question::factory()->create();
+        $subject = Subject::factory()->create();
+        $question = Question::factory()->create(['subject_id' => $subject->id]);
 
         $this->actingAs($this->admin)
-            ->get(route('admin.questions.index'))
+            ->get(route('admin.questions.index', ['subject_id' => $subject->id]))
             ->assertOk()
             ->assertSee('Impor')
             ->assertSee('Ekspor')
@@ -280,6 +281,56 @@ class QuestionModuleEnhancementTest extends TestCase
             ->assertSee('preview-question')
             ->assertSee('import-questions')
             ->assertSee('export-questions');
+    }
+
+    public function test_by_subject_endpoint_renders_correct_action_urls_per_question(): void
+    {
+        $subjectA = Subject::factory()->create();
+        $subjectB = Subject::factory()->create();
+
+        $questionA1 = Question::factory()->create(['subject_id' => $subjectA->id, 'question_text' => 'Soal A-1?']);
+        $questionA2 = Question::factory()->create(['subject_id' => $subjectA->id, 'question_text' => 'Soal A-2?']);
+        $questionB1 = Question::factory()->create(['subject_id' => $subjectB->id, 'question_text' => 'Soal B-1?']);
+
+        $htmlA = $this->actingAs($this->admin)
+            ->getJson(route('admin.questions.by-subject', $subjectA))
+            ->assertOk()
+            ->json('html');
+
+        foreach ([$questionA1, $questionA2] as $question) {
+            $this->assertStringContainsString(route('admin.questions.destroy', $question), $htmlA);
+            $this->assertStringContainsString(route('admin.questions.edit', $question), $htmlA);
+            $this->assertStringContainsString(route('admin.questions.duplicate', $question), $htmlA);
+            $this->assertStringContainsString(route('admin.questions.toggle-active', $question), $htmlA);
+        }
+
+        // Soal dari mata pelajaran lain tidak boleh ikut dirender di HTML mapel ini.
+        $this->assertStringNotContainsString(route('admin.questions.destroy', $questionB1), $htmlA);
+
+        $htmlB = $this->actingAs($this->admin)
+            ->getJson(route('admin.questions.by-subject', $subjectB))
+            ->assertOk()
+            ->json('html');
+
+        $this->assertStringContainsString(route('admin.questions.destroy', $questionB1), $htmlB);
+        $this->assertStringNotContainsString(route('admin.questions.destroy', $questionA1), $htmlB);
+    }
+
+    public function test_index_preloads_correct_destroy_url_when_filtered(): void
+    {
+        $subjectA = Subject::factory()->create();
+        $subjectB = Subject::factory()->create();
+
+        $questionA = Question::factory()->create(['subject_id' => $subjectA->id, 'question_text' => 'Soal A-1?']);
+        $questionB = Question::factory()->create(['subject_id' => $subjectB->id, 'question_text' => 'Soal B-1?']);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.questions.index', ['subject_id' => $subjectA->id]))
+            ->assertOk()
+            ->assertSee(route('admin.questions.destroy', $questionA))
+            ->assertSee(route('admin.questions.edit', $questionA))
+            ->assertSee('deleteUrl')
+            ->assertDontSee(route('admin.questions.destroy', $questionB));
     }
 
     public function test_inactive_questions_are_hidden_from_exam_work_page(): void

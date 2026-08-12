@@ -3,11 +3,89 @@
         x-data="{
             ...selectionManager({
                 sessionKey: 'smartexam_selected_questions',
-                visibleIds: @js($questions->map(fn ($question) => $question->id)->values()),
+                visibleIds: [],
                 bulkDeleteSuccess: @js(str_contains((string) session('success'), 'soal berhasil dihapus.')),
                 bulkDeleteUrl: @js(route('admin.questions.bulk-delete')),
             }),
+            deleteUrl: '',
             preview: null,
+            expandedIds: @js($hasFilter ? $subjects->pluck('id')->values() : collect()),
+            loadingIds: [],
+            loadedIds: @js($hasFilter ? $subjects->pluck('id')->values() : collect()),
+            listQuestionIds: @js($preloadedQuestionIds),
+            subjectIds: @js($subjects->pluck('id')->values()),
+            subjectCounts: @js($subjects->mapWithKeys(fn ($subject) => [$subject->id => $subject->questions_count])->all()),
+            filterQuery: @js($filterQuery),
+            isExpanded(id) { return this.expandedIds.includes(id); },
+            isLoading(id) { return this.loadingIds.includes(id); },
+            hasList(id) { return this.loadedIds.includes(id); },
+            hasNoQuestions(id) { return (this.subjectCounts[id] ?? 0) === 0; },
+            toggleAccordion(id) {
+                const index = this.expandedIds.indexOf(id);
+                if (index === -1) {
+                    this.expandedIds.push(id);
+                    this.loadList(id);
+                } else {
+                    this.expandedIds.splice(index, 1);
+                }
+            },
+            loadList(id) {
+                if (this.loadedIds.includes(id) || this.loadingIds.includes(id)) return;
+                if ((this.subjectCounts[id] ?? 0) === 0) return;
+                this.loadingIds.push(id);
+                const url = @js(route('admin.questions.by-subject', '__ID__')).replace('__ID__', id)
+                    + (this.filterQuery ? '?' + this.filterQuery : '');
+                fetch(url, { headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': @js(csrf_token()) } })
+                    .then((response) => response.json())
+                    .then((data) => {
+                        const body = this.$refs['body-' + id];
+                        if (body) body.innerHTML = data.html;
+                        this.listQuestionIds[id] = data.ids || [];
+                        this.loadedIds.push(id);
+                        this.$nextTick(() => {
+                            if (body) window.Alpine.initTree(body);
+                        });
+                    })
+                    .catch(() => {
+                        const body = this.$refs['body-' + id];
+                        if (body) {
+                            body.innerHTML = '<p class=&quot;px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400&quot;>Gagal memuat soal. Silakan coba lagi.</p>';
+                        }
+                        this.loadedIds.push(id);
+                    })
+                    .finally(() => {
+                        const index = this.loadingIds.indexOf(id);
+                        if (index !== -1) this.loadingIds.splice(index, 1);
+                    });
+            },
+            openAllAccordions() {
+                this.expandedIds = [...this.subjectIds];
+                this.subjectIds.forEach((id) => this.loadList(id));
+            },
+            closeAllAccordions() {
+                this.expandedIds = [];
+            },
+            selectAllInSubject(subjectId) {
+                const ids = this.listQuestionIds[subjectId] || [];
+                if (ids.length === 0) return;
+                const allSelected = ids.every((id) => this.selected.includes(id));
+                if (allSelected) {
+                    this.selected = this.selected.filter((id) => !ids.includes(id));
+                } else {
+                    ids.forEach((id) => {
+                        if (!this.selected.includes(id)) this.selected.push(id);
+                    });
+                }
+                this.persistSelection();
+            },
+            accordionInit() {
+                @if ((string) request('subject_id') !== '')
+                this.$nextTick(() => {
+                    const el = this.$refs['accordion-' + @js((int) request('subject_id'))];
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+                @endif
+            },
             exportScope: 'all',
             exportFormat: 'xlsx',
             isCorrectAnswer(letter) {
@@ -112,6 +190,7 @@
                 },
             },
         }"
+        x-init="accordionInit()"
         class="space-y-6"
     >
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -150,7 +229,7 @@
             <div>
                 <select name="subject_id" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 lg:w-auto">
                     <option value="">Semua Mata Pelajaran</option>
-                    @foreach ($subjects as $subject)
+                    @foreach ($allSubjects as $subject)
                         <option value="{{ $subject->id }}" @selected(request('subject_id') == $subject->id)>{{ $subject->name }}</option>
                     @endforeach
                 </select>
@@ -193,77 +272,69 @@
             </div>
         </div>
 
-        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
-                    <thead class="bg-gray-50 dark:bg-gray-800">
-                        <tr>
-                            <th scope="col" class="px-4 py-3">
-                                <input type="checkbox" :checked="visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id))" :disabled="visibleIds.length === 0" @change="selectAll()" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800" />
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">No</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Mata Pelajaran</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Pertanyaan</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Jenis</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Bobot</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Status</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900">
-                        @forelse ($questions as $index => $question)
-                            <tr class="transition hover:bg-gray-50 dark:hover:bg-gray-800/50 {{ $question->is_active ? '' : 'opacity-60' }}">
-                                <td class="px-4 py-3">
-                                    <input type="checkbox" :checked="selected.includes({{ $question->id }})" @change="toggleSelect({{ $question->id }})" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800" />
-                                </td>
-                                <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $questions->firstItem() + $index }}</td>
-                                <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $question->subject?->name }}</td>
-                                <td class="max-w-xs px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                                    <p class="truncate">{{ $question->question_text }}</p>
-                                </td>
-                                <td class="px-4 py-3 text-sm">
-                                    <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-500/20 dark:bg-gray-700/60 dark:text-gray-300 dark:ring-gray-400/30">
-                                        {{ $question->typeLabel() }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ rtrim(rtrim($question->score_weight, '0'), '.') }} poin</td>
-                                <td class="px-4 py-3 text-sm">
-                                    <div class="flex items-center gap-2">
-                                        <x-badge-status :status="$question->is_active ? 'aktif' : 'nonaktif'" />
-                                        <form method="POST" action="{{ route('admin.questions.toggle-active', $question) }}">
-                                            @csrf
-                                            @method('PATCH')
-                                            <button type="submit" title="{{ $question->is_active ? 'Nonaktifkan soal' : 'Aktifkan soal' }}" class="text-gray-400 transition hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300">
-                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-                                                </svg>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
-                                <td class="px-4 py-3 text-sm">
-                                    <div class="flex items-center gap-2">
-                                        <button type="button" @click="preview = @js(['id' => $question->id, 'subject' => ['name' => $question->subject?->name], 'type' => $question->type, 'type_label' => $question->typeLabel(), 'question_text' => $question->question_text, 'options' => $question->options, 'answer_key' => $question->answer_key, 'score_weight' => $question->score_weight]); $dispatch('open-modal', 'preview-question')" class="rounded-md bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-200 dark:bg-gray-700/60 dark:text-gray-300 dark:hover:bg-gray-600">Lihat</button>
-                                        <a href="{{ route('admin.questions.edit', $question) }}" class="rounded-md bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20">Edit</a>
-                                        <form method="POST" action="{{ route('admin.questions.duplicate', $question) }}" class="inline">
-                                            @csrf
-                                            <button type="submit" title="Duplikasi soal" class="rounded-md bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 dark:bg-sky-500/10 dark:text-sky-300 dark:hover:bg-sky-500/20">Duplikat</button>
-                                        </form>
-                                        <button type="button" @click="deleteUrl = '{{ route('admin.questions.destroy', $question) }}'; $dispatch('open-modal', 'confirm-delete')" class="rounded-md bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20">Hapus</button>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Tidak ada soal.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                {{ $subjects->count() }} mata pelajaran &middot; {{ $subjects->sum('questions_count') }} soal
+            </p>
+            <div class="flex items-center gap-2">
+                <button type="button" @click="openAllAccordions()" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5L12 3l9 4.5m-9 4.5v10.5" />
+                    </svg>
+                    Buka Semua
+                </button>
+                <button type="button" @click="closeAllAccordions()" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5L12 3l9 4.5" />
+                    </svg>
+                    Tutup Semua
+                </button>
             </div>
         </div>
 
-        <div>{{ $questions->links() }}</div>
+        <div class="space-y-3">
+            @forelse ($subjects as $subject)
+                <div x-ref="accordion-{{ $subject->id }}" class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <button
+                        type="button"
+                        @click="toggleAccordion({{ $subject->id }})"
+                        :aria-expanded="isExpanded({{ $subject->id }})"
+                        class="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                    >
+                        <span class="flex min-w-0 items-center gap-2.5">
+                            <svg class="h-4 w-4 shrink-0 text-gray-400 transition-transform duration-200 dark:text-gray-500" :class="isExpanded({{ $subject->id }}) ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                            </svg>
+                            <span class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $subject->name }}</span>
+                            <span class="shrink-0 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $subject->questions_count }} soal</span>
+                        </span>
+                        <span x-show="isLoading({{ $subject->id }})" class="flex shrink-0 items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
+                            <span class="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-indigo-600 dark:border-gray-600 dark:border-t-indigo-400"></span>
+                            Memuat...
+                        </span>
+                    </button>
+
+                    <div x-show="isExpanded({{ $subject->id }})" x-transition x-cloak>
+                        <div x-show="isLoading({{ $subject->id }})" class="flex items-center justify-center gap-2 border-t border-gray-200 px-4 py-8 text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                            <span class="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-indigo-600 dark:border-gray-600 dark:border-t-indigo-400"></span>
+                            Memuat soal...
+                        </div>
+                        <div x-show="!isLoading({{ $subject->id }}) && !hasList({{ $subject->id }}) && hasNoQuestions({{ $subject->id }})" class="border-t border-gray-200 px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                            Belum ada soal untuk mata pelajaran ini.
+                        </div>
+                        <div x-show="!isLoading({{ $subject->id }}) && hasList({{ $subject->id }})" class="border-t border-gray-200 dark:border-gray-800">
+                            <div x-ref="body-{{ $subject->id }}">
+                                {!! $preloadedLists[$subject->id] ?? '' !!}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @empty
+                <div class="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-12 text-center text-sm text-gray-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-400">
+                    Tidak ada mata pelajaran untuk ditampilkan.
+                </div>
+            @endforelse
+        </div>
 
         @include('admin.partials.delete-modal')
 
@@ -309,7 +380,7 @@
                         <label for="bulk-subject" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Mata Pelajaran (ubah)</label>
                         <select id="bulk-subject" name="subject_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                             <option value="">-- Biarkan Tidak Berubah --</option>
-                            @foreach ($subjects as $subject)
+                            @foreach ($allSubjects as $subject)
                                 <option value="{{ $subject->id }}">{{ $subject->name }}</option>
                             @endforeach
                         </select>

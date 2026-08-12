@@ -69,6 +69,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::post('subjects/bulk-delete', [SubjectController::class, 'bulkDelete'])->name('subjects.bulk-delete');
         Route::resource('rooms', RoomController::class)->except(['show']);
         Route::resource('classrooms', ClassroomController::class)->except(['show']);
+        Route::get('exam-schedules/by-date', [ExamScheduleController::class, 'byDate'])->name('exam-schedules.by-date');
         Route::resource('exam-schedules', ExamScheduleController::class)->except(['show']);
         Route::post('exam-schedules/bulk-delete', [ExamScheduleController::class, 'bulkDelete'])->name('exam-schedules.bulk-delete');
 
@@ -77,6 +78,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::post('exam-periods/{examPeriod}/groups', [ExamPeriodController::class, 'groupsStore'])->name('exam-periods.groups.store');
 
         Route::resource('questions', QuestionController::class)->except(['show']);
+        Route::get('questions/by-subject/{subject}', [QuestionController::class, 'bySubject'])->name('questions.by-subject');
         Route::post('questions/bulk-delete', [QuestionController::class, 'bulkDelete'])->name('questions.bulk-delete');
         Route::post('questions/bulk-edit', [QuestionController::class, 'bulkEdit'])->name('questions.bulk-edit');
         Route::post('questions/{question}/duplicate', [QuestionController::class, 'duplicate'])->name('questions.duplicate');

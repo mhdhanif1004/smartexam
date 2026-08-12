@@ -8,6 +8,9 @@ use App\Http\Requests\Admin\UpdateQuestionRequest;
 use App\Models\ExamAnswer;
 use App\Models\Question;
 use App\Models\Subject;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -17,26 +20,110 @@ class QuestionController extends Controller
 {
     public function index(Request $request): View
     {
-        $questions = Question::query()
-            ->with('subject')
-            ->when($request->filled('search'), function ($query) use ($request) {
+        // Daftar mata pelajaran + jumlah soal yang cocok dengan filter saat ini.
+        $subjects = Subject::query()
+            ->withCount([
+                'questions as questions_count' => fn (Builder $query) => $this->applyContentFilters($request, $query),
+            ])
+            ->orderBy('name')
+            ->get();
+
+        $hasFilter = $request->filled('search')
+            || $request->filled('subject_id')
+            || $request->filled('type')
+            || $request->filled('status');
+
+        if ($request->filled('subject_id')) {
+            // Dropdown mata pelajaran: fokus ke satu mapel saja.
+            $subjects = $subjects->where('id', $request->integer('subject_id'))->values();
+        } elseif ($hasFilter) {
+            // Pencarian/jenis/status: sembunyikan mapel yang tidak punya hasil sama sekali.
+            $subjects = $subjects->where('questions_count', '>', 0)->values();
+        }
+
+        // Saat filter aktif semua mapel yang tampil langsung di-expand, jadi tabelnya
+        // di-pre-render server agar tidak perlu request tambahan. Tanpa filter, tabel
+        // baru diambil lewat AJAX saat accordion pertama kali dibuka (lazy-load).
+        $preloadedLists = [];
+        $preloadedQuestionIds = [];
+        if ($hasFilter) {
+            foreach ($subjects as $subject) {
+                $questions = $this->questionsForSubject($request, $subject->id);
+                $preloadedLists[$subject->id] = view('admin.questions.partials.question-table', [
+                    'questions' => $questions,
+                    'subject' => $subject,
+                    'search' => (string) $request->string('search')->trim(),
+                ])->render();
+                $preloadedQuestionIds[$subject->id] = $questions->pluck('id')->values();
+            }
+        }
+
+        // Diteruskan ke endpoint by-subject agar filter yang sama ikut diterapkan saat lazy-load.
+        $filterQuery = http_build_query($request->only(['search', 'type', 'status']));
+        $types = Question::TYPES;
+
+        // Daftar lengkap mapel, tetap dipakai untuk dropdown filter & modal edit massal
+        // (terpisah dari $subjects yang mungkin sudah disaring oleh filter aktif).
+        $allSubjects = Subject::query()->orderBy('name')->get();
+
+        return view('admin.questions.index', compact(
+            'subjects',
+            'allSubjects',
+            'types',
+            'hasFilter',
+            'filterQuery',
+            'preloadedLists',
+            'preloadedQuestionIds',
+        ));
+    }
+
+    /**
+     * Endpoint AJAX untuk lazy-load soal per mata pelajaran saat accordion dibuka.
+     */
+    public function bySubject(Request $request, Subject $subject): JsonResponse
+    {
+        $questions = $this->questionsForSubject($request, $subject->id);
+
+        $html = view('admin.questions.partials.question-table', [
+            'questions' => $questions,
+            'subject' => $subject,
+            'search' => (string) $request->string('search')->trim(),
+        ])->render();
+
+        return response()->json([
+            'subject_id' => $subject->id,
+            'count' => $questions->count(),
+            'ids' => $questions->pluck('id')->values(),
+            'html' => $html,
+        ]);
+    }
+
+    /**
+     * Terapkan filter konten (pencarian pertanyaan, jenis, status) ke query soal.
+     */
+    private function applyContentFilters(Request $request, Builder $query): Builder
+    {
+        return $query
+            ->when($request->filled('search'), function (Builder $query) use ($request) {
                 $query->where('question_text', 'like', '%'.$request->string('search')->trim().'%');
             })
-            ->when($request->filled('subject_id'), fn ($query) => $query->where('subject_id', $request->integer('subject_id')))
-            ->when($request->filled('type'), fn ($query) => $query->where('type', $request->string('type')))
-            ->when($request->filled('status'), function ($query) use ($request) {
+            ->when($request->filled('type'), fn (Builder $query) => $query->where('type', $request->string('type')))
+            ->when($request->filled('status'), function (Builder $query) use ($request) {
                 $request->string('status') === 'aktif'
                     ? $query->where('is_active', true)
                     : $query->where('is_active', false);
-            })
-            ->orderByDesc('id')
-            ->paginate(10)
-            ->withQueryString();
+            });
+    }
 
-        $subjects = Subject::query()->orderBy('name')->get();
-        $types = Question::TYPES;
+    /**
+     * @return Collection<int, Question>
+     */
+    private function questionsForSubject(Request $request, int $subjectId): Collection
+    {
+        $query = Question::query()->with('subject')->where('subject_id', $subjectId);
+        $this->applyContentFilters($request, $query);
 
-        return view('admin.questions.index', compact('questions', 'subjects', 'types'));
+        return $query->orderByDesc('id')->get();
     }
 
     public function create(): View
