@@ -167,10 +167,11 @@ class AdminCrudTest extends TestCase
         $this->actingAs($this->admin)->post('/admin/subjects', [
             'code' => 'FIS',
             'name' => 'Fisika',
+            'class_label' => 'XI RPL 1',
             'default_duration_minutes' => 90,
         ])->assertRedirect(route('admin.subjects.index'));
 
-        $this->assertDatabaseHas('subjects', ['code' => 'FIS']);
+        $this->assertDatabaseHas('subjects', ['code' => 'FIS', 'class_label' => 'XI RPL 1']);
 
         $this->actingAs($this->admin)->post('/admin/rooms', [
             'name' => 'Ruang 10',

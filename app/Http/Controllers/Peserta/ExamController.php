@@ -182,11 +182,9 @@ class ExamController extends Controller
 
         $schedule = ExamSchedule::query()
             ->with('subject')
-            ->whereKey($schedule)
-            ->where('room_id', $student->room_id)
-            ->first();
+            ->find($schedule);
 
-        if ($schedule === null) {
+        if ($schedule === null || ! $student->isAssignedToSchedule($schedule)) {
             return response()->json(['error' => 'Anda tidak memiliki akses ke ujian tersebut.'], 403);
         }
 
@@ -218,11 +216,9 @@ class ExamController extends Controller
 
         $schedule = ExamSchedule::query()
             ->with('subject')
-            ->whereKey($schedule)
-            ->where('room_id', $student->room_id)
-            ->first();
+            ->find($schedule);
 
-        if ($schedule === null) {
+        if ($schedule === null || ! $student->isAssignedToSchedule($schedule)) {
             return response()->json(['error' => 'Anda tidak memiliki akses ke ujian tersebut.'], 403);
         }
 
@@ -283,11 +279,9 @@ class ExamController extends Controller
         }
 
         $schedule = ExamSchedule::query()
-            ->whereKey($schedule)
-            ->where('room_id', $student->room_id)
-            ->first();
+            ->find($schedule);
 
-        if ($schedule === null) {
+        if ($schedule === null || ! $student->isAssignedToSchedule($schedule)) {
             return response()->json(['error' => 'Anda tidak memiliki akses ke ujian tersebut.'], 403);
         }
 
@@ -371,15 +365,13 @@ class ExamController extends Controller
 
         $this->schedule = ExamSchedule::query()
             ->with(['subject', 'room'])
-            ->whereKey($scheduleId)
-            ->where('room_id', $this->student->room_id)
-            ->first();
+            ->find($scheduleId);
 
         if ($this->schedule !== null) {
             $this->schedule->syncStatusIfNeeded();
         }
 
-        if ($this->schedule === null) {
+        if ($this->schedule === null || ! $this->student->isAssignedToSchedule($this->schedule)) {
             return $this->deny('Anda tidak memiliki akses ke ujian tersebut.');
         }
 

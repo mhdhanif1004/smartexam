@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Pengawas;
 use App\Http\Controllers\Controller;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
-use App\Models\Student;
 use App\Traits\ScopesSupervisorRoom;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
@@ -54,9 +53,7 @@ class DashboardController extends Controller
      */
     protected function scheduleStats(ExamSchedule $schedule): array
     {
-        $total = Student::query()
-            ->where('room_id', $schedule->room_id)
-            ->count();
+        $total = count($schedule->participantStudentIds());
 
         $sessions = ExamSession::query()
             ->where('exam_schedule_id', $schedule->id)

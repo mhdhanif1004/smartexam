@@ -96,7 +96,7 @@
 
         <form method="GET" action="{{ route('admin.subjects.index') }}" class="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div class="flex-1">
-                <x-text-input type="search" name="search" value="{{ request('search') }}" placeholder="Cari kode atau nama mata pelajaran..." class="block w-full" />
+                <x-text-input type="search" name="search" value="{{ request('search') }}" placeholder="Cari kode, nama, atau kelas mata pelajaran..." class="block w-full" />
             </div>
             <div class="flex gap-2">
                 <button type="submit" class="inline-flex items-center rounded-lg bg-gray-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-700">Cari</button>
@@ -129,6 +129,7 @@
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">No</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Kode</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Nama</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Kelas</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Durasi Default</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Jumlah Soal</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Jadwal Ujian</th>
@@ -144,6 +145,7 @@
                                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $subjects->firstItem() + $index }}</td>
                                 <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $subject->code }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $subject->name }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $subject->class_label ?? '-' }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $subject->default_duration_minutes }} menit</td>
                                 <td class="px-4 py-3 text-sm">
                                     <span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">{{ $subject->questions_count }} soal</span>
@@ -164,7 +166,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Tidak ada data mata pelajaran.</td>
+                                <td colspan="9" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Tidak ada data mata pelajaran.</td>
                             </tr>
                         @endforelse
                     </tbody>

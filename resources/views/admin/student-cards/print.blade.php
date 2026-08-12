@@ -132,7 +132,6 @@
                 'student' => $student,
                 'setting' => $setting,
                 'tanggalCetak' => $tanggalCetak,
-                'sessionNamesByRoom' => $sessionNamesByRoom,
                 'roomAssignments' => $roomAssignments,
                 'logoKiri' => $logoKiri,
                 'logoKanan' => $logoKanan,

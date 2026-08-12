@@ -38,8 +38,10 @@ class AdminAdvancedTest extends TestCase
 
     public function test_login_card_print_requires_selected_students(): void
     {
-        $this->actingAs($this->admin)->post(route('admin.student-cards.print'), [])
-            ->assertSessionHasErrors('student_ids');
+        // Dengan pendekatan filter-based, POST kosong mencetak semua siswa (tanpa error).
+        $response = $this->actingAs($this->admin)->post(route('admin.student-cards.print'), []);
+        $response->assertOk();
+        $this->assertStringContainsString('application/pdf', $response->headers->get('content-type'));
     }
 
     public function test_login_card_preview_and_print_show_plain_password(): void

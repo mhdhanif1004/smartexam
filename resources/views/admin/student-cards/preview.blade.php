@@ -141,9 +141,7 @@
                 <form method="POST" action="{{ route('admin.student-cards.print') }}">
                     @csrf
                     <input type="hidden" name="type" value="peserta">
-                    @foreach ($students as $student)
-                        <input type="hidden" name="student_ids[]" value="{{ $student->id }}">
-                    @endforeach
+                    <input type="hidden" name="student_ids" value="{{ $students->pluck('id')->implode(',') }}">
                     <button type="submit" class="btn btn-print">Cetak PDF</button>
                 </form>
             </div>
@@ -160,7 +158,6 @@
                     'student' => $student,
                     'setting' => $setting,
                     'tanggalCetak' => $tanggalCetak,
-                    'sessionNamesByRoom' => $sessionNamesByRoom,
                     'roomAssignments' => $roomAssignments,
                     'logoKiri' => $logoKiri,
                     'logoKanan' => $logoKanan,

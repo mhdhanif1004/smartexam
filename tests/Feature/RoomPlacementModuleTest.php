@@ -34,80 +34,57 @@ class RoomPlacementModuleTest extends TestCase
             ->assertSee('3 siswa');
     }
 
-    public function test_admin_can_create_room_with_students_and_supervisor(): void
+    public function test_admin_can_create_room_with_capacity_and_supervisors(): void
     {
-        $students = Student::factory()->count(3)->create();
-        $supervisor = Supervisor::factory()->create(['room_id' => null]);
+        $supervisorA = Supervisor::factory()->create(['room_id' => null]);
+        $supervisorB = Supervisor::factory()->create(['room_id' => null]);
 
         $this->actingAs($this->admin)
             ->post(route('admin.rooms.store'), [
                 'name' => 'Ruang A',
-                'supervisor_id' => $supervisor->id,
-                'student_ids' => $students->pluck('id')->all(),
+                'capacity' => 30,
+                'supervisor_ids' => [$supervisorA->id, $supervisorB->id],
             ])
             ->assertRedirect()
             ->assertSessionHas('success');
 
         $room = Room::where('name', 'Ruang A')->first();
         $this->assertNotNull($room);
-        $this->assertSame(3, $room->capacity);
+        $this->assertSame(30, $room->capacity);
 
-        foreach ($students as $student) {
-            $this->assertSame($room->id, $student->refresh()->room_id);
-        }
-
-        $this->assertSame($room->id, $supervisor->refresh()->room_id);
+        $this->assertSame($room->id, $supervisorA->refresh()->room_id);
+        $this->assertSame($room->id, $supervisorB->refresh()->room_id);
     }
 
-    public function test_create_rejects_student_already_in_another_room(): void
+    public function test_update_saves_capacity_from_form(): void
     {
-        $other = Room::factory()->create();
-        $student = Student::factory()->create(['room_id' => $other->id]);
-
-        $this->actingAs($this->admin)
-            ->post(route('admin.rooms.store'), [
-                'name' => 'Ruang B',
-                'student_ids' => [$student->id],
-            ])
-            ->assertSessionHasErrors('student_ids');
-
-        $this->assertSame($other->id, $student->refresh()->room_id);
-        $this->assertDatabaseMissing('rooms', ['name' => 'Ruang B']);
-    }
-
-    public function test_update_moves_free_students_and_clears_unchecked(): void
-    {
-        $room = Room::factory()->create(['name' => 'Ruang A']);
-        $stay = Student::factory()->create(['room_id' => $room->id]);
-        $leave = Student::factory()->create(['room_id' => $room->id]);
-        $join = Student::factory()->create(['room_id' => null]);
+        $room = Room::factory()->create(['name' => 'Ruang A', 'capacity' => 40]);
 
         $this->actingAs($this->admin)
             ->put(route('admin.rooms.update', $room), [
                 'name' => 'Ruang A',
-                'student_ids' => [$stay->id, $join->id],
+                'capacity' => 25,
             ])
             ->assertRedirect()
             ->assertSessionHas('success');
 
-        $this->assertSame($room->id, $stay->refresh()->room_id);
-        $this->assertSame($room->id, $join->refresh()->room_id);
-        $this->assertNull($leave->refresh()->room_id);
-        $this->assertSame(2, $room->refresh()->capacity);
+        $this->assertSame(25, $room->refresh()->capacity);
     }
 
-    public function test_update_cannot_steal_student_from_another_room(): void
+    public function test_room_update_does_not_touch_student_placements(): void
     {
-        $roomA = Room::factory()->create();
-        $roomB = Room::factory()->create();
+        $roomA = Room::factory()->create(['name' => 'Ruang A']);
+        $roomB = Room::factory()->create(['name' => 'Ruang B']);
         $student = Student::factory()->create(['room_id' => $roomA->id]);
 
         $this->actingAs($this->admin)
             ->put(route('admin.rooms.update', $roomB), [
                 'name' => $roomB->name,
+                'capacity' => $roomB->capacity,
                 'student_ids' => [$student->id],
             ])
-            ->assertSessionHasErrors('student_ids');
+            ->assertRedirect()
+            ->assertSessionHas('success');
 
         $this->assertSame($roomA->id, $student->refresh()->room_id);
     }
@@ -122,7 +99,7 @@ class RoomPlacementModuleTest extends TestCase
         $this->actingAs($this->admin)
             ->put(route('admin.rooms.update', $roomB), [
                 'name' => $roomB->name,
-                'supervisor_id' => $supervisorA->id,
+                'supervisor_ids' => [$supervisorA->id],
             ])
             ->assertRedirect()
             ->assertSessionHas('success');
@@ -139,12 +116,66 @@ class RoomPlacementModuleTest extends TestCase
         $this->actingAs($this->admin)
             ->put(route('admin.rooms.update', $room), [
                 'name' => $room->name,
-                'supervisor_id' => '',
+                'supervisor_ids' => [],
             ])
             ->assertRedirect()
             ->assertSessionHas('success');
 
         $this->assertNull($supervisor->refresh()->room_id);
+    }
+
+    public function test_update_assigns_multiple_supervisors_to_one_room(): void
+    {
+        $room = Room::factory()->create(['name' => 'Ruang A']);
+        $supervisors = Supervisor::factory()->count(3)->create(['room_id' => null]);
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.rooms.update', $room), [
+                'name' => $room->name,
+                'supervisor_ids' => $supervisors->pluck('id')->all(),
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        foreach ($supervisors as $supervisor) {
+            $this->assertSame($room->id, $supervisor->refresh()->room_id);
+        }
+
+        $this->assertSame(3, $room->refresh()->supervisors()->count());
+    }
+
+    public function test_index_shows_supervisor_count_for_multiple_supervisors(): void
+    {
+        $room = Room::factory()->create(['name' => 'Ruang A']);
+        Supervisor::factory()->count(3)->create(['room_id' => $room->id]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.rooms.index'))
+            ->assertOk()
+            ->assertSee('3 pengawas');
+    }
+
+    public function test_update_releases_supervisors_removed_from_selection(): void
+    {
+        $room = Room::factory()->create();
+        $supervisors = Supervisor::factory()->count(3)->create(['room_id' => $room->id]);
+        $stay = $supervisors->take(2);
+        $released = $supervisors->last();
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.rooms.update', $room), [
+                'name' => $room->name,
+                'supervisor_ids' => $stay->pluck('id')->all(),
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        foreach ($stay as $supervisor) {
+            $this->assertSame($room->id, $supervisor->refresh()->room_id);
+        }
+
+        $this->assertNull($released->refresh()->room_id);
+        $this->assertSame(2, $room->refresh()->supervisors()->count());
     }
 
     public function test_destroy_releases_students_and_supervisor(): void
@@ -163,23 +194,6 @@ class RoomPlacementModuleTest extends TestCase
         $this->assertNull($supervisor->refresh()->room_id);
     }
 
-    public function test_room_capacity_always_matches_assigned_student_count(): void
-    {
-        $room = Room::factory()->create(['name' => 'Ruang A', 'capacity' => 40]);
-        $students = Student::factory()->count(2)->create(['room_id' => $room->id]);
-
-        $this->actingAs($this->admin)
-            ->put(route('admin.rooms.update', $room), [
-                'name' => 'Ruang A',
-                'capacity' => 99,
-                'student_ids' => $students->pluck('id')->all(),
-            ])
-            ->assertRedirect()
-            ->assertSessionHas('success');
-
-        $this->assertSame(2, $room->refresh()->capacity);
-    }
-
     public function test_non_admin_cannot_manage_rooms(): void
     {
         $peserta = User::factory()->peserta()->create();
@@ -191,31 +205,5 @@ class RoomPlacementModuleTest extends TestCase
         $this->actingAs($peserta)
             ->post(route('admin.rooms.store'), ['name' => 'Ruang X'])
             ->assertForbidden();
-    }
-
-    public function test_one_class_can_be_split_across_multiple_rooms(): void
-    {
-        $students = Student::factory()->count(4)->create(['class_name' => 'XI RPL 1']);
-
-        $this->actingAs($this->admin)
-            ->post(route('admin.rooms.store'), [
-                'name' => 'Ruang A',
-                'student_ids' => $students->take(2)->pluck('id')->all(),
-            ])
-            ->assertRedirect();
-
-        $this->actingAs($this->admin)
-            ->post(route('admin.rooms.store'), [
-                'name' => 'Ruang B',
-                'student_ids' => $students->skip(2)->pluck('id')->all(),
-            ])
-            ->assertRedirect();
-
-        $roomA = Room::where('name', 'Ruang A')->first();
-        $roomB = Room::where('name', 'Ruang B')->first();
-
-        $this->assertSame(2, $roomA->students()->count());
-        $this->assertSame(2, $roomB->students()->count());
-        $this->assertSame(0, Student::query()->whereNull('room_id')->count());
     }
 }

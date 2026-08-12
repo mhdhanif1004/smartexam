@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\CardSetting;
 use App\Models\ExamPeriod;
 use App\Models\ExamRoomAssignment;
-use App\Models\ExamSchedule;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Supervisor;
@@ -66,7 +65,6 @@ class LoginCardController extends Controller
             }
         }
 
-        $sessionNamesByRoom = $type === 'pengawas' ? [] : $this->sessionNamesByRoom($students);
         $roomAssignments = $type === 'pengawas' ? collect() : $this->roomAssignmentsByStudent($students);
 
         return view('admin.student-cards.index', compact(
@@ -77,7 +75,6 @@ class LoginCardController extends Controller
             'rooms',
             'supervisors',
             'selectedRoom',
-            'sessionNamesByRoom',
             'roomAssignments',
         ));
     }
@@ -94,10 +91,9 @@ class LoginCardController extends Controller
         }
 
         $students = $this->resolveStudents($request);
-        $sessionNamesByRoom = $this->sessionNamesByRoom($students);
         $roomAssignments = $this->roomAssignmentsByStudent($students);
 
-        return view('admin.student-cards.preview', compact('students', 'setting', 'tanggalCetak', 'sessionNamesByRoom', 'roomAssignments'));
+        return view('admin.student-cards.preview', compact('students', 'setting', 'tanggalCetak', 'roomAssignments'));
     }
 
     public function print(Request $request): Response
@@ -115,10 +111,9 @@ class LoginCardController extends Controller
         }
 
         $students = $this->resolveStudents($request);
-        $sessionNamesByRoom = $this->sessionNamesByRoom($students);
         $roomAssignments = $this->roomAssignmentsByStudent($students);
 
-        $pdf = Pdf::loadView('admin.student-cards.print', compact('students', 'setting', 'tanggalCetak', 'sessionNamesByRoom', 'roomAssignments'))
+        $pdf = Pdf::loadView('admin.student-cards.print', compact('students', 'setting', 'tanggalCetak', 'roomAssignments'))
             ->setPaper('a4', 'portrait');
 
         return $pdf->download('kartu-login-peserta.pdf');
@@ -140,77 +135,80 @@ class LoginCardController extends Controller
     }
 
     /**
-     * Validate the selected students and load them with their accounts.
+     * Resolusi siswa untuk preview/print. Mendukung tiga sumber, tanpa
+     * mengirim ratusan/ribuan ID sebagai parameter terpisah (menghindari
+     * batas PHP max_input_vars):
+     *   1. student_ids — satu string ID yang dipisah koma (atau array, untuk
+     *      kompatibilitas lama).
+     *   2. class — nama kelas; semua siswa di kelas itu diambil.
+     *   3. tanpa keduanya — semua siswa diambil.
      *
      * @return Collection<int, Student>
      */
     private function resolveStudents(Request $request): Collection
     {
-        $validated = $request->validate([
-            'student_ids' => ['required', 'array', 'min:1'],
-            'student_ids.*' => ['integer', 'exists:students,id'],
+        $request->validate([
+            'type' => ['nullable', 'string', 'in:peserta,pengawas'],
+            'class' => ['nullable', 'string', 'max:100'],
         ]);
 
-        return Student::query()
-            ->with(['user', 'room'])
-            ->whereIn('id', $validated['student_ids'])
-            ->orderBy('class_name')
-            ->orderBy('nisn')
-            ->get();
+        $studentIds = $this->parseIds($request->input('student_ids'));
+
+        $query = Student::query()->with(['user', 'room']);
+
+        if ($studentIds !== []) {
+            $query->whereIn('id', $studentIds);
+        } elseif ($request->filled('class')) {
+            $query->where('class_name', $request->string('class'));
+        }
+
+        return $query->orderBy('class_name')->orderBy('nisn')->get();
     }
 
     /**
-     * Validate the selected supervisors and load them with their accounts.
+     * Resolusi pengawas untuk preview/print (lihat resolveStudents).
+     * Sumber: supervisor_ids (string koma/array), room (filter ruangan),
+     * atau semua pengawas.
      *
      * @return Collection<int, Supervisor>
      */
     private function resolveSupervisors(Request $request): Collection
     {
-        $validated = $request->validate([
-            'supervisor_ids' => ['required', 'array', 'min:1'],
-            'supervisor_ids.*' => ['integer', 'exists:supervisors,id'],
+        $request->validate([
+            'type' => ['nullable', 'string', 'in:peserta,pengawas'],
+            'room' => ['nullable', 'integer', 'exists:rooms,id'],
         ]);
 
-        return Supervisor::query()
-            ->with(['user', 'room'])
-            ->whereIn('id', $validated['supervisor_ids'])
-            ->orderBy('user_id')
-            ->get();
+        $supervisorIds = $this->parseIds($request->input('supervisor_ids'));
+
+        $query = Supervisor::query()->with(['user', 'room']);
+
+        if ($supervisorIds !== []) {
+            $query->whereIn('id', $supervisorIds);
+        } elseif ($request->filled('room')) {
+            $query->where('room_id', $request->integer('room'));
+        }
+
+        return $query->orderBy('user_id')->get();
     }
 
     /**
-     * Peta room_id => nama sesi ujian (ExamPeriod) yang terhubung melalui
-     * jadwal ujian ruangan tersebut. Beberapa jadwal pada sesi yang sama
-     * dijadikan satu nilai distinct; lebih dari satu sesi dipisahkan koma.
-     * Ruangan tanpa jadwal ber-sesi tidak ikut dalam peta (fallback "-").
+     * Normalisasi input ID: terima array (lama) atau satu string yang
+     * dipisah koma. Nilai non-angka diabaikan.
      *
-     * @param  Collection<int, Student>  $students
-     * @return array<int, string>
+     * @return list<int>
      */
-    private function sessionNamesByRoom(Collection $students): array
+    private function parseIds(mixed $raw): array
     {
-        $roomIds = $students->pluck('room_id')->filter()->unique()->values();
-
-        if ($roomIds->isEmpty()) {
-            return [];
+        if (is_array($raw)) {
+            return array_values(array_unique(array_filter(array_map('intval', $raw))));
         }
 
-        return ExamSchedule::query()
-            ->with('examPeriod')
-            ->whereIn('room_id', $roomIds)
-            ->whereNotNull('exam_period_id')
-            ->get()
-            ->groupBy('room_id')
-            ->mapWithKeys(function ($schedules, $roomId) {
-                $names = $schedules
-                    ->map(fn (ExamSchedule $schedule) => $schedule->examPeriod?->name)
-                    ->filter()
-                    ->unique()
-                    ->values();
+        if (is_string($raw) && trim($raw) !== '') {
+            return array_values(array_unique(array_filter(array_map('intval', explode(',', $raw)))));
+        }
 
-                return [(int) $roomId => $names->implode(', ')];
-            })
-            ->all();
+        return [];
     }
 
     /**

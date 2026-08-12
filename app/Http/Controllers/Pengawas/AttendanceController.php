@@ -49,12 +49,9 @@ class AttendanceController extends Controller
             'confirmed' => ['required', 'boolean'],
         ]);
 
-        $student = Student::query()
-            ->where('id', $validated['student_id'])
-            ->where('room_id', $schedule->room_id)
-            ->first();
+        $student = Student::find($validated['student_id']);
 
-        if ($student === null) {
+        if ($student === null || ! $student->isAssignedToSchedule($schedule)) {
             return response()->json(['error' => 'Siswa bukan peserta pada sesi ujian ini.'], 422);
         }
 
@@ -94,10 +91,7 @@ class AttendanceController extends Controller
         ]);
 
         $validator->after(function ($validator) use ($request, $schedule) {
-            $participantIds = Student::query()
-                ->where('room_id', $schedule->room_id)
-                ->pluck('id')
-                ->all();
+            $participantIds = $schedule->participantStudentIds();
 
             foreach (array_keys($request->input('attendance', [])) as $studentId) {
                 if (! in_array((int) $studentId, $participantIds, true)) {
@@ -135,7 +129,7 @@ class AttendanceController extends Controller
     {
         $students = Student::query()
             ->with('user')
-            ->where('room_id', $schedule->room_id)
+            ->whereIn('id', $schedule->participantStudentIds())
             ->orderBy('nisn')
             ->get();
 

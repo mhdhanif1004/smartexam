@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Support\Collection;
 
 class ExamSchedule extends Model
 {
@@ -213,29 +213,83 @@ class ExamSchedule extends Model
     }
 
     /**
-     * Peserta ujian jadwal ini = seluruh siswa yang ditempatkan permanen di
-     * ruangan tempat jadwal diselenggarakan (students.room_id).
+     * ID siswa peserta jadwal ini. Untuk jadwal periode (exam_period_id
+     * terisi) diambil dari exam_room_assignments pada ruangan jadwal; untuk
+     * jadwal lama tanpa periode diambil dari penempatan permanen
+     * students.room_id sebagai fallback.
+     *
+     * @return array<int, int>
      */
-    public function participantStudents(): HasManyThrough
+    public function participantStudentIds(): array
     {
-        return $this->hasManyThrough(
-            Student::class,
-            Room::class,
-            'id',
-            'room_id',
-            'room_id',
-            'id'
-        );
+        if ($this->exam_period_id !== null) {
+            return ExamRoomAssignment::query()
+                ->where('exam_period_id', $this->exam_period_id)
+                ->where('room_id', $this->room_id)
+                ->pluck('student_id')
+                ->all();
+        }
+
+        return Student::query()
+            ->where('room_id', $this->room_id)
+            ->pluck('id')
+            ->all();
+    }
+
+    /**
+     * Koleksi siswa peserta jadwal ini.
+     *
+     * @return Collection<int, Student>
+     */
+    public function participantStudents(): Collection
+    {
+        return Student::query()
+            ->with('user')
+            ->whereIn('id', $this->participantStudentIds())
+            ->orderBy('nisn')
+            ->get();
     }
 
     public function hasParticipant(int $studentId): bool
     {
-        return $this->participantStudents()->whereKey($studentId)->exists();
+        return in_array($studentId, $this->participantStudentIds(), true);
     }
 
     public function scopeForParticipant(Builder $query, int $studentId): Builder
     {
-        return $query->whereHas('room.students', fn ($students) => $students->whereKey($studentId));
+        return $query->where(function (Builder $query) use ($studentId) {
+            $query->whereNull('exam_period_id')
+                ->whereHas('room.students', fn ($students) => $students->whereKey($studentId))
+                ->orWhere(function (Builder $query) use ($studentId) {
+                    $query->whereNotNull('exam_period_id')
+                        ->whereHas('examPeriod.roomAssignments', fn ($assignments) => $assignments->where('student_id', $studentId));
+                });
+        });
+    }
+
+    /**
+     * Filter jadwal yang dapat diakses oleh siswa tertentu, dengan aturan yang
+     * sama seperti Student::isAssignedToSchedule(): jadwal periode
+     * (exam_period_id terisi) dicocokkan lewat exam_room_assignments
+     * (exam_period_id + student_id + room_id), jadwal lama tanpa periode
+     * memakai penempatan permanen students.room_id.
+     */
+    public function scopeAccessibleToStudent(Builder $query, Student $student): Builder
+    {
+        return $query->where(function (Builder $query) use ($student) {
+            $query->whereNull('exam_period_id')
+                ->where('room_id', $student->room_id)
+                ->orWhere(function (Builder $query) use ($student) {
+                    $query->whereNotNull('exam_period_id')
+                        ->whereExists(function ($query) use ($student) {
+                            $query->selectRaw('1')
+                                ->from('exam_room_assignments')
+                                ->whereColumn('exam_room_assignments.exam_period_id', 'exam_schedules.exam_period_id')
+                                ->whereColumn('exam_room_assignments.room_id', 'exam_schedules.room_id')
+                                ->where('exam_room_assignments.student_id', $student->id);
+                        });
+                });
+        });
     }
 
     /**

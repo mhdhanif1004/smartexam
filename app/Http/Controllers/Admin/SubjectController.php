@@ -25,10 +25,12 @@ class SubjectController extends Controller
                 $search = $request->string('search')->trim();
                 $query->where(function ($builder) use ($search) {
                     $builder->where('code', 'like', "%{$search}%")
-                        ->orWhere('name', 'like', "%{$search}%");
+                        ->orWhere('name', 'like', "%{$search}%")
+                        ->orWhere('class_label', 'like', "%{$search}%");
                 });
             })
             ->orderBy('code')
+            ->orderBy('class_label')
             ->paginate(10)
             ->withQueryString();
 

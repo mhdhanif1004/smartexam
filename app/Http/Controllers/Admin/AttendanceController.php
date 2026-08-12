@@ -41,7 +41,7 @@ class AttendanceController extends Controller
                         'user',
                         'examSessions' => fn ($q) => $q->where('exam_schedule_id', $schedule->id),
                     ])
-                    ->where('room_id', $room->id)
+                    ->whereIn('id', $schedule->participantStudentIds())
                     ->orderBy('nisn')
                     ->get()
                     ->map(function ($student) {

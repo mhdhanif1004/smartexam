@@ -10,8 +10,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Student extends Model
 {
-    public const SHIFTS = ['Shift 1', 'Shift 2', 'Shift 3'];
-
     /** @use HasFactory<StudentFactory> */
     use HasFactory;
 
@@ -20,7 +18,6 @@ class Student extends Model
         'nisn',
         'class_name',
         'room_id',
-        'shift',
     ];
 
     public function user(): BelongsTo
@@ -41,5 +38,20 @@ class Student extends Model
     public function roomAssignments(): HasMany
     {
         return $this->hasMany(ExamRoomAssignment::class);
+    }
+
+    /**
+     * Apakah siswa merupakan peserta jadwal ujian ini. Menggunakan scope
+     * ExamSchedule::accessibleToStudent() sebagai satu-satunya sumber aturan:
+     * jadwal periode (exam_period_id terisi) dicek dari exam_room_assignments
+     * pada ruangan jadwal; jadwal lama tanpa periode memakai penempatan
+     * permanen students.room_id sebagai fallback.
+     */
+    public function isAssignedToSchedule(ExamSchedule $schedule): bool
+    {
+        return ExamSchedule::query()
+            ->whereKey($schedule->id)
+            ->accessibleToStudent($this)
+            ->exists();
     }
 }

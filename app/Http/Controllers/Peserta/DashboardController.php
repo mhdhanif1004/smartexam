@@ -19,7 +19,7 @@ class DashboardController extends Controller
         $today = Carbon::today();
         $schedules = ExamSchedule::query()
             ->with(['subject', 'room'])
-            ->where('room_id', $student->room_id)
+            ->accessibleToStudent($student)
             ->where('exam_date', '>=', $today)
             ->where('exam_date', '<', $today->copy()->addDay())
             ->orderBy('start_time')

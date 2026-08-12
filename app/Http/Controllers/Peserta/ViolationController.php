@@ -26,11 +26,9 @@ class ViolationController extends Controller
 
         $schedule = ExamSchedule::query()
             ->with('subject')
-            ->whereKey($schedule->id)
-            ->where('room_id', $student->room_id)
-            ->first();
+            ->find($schedule->id);
 
-        if ($schedule === null) {
+        if ($schedule === null || ! $student->isAssignedToSchedule($schedule)) {
             return response()->json(['error' => 'Anda tidak memiliki akses ke ujian tersebut.'], 403);
         }
 

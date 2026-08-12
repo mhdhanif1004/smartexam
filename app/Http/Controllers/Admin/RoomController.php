@@ -6,12 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreRoomRequest;
 use App\Http\Requests\Admin\UpdateRoomRequest;
 use App\Models\Room;
-use App\Models\Student;
 use App\Models\Supervisor;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class RoomController extends Controller
@@ -38,25 +36,15 @@ class RoomController extends Controller
     public function store(StoreRoomRequest $request): RedirectResponse
     {
         $validated = $request->validated();
-        $studentIds = $this->studentIds($request->input('student_ids'));
-        $shift = $validated['shift'] ?? null;
+        $supervisorIds = $this->supervisorIds($request->input('supervisor_ids'));
 
-        $room = DB::transaction(function () use ($validated, $studentIds, $shift) {
-            $this->assertStudentsAllowed($studentIds, null);
-
+        $room = DB::transaction(function () use ($validated, $supervisorIds) {
             $room = Room::create([
                 'name' => $validated['name'],
-                'capacity' => count($studentIds),
+                'capacity' => (int) ($validated['capacity'] ?? 0),
             ]);
 
-            if ($studentIds !== []) {
-                Student::query()->whereIn('id', $studentIds)->update([
-                    'room_id' => $room->id,
-                    'shift' => $shift,
-                ]);
-            }
-
-            $this->assignSupervisor($validated['supervisor_id'] ?? null, $room);
+            $this->assignSupervisors($supervisorIds, $room);
 
             return $room;
         });
@@ -72,41 +60,15 @@ class RoomController extends Controller
     public function update(UpdateRoomRequest $request, Room $room): RedirectResponse
     {
         $validated = $request->validated();
-        $studentIds = $this->studentIds($request->input('student_ids'));
-        $shift = $validated['shift'] ?? null;
+        $supervisorIds = $this->supervisorIds($request->input('supervisor_ids'));
 
-        DB::transaction(function () use ($validated, $studentIds, $room, $shift) {
-            $this->assertStudentsAllowed($studentIds, $room);
-
+        DB::transaction(function () use ($validated, $supervisorIds, $room) {
             $room->update([
                 'name' => $validated['name'],
-                'capacity' => count($studentIds),
+                'capacity' => (int) ($validated['capacity'] ?? 0),
             ]);
 
-            // Siswa yang baru dicentang (masih bebas) dipindah ke ruangan ini.
-            if ($studentIds !== []) {
-                Student::query()
-                    ->whereIn('id', $studentIds)
-                    ->whereNull('room_id')
-                    ->update(['room_id' => $room->id, 'shift' => $shift]);
-            }
-
-            // Siswa yang tetap berada di ruangan ini diperbarui shift-nya.
-            if ($studentIds !== []) {
-                Student::query()
-                    ->where('room_id', $room->id)
-                    ->whereIn('id', $studentIds)
-                    ->update(['shift' => $shift]);
-            }
-
-            // Siswa yang tadinya di ruangan ini tetapi tidak dicentang lagi
-            // dilepas (room_id = null) sehingga tersedia untuk ruangan lain.
-            Student::query()
-                ->where('room_id', $room->id)
-                ->whereNotIn('id', $studentIds)
-                ->update(['room_id' => null]);
-
-            $this->assignSupervisor($validated['supervisor_id'] ?? null, $room);
+            $this->assignSupervisors($supervisorIds, $room);
         });
 
         return redirect()->route('admin.rooms.index')->with('success', "Ruangan {$room->name} berhasil diperbarui.");
@@ -124,72 +86,36 @@ class RoomController extends Controller
      * @param  array<mixed>|null  $input
      * @return list<int>
      */
-    private function studentIds(mixed $input): array
+    private function supervisorIds(mixed $input): array
     {
         return array_values(array_unique(array_map('intval', (array) $input)));
     }
 
     /**
-     * Pastikan setiap siswa yang dicentang memang boleh ditempatkan di ruangan
-     * ini: belum punya ruangan sama sekali (create/edit) atau sudah berada di
-     * ruangan ini (edit).
+     * Terapkan daftar pengawas untuk satu ruangan (bisa lebih dari satu).
+     * Pengawas ruangan ini yang tidak ada lagi di daftar dilepas (room_id
+     * null). Pengawas yang ada di daftar diarahkan ke ruangan ini; karena
+     * supervisors.room_id hanya satu kolom, pengawas yang bertugas di ruangan
+     * lain otomatis pindah ke ruangan yang terakhir disubmit.
      *
-     * @param  list<int>  $studentIds
+     * @param  list<int>  $supervisorIds
      */
-    private function assertStudentsAllowed(array $studentIds, ?Room $room): void
+    private function assignSupervisors(array $supervisorIds, Room $room): void
     {
-        if ($studentIds === []) {
-            return;
-        }
-
-        $allowed = Student::query()
-            ->when($room !== null, fn ($query) => $query
-                ->where(function ($builder) use ($room) {
-                    $builder->whereNull('room_id')->orWhere('room_id', $room->id);
-                }))
-            ->when($room === null, fn ($query) => $query->whereNull('room_id'))
-            ->pluck('id')
-            ->all();
-
-        $allowedSet = array_flip($allowed);
-
-        foreach ($studentIds as $studentId) {
-            if (! isset($allowedSet[$studentId])) {
-                throw ValidationException::withMessages([
-                    'student_ids' => 'Terdapat siswa yang sudah ditempatkan di ruangan lain. Halaman sudah dimuat ulang, silakan periksa daftar terbaru.',
-                ]);
-            }
-        }
-    }
-
-    /**
-     * Terapkan pengawas untuk satu ruangan (satu pengawas per ruangan).
-     * Pengawas yang sedang bertugas di ruangan lain otomatis dipindahkan;
-     * pengawas lama ruangan ini dilepas bila ada pengawas baru dipilih.
-     */
-    private function assignSupervisor(?int $supervisorId, Room $room): void
-    {
-        $current = Supervisor::query()->where('room_id', $room->id)->first();
-
-        if ($supervisorId === null || $supervisorId === 0) {
-            if ($current !== null) {
-                $current->update(['room_id' => null]);
-            }
+        if ($supervisorIds === []) {
+            Supervisor::query()->where('room_id', $room->id)->update(['room_id' => null]);
 
             return;
         }
 
-        $supervisor = Supervisor::findOrFail($supervisorId);
+        Supervisor::query()
+            ->where('room_id', $room->id)
+            ->whereNotIn('id', $supervisorIds)
+            ->update(['room_id' => null]);
 
-        if ($current !== null && $current->id === $supervisor->id) {
-            return;
-        }
-
-        if ($current !== null) {
-            $current->update(['room_id' => null]);
-        }
-
-        $supervisor->update(['room_id' => $room->id]);
+        Supervisor::query()
+            ->whereIn('id', $supervisorIds)
+            ->update(['room_id' => $room->id]);
     }
 
     /**
@@ -199,28 +125,10 @@ class RoomController extends Controller
      */
     private function formData(?Room $room = null): array
     {
-        $assigned = $room !== null
-            ? $room->students()->with('user')->orderBy('class_name')->orderBy('nisn')->get()
-            : collect();
-
-        $available = Student::query()
-            ->with('user')
-            ->whereNull('room_id')
-            ->whereHas('user', fn ($query) => $query->where('is_active', true))
-            ->orderBy('class_name')
-            ->orderBy('nisn')
-            ->get();
-
-        $classes = $available->pluck('class_name')
-            ->merge($assigned->pluck('class_name'))
-            ->unique()
-            ->sort()
-            ->values();
-
         $supervisors = Supervisor::query()->with(['user', 'room'])->orderBy('user_id')->get();
 
-        $currentSupervisorId = $room !== null ? $room->supervisors()->value('id') : null;
+        $currentSupervisorIds = $room !== null ? $room->supervisors()->pluck('id')->all() : [];
 
-        return compact('room', 'assigned', 'available', 'classes', 'supervisors', 'currentSupervisorId');
+        return compact('room', 'supervisors', 'currentSupervisorIds');
     }
 }

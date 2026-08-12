@@ -175,7 +175,7 @@ class ExamRoomAssignmentTest extends TestCase
         $this->assertDatabaseCount('exam_schedules', 0);
     }
 
-    public function test_card_preview_shows_room_and_seat_from_exam_room_assignments(): void
+    public function test_card_preview_shows_room_from_exam_room_assignments(): void
     {
         $room = Room::factory()->create(['name' => 'R. 101', 'capacity' => 40]);
         $student = $this->student('Siti Aminah', 'XI RPL 1');
@@ -191,9 +191,7 @@ class ExamRoomAssignmentTest extends TestCase
             ->post(route('admin.student-cards.preview'), ['student_ids' => [$student->id]])
             ->assertOk()
             ->assertSee('<td class="lbl">Ruangan</td>', false)
-            ->assertSee('<td class="lbl">No. Kursi</td>', false)
-            ->assertSee('R. 101')
-            ->assertSee('42');
+            ->assertSee('R. 101');
     }
 
     public function test_duplicate_student_placement_in_same_period_is_rejected(): void

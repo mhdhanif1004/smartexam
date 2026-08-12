@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ExamPeriod;
+use App\Models\ExamRoomAssignment;
 use App\Models\ExamSchedule;
 use App\Models\Question;
 use App\Models\Room;
@@ -50,6 +51,14 @@ class LoginCardSessionTest extends TestCase
             'duration_minutes' => 70,
         ]);
 
+        // Sumber kebenaran kartu: exam_room_assignments
+        ExamRoomAssignment::factory()->create([
+            'student_id' => $student->id,
+            'exam_period_id' => $period->id,
+            'room_id' => $room->id,
+            'seat_number' => 5,
+        ]);
+
         $this->actingAs($this->admin)
             ->post(route('admin.student-cards.preview'), ['student_ids' => [$student->id]])
             ->assertOk()
@@ -66,8 +75,8 @@ class LoginCardSessionTest extends TestCase
         Question::factory()->create(['subject_id' => $subjectA->id]);
         Question::factory()->create(['subject_id' => $subjectB->id]);
 
-        $period1 = ExamPeriod::factory()->create(['name' => 'Sesi 1', 'exam_date' => '2026-08-10']);
-        $period2 = ExamPeriod::factory()->create(['name' => 'Sesi 2', 'exam_date' => '2026-08-10']);
+        $period1 = ExamPeriod::factory()->create(['name' => 'Sesi 1', 'exam_date' => '2026-08-10', 'start_time' => '07:30:00']);
+        $period2 = ExamPeriod::factory()->create(['name' => 'Sesi 2', 'exam_date' => '2026-08-10', 'start_time' => '11:05:00']);
 
         ExamSchedule::factory()->create([
             'room_id' => $room->id,
@@ -88,6 +97,20 @@ class LoginCardSessionTest extends TestCase
             'start_time' => '11:05:00',
             'end_time' => '12:15:00',
             'duration_minutes' => 70,
+        ]);
+
+        // Sumber kebenaran kartu: exam_room_assignments
+        ExamRoomAssignment::factory()->create([
+            'student_id' => $student->id,
+            'exam_period_id' => $period1->id,
+            'room_id' => $room->id,
+            'seat_number' => 5,
+        ]);
+        ExamRoomAssignment::factory()->create([
+            'student_id' => $student->id,
+            'exam_period_id' => $period2->id,
+            'room_id' => $room->id,
+            'seat_number' => 6,
         ]);
 
         $this->actingAs($this->admin)
@@ -114,6 +137,7 @@ class LoginCardSessionTest extends TestCase
             'duration_minutes' => 90,
         ]);
 
+        // Tidak ada ExamRoomAssignment -> kartu harus tampil "-"
         $this->actingAs($this->admin)
             ->post(route('admin.student-cards.preview'), ['student_ids' => [$student->id]])
             ->assertOk()
@@ -139,6 +163,14 @@ class LoginCardSessionTest extends TestCase
             'start_time' => '07:30:00',
             'end_time' => '08:40:00',
             'duration_minutes' => 70,
+        ]);
+
+        // Index page baca dari exam_room_assignments
+        ExamRoomAssignment::factory()->create([
+            'student_id' => $student->id,
+            'exam_period_id' => $period->id,
+            'room_id' => $room->id,
+            'seat_number' => 1,
         ]);
 
         $this->actingAs($this->admin)

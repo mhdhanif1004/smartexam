@@ -3,7 +3,8 @@
     Struktur & field TIDAK berubah; CSS disediakan oleh template pemanggil
     (print.blade.php untuk kertas A4, preview.blade.php untuk layar responsif).
     Variabel: $student, $setting, $tanggalCetak (string).
-    Opsional: $logoKiri, $logoKanan (data URI) — biar logo dibaca sekali per render,
+    Opsional: $roomAssignments (peta student_id => koleksi ExamRoomAssignment),
+    $logoKiri, $logoKanan (data URI) — biar logo dibaca sekali per render,
     bukan per kartu; dihitung otomatis bila tidak dikirim pemanggil.
 --}}
 @php
@@ -15,14 +16,10 @@
     $logoKanan = $logoKanan ?? $setting?->logoKananDataUri();
     $placeDate = $tempat ? rtrim(trim($tempat), ',').', '.$tanggalCetak : $tanggalCetak;
 
-    // Nama sesi ujian (ExamPeriod) yang mewadahi jadwal ujian di ruangan siswa.
-    // Dikirim dari controller sebagai peta room_id => "Sesi 1, Sesi 2"; fallback "-".
-    $sessionNamesByRoom = $sessionNamesByRoom ?? [];
-    $sessions = $student->room ? ($sessionNamesByRoom[$student->room->id] ?? '-') : '-';
-
-    // Penempatan ruangan siswa dari exam_room_assignments (sumber kebenaran
-    // baru), peta student_id => koleksi assignment. Bila belum ada penempatan
-    // (data lama), fallback ke kolom students.room_id seperti sebelumnya.
+    // Ruangan dan Sesi SELALU dibaca dari exam_room_assignments
+    // (satu baris = ruangan + sesi untuk satu siswa). TIDAK ada
+    // fallback ke students.room_id atau peta sesi lama agar keduanya
+    // konsisten: siswa yang belum diproses "Tambah Kelompok" tampil "-".
     $roomAssignments = $roomAssignments ?? collect();
     $assignments = $roomAssignments[$student->id] ?? collect();
 
@@ -32,12 +29,9 @@
         ->unique()
         ->values();
 
-    if ($sessionNames->isNotEmpty()) {
-        $sessions = $sessionNames->implode(', ');
-    }
+    $sessions = $sessionNames->isNotEmpty() ? $sessionNames->implode(', ') : '-';
 
     $assignmentRooms = $assignments->map(fn ($assignment) => $assignment->room?->name ?? '-');
-    $assignmentSeats = $assignments->map(fn ($assignment) => $assignment->seat_number);
 
     // Gelar (token berakhiran titik) dilem dengan non-breaking space agar tidak
     // turun ke baris berikutnya; nama tetap bisa wrap di antara kata biasa.
@@ -99,17 +93,6 @@
                 @forelse ($assignmentRooms as $assignmentRoom)
                     @unless ($loop->first)<br>@endunless
                     {{ $assignmentRoom }}
-                @empty
-                    {{ $student->room?->name ?? '-' }}
-                @endforelse
-            </td>
-        </tr>
-        <tr>
-            <td class="lbl">No. Kursi</td>
-            <td class="val">
-                @forelse ($assignmentSeats as $assignmentSeat)
-                    @unless ($loop->first)<br>@endunless
-                    {{ $assignmentSeat }}
                 @empty
                     -
                 @endforelse

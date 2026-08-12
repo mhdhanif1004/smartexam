@@ -141,9 +141,7 @@
                 <form method="POST" action="{{ route('admin.student-cards.print') }}">
                     @csrf
                     <input type="hidden" name="type" value="pengawas">
-                    @foreach ($supervisors as $supervisor)
-                        <input type="hidden" name="supervisor_ids[]" value="{{ $supervisor->id }}">
-                    @endforeach
+                    <input type="hidden" name="supervisor_ids" value="{{ $supervisors->pluck('id')->implode(',') }}">
                     <button type="submit" class="btn btn-print">Cetak PDF</button>
                 </form>
             </div>

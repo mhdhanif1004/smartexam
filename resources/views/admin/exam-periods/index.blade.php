@@ -3,14 +3,19 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Sesi Ujian</h2>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Kelola blok waktu ujian. Satu sesi bisa memuat banyak kelompok ruangan dan mata pelajaran sekaligus.</p>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Kelola blok waktu ujian. Cara utama membuat sesi: <span class="font-semibold text-gray-700 dark:text-gray-200">Buat Sesi Otomatis</span> (satu form, semua gelombang dihitung sendiri). Buat Sesi Manual hanya untuk kasus khusus.</p>
             </div>
-            <a href="{{ route('admin.exam-periods.create') }}" class="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-                Tambah Sesi
-            </a>
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="{{ route('admin.exam-periods.auto-generate.create') }}" class="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    Buat Sesi Otomatis (Direkomendasikan)
+                </a>
+                <a href="{{ route('admin.exam-periods.create') }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                    Buat Sesi Manual (Lanjutan)
+                </a>
+            </div>
         </div>
 
         @include('admin.partials.flash')
@@ -50,7 +55,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada sesi ujian. Klik "Tambah Sesi" untuk membuatnya.</td>
+                                <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada sesi ujian. Klik "Buat Sesi Otomatis" untuk membuat semua gelombang sekaligus.</td>
                             </tr>
                         @endforelse
                     </tbody>
