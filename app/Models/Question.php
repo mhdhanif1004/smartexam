@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class Question extends Model
 {
@@ -37,6 +38,7 @@ class Question extends Model
         'subject_id',
         'type',
         'question_text',
+        'image_path',
         'options',
         'answer_key',
         'score_weight',
@@ -61,6 +63,14 @@ class Question extends Model
     public function typeLabel(): string
     {
         return self::TYPES[$this->type] ?? ucwords(str_replace('_', ' ', $this->type));
+    }
+
+    /**
+     * URL publik gambar soal (di bawah public/storage), null jika tidak ada.
+     */
+    public function imageUrl(): ?string
+    {
+        return filled($this->image_path) ? Storage::disk('public')->url($this->image_path) : null;
     }
 
     /**

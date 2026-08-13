@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Imports\QuestionsImport;
+use App\Imports\Questions\SingleChoiceImport;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\Question;
@@ -13,6 +13,9 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use Tests\TestCase;
 
 class QuestionModuleEnhancementTest extends TestCase
@@ -134,45 +137,99 @@ class QuestionModuleEnhancementTest extends TestCase
             ->assertSessionHasErrors('subject_id');
     }
 
-    public function test_questions_import_validate_accepts_all_five_types(): void
+    public function test_questions_import_validate_accepts_each_type(): void
     {
         Subject::factory()->create(['name' => 'Matematika']);
         Subject::factory()->create(['name' => 'IPA']);
 
-        $csv = "Mata Pelajaran,Jenis,Pertanyaan,Opsi A,Opsi B,Opsi C,Opsi D,Opsi E,Jawaban,Bobot,Kiri,Kanan\n"
-            ."Matematika,Pilihan Ganda,Berapa 2+2?,3,4,5,,,B,10,,\n"
-            ."Matematika,Pilihan Ganda Banyak,Manakah prima?,2,4,6,,,\"A,C\",10,,\n"
-            ."IPA,Benar/Salah,Bumi itu bulat,,,,,,Benar,5,,\n"
-            .'IPA,Menjodohkan,Jodohkan,,,,,,,10,"Kucing'.PHP_EOL.'Anjing","Meong'.PHP_EOL."Guk\"\n"
-            ."Matematika,Essay,Jelaskan cara kerja listrik,,,,,,,20,,\n";
+        $cases = [
+            [
+                'type' => Question::TYPE_SINGLE_CHOICE,
+                'csv' => "Mata Pelajaran,Pertanyaan,Opsi A,Opsi B,Opsi C,Opsi D,Opsi E,Kunci Jawaban,Bobot\nMatematika,Berapa 2+2?,3,4,5,,,B,10\n",
+            ],
+            [
+                'type' => Question::TYPE_MULTIPLE_CHOICE,
+                'csv' => "Mata Pelajaran,Pertanyaan,Opsi A,Opsi B,Opsi C,Opsi D,Opsi E,Kunci Jawaban,Bobot\nMatematika,Manakah prima?,2,4,6,,,\"A,C\",10\n",
+            ],
+            [
+                'type' => Question::TYPE_TRUE_FALSE,
+                'csv' => "Mata Pelajaran,Pertanyaan,Kunci Jawaban,Bobot\nIPA,Bumi itu bulat,Benar,5\n",
+            ],
+            [
+                'type' => Question::TYPE_MATCHING,
+                'csv' => "Mata Pelajaran,Pertanyaan,Kiri,Kanan,Bobot\nIPA,Jodohkan,\"Kucing\nAnjing\",\"Meong\nGuk\",10\n",
+            ],
+            [
+                'type' => Question::TYPE_ESSAY,
+                'csv' => "Mata Pelajaran,Pertanyaan,Kunci Jawaban / Rubrik,Bobot\nMatematika,Jelaskan cara kerja listrik,Referensi koreksi,20\n",
+            ],
+        ];
 
-        $response = $this->actingAs($this->admin)
+        foreach ($cases as $case) {
+            $this->actingAs($this->admin)
+                ->post(route('admin.questions.import-validate'), [
+                    'type' => $case['type'],
+                    'file' => $this->csvFile($case['csv']),
+                ])
+                ->assertOk()
+                ->assertJson([
+                    'ok' => true,
+                    'total' => 1,
+                    'valid' => 1,
+                    'invalid' => 0,
+                    'to_create' => 1,
+                ]);
+        }
+    }
+
+    public function test_questions_import_validate_skips_example_row(): void
+    {
+        Subject::factory()->create(['name' => 'Matematika']);
+
+        $csv = "Mata Pelajaran,Pertanyaan,Opsi A,Opsi B,Opsi C,Opsi D,Opsi E,Kunci Jawaban,Bobot\n"
+            ."Matematika,CONTOH: Berapa 2+2?,3,4,5,,,B,10\n"
+            ."Matematika,Soal sungguhan?,7,8,9,,,C,10\n";
+
+        $this->actingAs($this->admin)
             ->post(route('admin.questions.import-validate'), [
+                'type' => Question::TYPE_SINGLE_CHOICE,
                 'file' => $this->csvFile($csv),
             ])
             ->assertOk()
             ->assertJson([
-                'ok' => true,
-                'total' => 5,
-                'valid' => 5,
+                'total' => 1,
+                'valid' => 1,
                 'invalid' => 0,
-                'to_create' => 5,
+                'to_create' => 1,
             ]);
     }
 
-    public function test_questions_import_validate_rejects_unknown_subject_and_type(): void
+    public function test_questions_import_validate_requires_type(): void
     {
-        $csv = "Mata Pelajaran,Jenis,Pertanyaan\nKimia,Pilihan Ganda,Soal apa?\n";
+        $csv = "Mata Pelajaran,Pertanyaan,Opsi A,Opsi B,Opsi C,Opsi D,Opsi E,Kunci Jawaban,Bobot\nMatematika,Berapa 2+2?,3,4,5,,,B,10\n";
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.questions.import-validate'), [
+                'file' => $this->csvFile($csv),
+            ], ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('type');
+    }
+
+    public function test_questions_import_validate_rejects_unknown_subject(): void
+    {
+        $csv = "Mata Pelajaran,Pertanyaan,Opsi A,Opsi B,Opsi C,Opsi D,Opsi E,Kunci Jawaban,Bobot\nKimia,Soal apa?,1,2,3,4,5,A,10\n";
 
         $response = $this->actingAs($this->admin)
             ->post(route('admin.questions.import-validate'), [
+                'type' => Question::TYPE_SINGLE_CHOICE,
                 'file' => $this->csvFile($csv),
             ])
             ->assertOk()
             ->assertJsonPath('valid', 0)
             ->assertJsonPath('invalid', 1);
 
-        $this->assertStringContainsString('Mata pelajaran tidak ditemukan', $response->json('errors.0'));
+        $this->assertStringContainsString("Mata pelajaran 'Kimia' tidak ditemukan", $response->json('errors.0'));
     }
 
     public function test_questions_import_missing_header_is_rejected(): void
@@ -181,17 +238,80 @@ class QuestionModuleEnhancementTest extends TestCase
 
         $this->actingAs($this->admin)
             ->post(route('admin.questions.import-validate'), [
+                'type' => Question::TYPE_SINGLE_CHOICE,
                 'file' => $this->csvFile($csv),
             ])
             ->assertStatus(422)
             ->assertJsonPath('message', fn (string $message) => str_contains($message, 'Mata Pelajaran'));
     }
 
+    public function test_questions_import_xlsx_reads_data_sheet_by_name_even_with_extra_sheet(): void
+    {
+        Subject::factory()->create(['name' => 'Matematika']);
+
+        $spreadsheet = new Spreadsheet;
+        $petunjuk = $spreadsheet->getActiveSheet();
+        $petunjuk->setTitle('Petunjuk - Pilihan Ganda');
+        $petunjuk->setCellValue('A1', 'TEMPLATE SOAL PILIHAN GANDA (SATU JAWABAN)');
+
+        $data = $spreadsheet->createSheet();
+        $data->setTitle('Data Pilihan Ganda');
+        $data->fromArray([
+            ['Mata Pelajaran', 'Pertanyaan', 'Opsi A', 'Opsi B', 'Opsi C', 'Opsi D', 'Opsi E', 'Kunci Jawaban', 'Bobot'],
+            ['Matematika', 'CONTOH: Berapa 2+2?', '3', '4', '5', '', '', 'B', 10],
+            ['Matematika', 'Berapa 1+1?', '1', '2', '3', '', '', 'B', 10],
+        ]);
+
+        $file = $this->spreadsheetFile($spreadsheet, 'soal.xlsx');
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.questions.import-validate'), [
+                'type' => Question::TYPE_SINGLE_CHOICE,
+                'file' => $file,
+            ])
+            ->assertOk()
+            ->assertJson([
+                'ok' => true,
+                'total' => 1,
+                'valid' => 1,
+                'invalid' => 0,
+                'to_create' => 1,
+            ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.questions.import-confirm'))
+            ->assertOk()
+            ->assertJson(['ok' => true, 'created' => 1]);
+
+        $this->assertDatabaseHas('questions', ['question_text' => 'Berapa 1+1?']);
+    }
+
+    public function test_questions_import_rejects_file_without_matching_data_sheet(): void
+    {
+        Subject::factory()->create(['name' => 'Matematika']);
+
+        $spreadsheet = new Spreadsheet;
+        $data = $spreadsheet->getActiveSheet();
+        $data->setTitle('Data Pilihan Ganda');
+        $data->fromArray([
+            ['Mata Pelajaran', 'Pertanyaan', 'Opsi A', 'Opsi B', 'Opsi C', 'Opsi D', 'Opsi E', 'Kunci Jawaban', 'Bobot'],
+            ['Matematika', 'CONTOH: Berapa 2+2?', '3', '4', '5', '', '', 'B', 10],
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.questions.import-validate'), [
+                'type' => Question::TYPE_ESSAY,
+                'file' => $this->spreadsheetFile($spreadsheet, 'soal.xlsx'),
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', fn (string $message) => str_contains($message, 'Data Essay'));
+    }
+
     public function test_questions_import_confirm_creates_questions(): void
     {
         $subject = Subject::factory()->create(['name' => 'Matematika']);
 
-        $import = new QuestionsImport;
+        $import = new SingleChoiceImport;
         $import->validRows = [
             ['row' => 2, 'subject_id' => $subject->id, 'type' => Question::TYPE_SINGLE_CHOICE, 'question_text' => 'Berapa 2+2?', 'options' => ['A' => '3', 'B' => '4'], 'answer_key' => 'B', 'score_weight' => 10.0],
             ['row' => 3, 'subject_id' => $subject->id, 'type' => Question::TYPE_ESSAY, 'question_text' => 'Jelaskan?', 'options' => null, 'answer_key' => 'Kunci essay.', 'score_weight' => 20.0],
@@ -245,12 +365,128 @@ class QuestionModuleEnhancementTest extends TestCase
         $this->assertStringContainsString('Berapa 2+2?', $csv->streamedContent());
     }
 
-    public function test_admin_can_download_questions_template(): void
+    public function test_admin_can_download_questions_templates(): void
+    {
+        $expectedSheets = [
+            Question::TYPE_SINGLE_CHOICE => 'Data Pilihan Ganda',
+            Question::TYPE_MULTIPLE_CHOICE => 'Data Pilihan Ganda Banyak',
+            Question::TYPE_TRUE_FALSE => 'Data Benar Salah',
+            Question::TYPE_MATCHING => 'Data Menjodohkan',
+            Question::TYPE_ESSAY => 'Data Essay',
+        ];
+
+        foreach ($expectedSheets as $type => $sheetTitle) {
+            $response = $this->actingAs($this->admin)
+                ->get(route('admin.questions.import-template', $type))
+                ->assertOk();
+
+            $spreadsheet = $this->loadSpreadsheet($response->streamedContent());
+
+            $this->assertSame(
+                [$sheetTitle],
+                $spreadsheet->getSheetNames(),
+                "Template {$type} harus hanya berisi 1 sheet data tanpa sheet Petunjuk."
+            );
+
+            if ($type === Question::TYPE_MATCHING) {
+                $sheet = $spreadsheet->getSheet(0);
+                $this->assertStringContainsString('BARIS TERPISAH', $sheet->getComment('C1')->getText()->getPlainText());
+                $this->assertStringContainsString('sama dengan kolom Kiri', $sheet->getComment('D1')->getText()->getPlainText());
+            }
+        }
+    }
+
+    public function test_unknown_import_template_type_is_404(): void
     {
         $this->actingAs($this->admin)
-            ->get(route('admin.questions.import-template'))
-            ->assertOk()
-            ->assertDownload('template-import-soal.xlsx');
+            ->get(route('admin.questions.import-template', 'not-a-type'))
+            ->assertNotFound();
+    }
+
+    public function test_admin_can_create_question_with_image(): void
+    {
+        Storage::fake('public');
+        $subject = Subject::factory()->create();
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.questions.store'), [
+                'subject_id' => $subject->id,
+                'type' => Question::TYPE_SINGLE_CHOICE,
+                'question_text' => 'Soal dengan gambar?',
+                'score_weight' => 10,
+                'single_options' => ['A' => 'Merah', 'B' => 'Biru'],
+                'single_answer' => 'A',
+                'image' => UploadedFile::fake()->image('gambar.png', 400, 300),
+            ])
+            ->assertRedirect(route('admin.questions.index'))
+            ->assertSessionHas('success', 'Soal berhasil ditambahkan.');
+
+        $question = Question::query()->first();
+        $this->assertNotNull($question->image_path);
+        Storage::disk('public')->assertExists($question->image_path);
+    }
+
+    public function test_admin_can_remove_question_image_on_update(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('question-images/lama.png', 'dummy content');
+
+        $subject = Subject::factory()->create();
+        $question = Question::factory()->create([
+            'subject_id' => $subject->id,
+            'type' => Question::TYPE_SINGLE_CHOICE,
+            'options' => ['A' => 'Merah', 'B' => 'Biru'],
+            'answer_key' => 'A',
+            'image_path' => 'question-images/lama.png',
+        ]);
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.questions.update', $question), [
+                'subject_id' => $subject->id,
+                'type' => Question::TYPE_SINGLE_CHOICE,
+                'question_text' => 'Soal diperbarui?',
+                'score_weight' => 10,
+                'single_options' => ['A' => 'Merah', 'B' => 'Biru'],
+                'single_answer' => 'A',
+                'remove_image' => '1',
+            ])
+            ->assertRedirect(route('admin.questions.index'))
+            ->assertSessionHas('success', 'Soal berhasil diperbarui.');
+
+        $this->assertNull($question->fresh()->image_path);
+        Storage::disk('public')->assertMissing('question-images/lama.png');
+    }
+
+    public function test_admin_can_replace_question_image_on_update(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('question-images/lama.png', 'dummy content');
+
+        $subject = Subject::factory()->create();
+        $question = Question::factory()->create([
+            'subject_id' => $subject->id,
+            'type' => Question::TYPE_SINGLE_CHOICE,
+            'options' => ['A' => 'Merah', 'B' => 'Biru'],
+            'answer_key' => 'A',
+            'image_path' => 'question-images/lama.png',
+        ]);
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.questions.update', $question), [
+                'subject_id' => $subject->id,
+                'type' => Question::TYPE_SINGLE_CHOICE,
+                'question_text' => 'Soal diperbarui?',
+                'score_weight' => 10,
+                'single_options' => ['A' => 'Merah', 'B' => 'Biru'],
+                'single_answer' => 'A',
+                'image' => UploadedFile::fake()->image('baru.png', 400, 300),
+            ])
+            ->assertRedirect(route('admin.questions.index'))
+            ->assertSessionHas('success', 'Soal berhasil diperbarui.');
+
+        $this->assertNotSame('question-images/lama.png', $question->fresh()->image_path);
+        Storage::disk('public')->assertMissing('question-images/lama.png');
+        Storage::disk('public')->assertExists($question->fresh()->image_path);
     }
 
     public function test_questions_index_filters_by_status(): void
@@ -395,5 +631,29 @@ class QuestionModuleEnhancementTest extends TestCase
         file_put_contents($path, $content);
 
         return new UploadedFile($path, $name, 'text/csv', null, true);
+    }
+
+    private function spreadsheetFile(Spreadsheet $spreadsheet, string $name = 'soal.xlsx'): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'import_q_');
+        IOFactory::createWriter($spreadsheet, 'Xlsx')->save($path);
+
+        return new UploadedFile(
+            $path,
+            $name,
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            null,
+            true
+        );
+    }
+
+    private function loadSpreadsheet(string $content): Spreadsheet
+    {
+        $path = tempnam(sys_get_temp_dir(), 'xlsx_');
+        file_put_contents($path, $content);
+        $spreadsheet = IOFactory::load($path);
+        unlink($path);
+
+        return $spreadsheet;
     }
 }

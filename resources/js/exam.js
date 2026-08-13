@@ -21,6 +21,7 @@ export function examApp(config) {
         timer: null,
         saveTimer: null,
         showConfirm: false,
+        zoomImage: null,
         toast: '',
         toastVisible: false,
         toastTimer: null,

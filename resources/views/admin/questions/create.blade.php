@@ -14,8 +14,9 @@
         <form
             method="POST"
             action="{{ route('admin.questions.store') }}"
+            enctype="multipart/form-data"
             class="max-w-3xl space-y-6"
-            x-data="{ type: @js(old('type', \App\Models\Question::TYPE_SINGLE_CHOICE)), pairs: @js($pairs) }"
+            x-data="{ type: @js(old('type', \App\Models\Question::TYPE_SINGLE_CHOICE)), pairs: @js($pairs), img: { preview: '' } }"
         >
             @csrf
 
@@ -49,6 +50,27 @@
                         <x-input-label for="score_weight" :value="__('Bobot Nilai (poin)')" />
                         <x-text-input id="score_weight" name="score_weight" type="number" step="0.01" min="0" max="100" class="mt-1 block w-full" value="{{ old('score_weight', 10) }}" required />
                         <x-input-error :messages="$errors->get('score_weight')" class="mt-2" />
+                    </div>
+                </div>
+            </div>
+
+            {{-- Gambar Soal --}}
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Gambar Soal</h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Opsional. Gambar akan ditampilkan di bawah pertanyaan saat ujian berlangsung. Format jpg, jpeg, png, atau webp (maks 3 MB).</p>
+                <div class="mt-5 flex flex-col gap-4 sm:flex-row sm:items-start">
+                    <div class="flex-1">
+                        <input
+                            type="file"
+                            name="image"
+                            accept="image/jpeg,image/png,image/webp"
+                            @change="img.preview = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : ''"
+                            class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20"
+                        />
+                        <x-input-error :messages="$errors->get('image')" class="mt-2" />
+                    </div>
+                    <div class="flex-1">
+                        <img x-show="img.preview" :src="img.preview" class="max-h-48 w-full rounded-lg border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau gambar" />
                     </div>
                 </div>
             </div>

@@ -89,7 +89,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
 
         Route::controller(QuestionImportExportController::class)->prefix('questions')->name('questions.')->group(function () {
             Route::get('/export', 'export')->name('export');
-            Route::get('/import-template', 'importTemplate')->name('import-template');
+            Route::get('/import-template/{type}', 'importTemplate')->name('import-template');
             Route::post('/import-validate', 'importValidate')->name('import-validate');
             Route::post('/import-confirm', 'importConfirm')->name('import-confirm');
             Route::get('/import-failed/{file}', 'importFailed')->name('import-failed');

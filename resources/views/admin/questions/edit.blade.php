@@ -20,8 +20,9 @@
         <form
             method="POST"
             action="{{ route('admin.questions.update', $question) }}"
+            enctype="multipart/form-data"
             class="max-w-3xl space-y-6"
-            x-data="{ type: @js(old('type', $question->type)), pairs: @js($pairs) }"
+            x-data="{ type: @js(old('type', $question->type)), pairs: @js($pairs), img: { preview: '', hasExisting: @js((bool) $question->image_path), existingUrl: @js($question->image_path ? asset('storage/'.$question->image_path) : ''), remove() { this.hasExisting = false; this.preview = ''; } } }"
         >
             @csrf
             @method('PUT')
@@ -56,6 +57,32 @@
                         <x-input-label for="score_weight" :value="__('Bobot Nilai (poin)')" />
                         <x-text-input id="score_weight" name="score_weight" type="number" step="0.01" min="0" max="100" class="mt-1 block w-full" value="{{ old('score_weight', $question->score_weight) }}" required />
                         <x-input-error :messages="$errors->get('score_weight')" class="mt-2" />
+                    </div>
+                </div>
+            </div>
+
+            {{-- Gambar Soal --}}
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Gambar Soal</h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Opsional. Gambar akan ditampilkan di bawah pertanyaan saat ujian berlangsung. Pilih file baru untuk mengganti, atau centang hapus untuk menghapusnya. Format jpg, jpeg, png, atau webp (maks 3 MB).</p>
+                <div class="mt-5 flex flex-col gap-4 sm:flex-row sm:items-start">
+                    <div class="flex-1">
+                        <input
+                            type="file"
+                            name="image"
+                            accept="image/jpeg,image/png,image/webp"
+                            @change="img.preview = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : ''"
+                            class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20"
+                        />
+                        <x-input-error :messages="$errors->get('image')" class="mt-2" />
+                        <label class="mt-3 flex w-fit items-center gap-2 text-sm font-medium text-rose-700 dark:text-rose-300" x-show="img.hasExisting">
+                            <input type="checkbox" name="remove_image" value="1" @change="img.remove()" class="h-4 w-4 rounded border-gray-300 text-rose-600 focus:ring-rose-500 dark:border-gray-600 dark:bg-gray-800" />
+                            Hapus gambar saat ini
+                        </label>
+                    </div>
+                    <div class="flex-1">
+                        <img x-show="img.hasExisting && !img.preview" :src="img.existingUrl" class="max-h-48 w-full rounded-lg border border-gray-200 object-contain dark:border-gray-700" alt="Gambar saat ini" />
+                        <img x-show="img.preview" :src="img.preview" class="max-h-48 w-full rounded-lg border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau gambar baru" />
                     </div>
                 </div>
             </div>

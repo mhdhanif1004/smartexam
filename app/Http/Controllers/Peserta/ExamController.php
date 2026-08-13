@@ -146,6 +146,7 @@ class ExamController extends Controller
                 'id' => $question->id,
                 'type' => $question->type,
                 'question_text' => $question->question_text,
+                'image_url' => $question->imageUrl(),
                 'options' => $question->options,
                 'score_weight' => (float) $question->score_weight,
             ])

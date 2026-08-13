@@ -79,6 +79,16 @@
 
                             <p class="mt-5 whitespace-pre-line text-base font-medium leading-relaxed text-gray-900 dark:text-gray-100" x-text="q.question_text"></p>
 
+                            <div x-show="q.image_url" class="mt-4 flex justify-center rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <img
+                                    :src="q.image_url"
+                                    :alt="'Gambar soal nomor ' + (index + 1)"
+                                    @click="zoomImage = q.image_url"
+                                    class="max-h-96 w-full max-w-2xl cursor-zoom-in rounded-md object-contain"
+                                    loading="lazy"
+                                />
+                            </div>
+
                             <div class="mt-6 space-y-3">
                                 <div x-show="q.type === 'single_choice'" class="space-y-2">
                                     <template x-for="(text, letter) in q.options" :key="letter">
@@ -221,6 +231,16 @@
                 <button type="button" @click="submit(false)" class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-500">Ya, Kumpulkan</button>
             </div>
         </div>
+    </div>
+
+    <div x-show="zoomImage" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4" @click="zoomImage = null">
+        <img :src="zoomImage" class="max-h-full max-w-full rounded-lg object-contain shadow-2xl" alt="Gambar soal diperbesar" />
+        <button type="button" @click="zoomImage = null" class="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20" aria-label="Tutup gambar">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+        <p class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">Klik di mana saja untuk menutup</p>
     </div>
     </div>
 </x-layouts.peserta>

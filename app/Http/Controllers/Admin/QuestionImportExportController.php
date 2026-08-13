@@ -4,10 +4,19 @@ namespace App\Http\Controllers\Admin;
 
 use App\Exports\QuestionsExport;
 use App\Exports\QuestionsFailedImportExport;
-use App\Exports\QuestionsTemplateExport;
+use App\Exports\QuestionTemplates\EssayTemplateExport;
+use App\Exports\QuestionTemplates\MatchingTemplateExport;
+use App\Exports\QuestionTemplates\MultipleChoiceTemplateExport;
+use App\Exports\QuestionTemplates\SingleChoiceTemplateExport;
+use App\Exports\QuestionTemplates\TrueFalseTemplateExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ImportQuestionsRequest;
-use App\Imports\QuestionsImport;
+use App\Imports\Questions\BaseTypeImport;
+use App\Imports\Questions\EssayImport;
+use App\Imports\Questions\MatchingImport;
+use App\Imports\Questions\MultipleChoiceImport;
+use App\Imports\Questions\SingleChoiceImport;
+use App\Imports\Questions\TrueFalseImport;
 use App\Models\Question;
 use App\Models\Subject;
 use Illuminate\Http\JsonResponse;
@@ -20,6 +29,42 @@ use Throwable;
 
 class QuestionImportExportController extends Controller
 {
+    /**
+     * Peta jenis soal => class import & template export.
+     */
+    private const TEMPLATES = [
+        Question::TYPE_SINGLE_CHOICE => [
+            'export' => SingleChoiceTemplateExport::class,
+            'import' => SingleChoiceImport::class,
+            'file' => 'template-import-pilihan-ganda.xlsx',
+            'label' => 'Pilihan Ganda',
+        ],
+        Question::TYPE_MULTIPLE_CHOICE => [
+            'export' => MultipleChoiceTemplateExport::class,
+            'import' => MultipleChoiceImport::class,
+            'file' => 'template-import-pilihan-ganda-banyak.xlsx',
+            'label' => 'Pilihan Ganda Banyak',
+        ],
+        Question::TYPE_TRUE_FALSE => [
+            'export' => TrueFalseTemplateExport::class,
+            'import' => TrueFalseImport::class,
+            'file' => 'template-import-benar-salah.xlsx',
+            'label' => 'Benar/Salah',
+        ],
+        Question::TYPE_MATCHING => [
+            'export' => MatchingTemplateExport::class,
+            'import' => MatchingImport::class,
+            'file' => 'template-import-menjodohkan.xlsx',
+            'label' => 'Menjodohkan',
+        ],
+        Question::TYPE_ESSAY => [
+            'export' => EssayTemplateExport::class,
+            'import' => EssayImport::class,
+            'file' => 'template-import-essay.xlsx',
+            'label' => 'Essay',
+        ],
+    ];
+
     public function export(Request $request): BinaryFileResponse
     {
         $extension = $request->string('format')->toString() === 'csv' ? 'csv' : 'xlsx';
@@ -48,16 +93,31 @@ class QuestionImportExportController extends Controller
         return Excel::download(new QuestionsExport($rows), 'bank-soal-'.date('Y-m-d').'.'.$extension);
     }
 
-    public function importTemplate(): BinaryFileResponse
+    public function importTemplate(string $type): BinaryFileResponse
     {
+        $template = self::TEMPLATES[$type] ?? null;
+
+        if ($template === null) {
+            abort(404);
+        }
+
         $subjects = Subject::query()->orderBy('name')->get();
 
-        return Excel::download(new QuestionsTemplateExport($subjects), 'template-import-soal.xlsx');
+        return Excel::download(new $template['export']($subjects), $template['file']);
     }
 
     public function importValidate(ImportQuestionsRequest $request): JsonResponse
     {
-        $import = new QuestionsImport;
+        $template = self::TEMPLATES[$request->string('type')->toString()] ?? null;
+
+        if ($template === null) {
+            return response()->json([
+                'message' => 'Jenis soal tidak valid.',
+            ], 422);
+        }
+
+        /** @var BaseTypeImport $import */
+        $import = new $template['import'];
 
         try {
             Excel::import($import, $request->file('file'));
@@ -77,6 +137,8 @@ class QuestionImportExportController extends Controller
 
         return response()->json([
             'ok' => true,
+            'type' => $import->type(),
+            'type_label' => $template['label'],
             'total' => count($import->validRows) + count($import->invalidRows),
             'valid' => count($import->validRows),
             'invalid' => count($import->invalidRows),
@@ -90,7 +152,7 @@ class QuestionImportExportController extends Controller
     {
         $import = session()->pull('questions_import_pending');
 
-        if (! $import instanceof QuestionsImport) {
+        if (! $import instanceof BaseTypeImport) {
             return response()->json([
                 'message' => 'Sesi import kadaluarsa, silakan upload ulang.',
             ], 422);

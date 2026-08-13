@@ -125,6 +125,7 @@
             },
             importState: {
                 step: 1,
+                type: '',
                 file: null,
                 busy: false,
                 message: '',
@@ -136,15 +137,21 @@
                     this.result = null;
                     this.finished = null;
                 },
+                templateUrl() {
+                    if (!this.type) return '#';
+                    return @js(route('admin.questions.import-template', '__TYPE__')).replace('__TYPE__', this.type);
+                },
                 failedUrl() {
                     return @js(route('admin.questions.import-failed', '__FILE__'))
                         .replace('__FILE__', encodeURIComponent(this.finished?.failed_file ?? ''));
                 },
                 validate() {
+                    if (!this.type) { this.message = 'Pilih jenis soal terlebih dahulu.'; return; }
                     if (!this.file) { this.message = 'Pilih file Excel/CSV terlebih dahulu.'; return; }
                     this.busy = true;
                     this.message = '';
                     const formData = new FormData();
+                    formData.append('type', this.type);
                     formData.append('file', this.file);
                     fetch(@js(route('admin.questions.import-validate')), {
                         method: 'POST',
@@ -182,6 +189,7 @@
                 },
                 reset() {
                     this.step = 1;
+                    this.type = '';
                     this.file = null;
                     this.busy = false;
                     this.message = '';
@@ -440,6 +448,10 @@
                         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" x-text="(preview?.score_weight ? Number(preview.score_weight) + ' poin' : '')"></p>
                     </div>
 
+                    <div x-show="preview?.image_url" class="flex justify-center rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                        <img :src="preview?.image_url" :alt="'Gambar soal #' + preview?.id" class="max-h-72 w-full max-w-xl rounded-md object-contain" />
+                    </div>
+
                     <div class="space-y-2" x-show="preview?.type === 'single_choice' || preview?.type === 'multiple_choice'">
                         <template x-for="letter in ['A','B','C','D','E']" :key="letter">
                             <label x-show="preview?.options?.[letter]" class="flex cursor-default items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700"
@@ -536,7 +548,7 @@
         <x-modal name="import-questions" maxWidth="2xl">
             <div class="p-6">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Impor Bank Soal</h2>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Upload file Excel/CSV berisi kolom Mata Pelajaran, Jenis, dan Pertanyaan. Mata pelajaran harus sudah terdaftar di master data.</p>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Pilih jenis soal, unduh template sesuai jenis, isi, lalu upload. Setiap jenis memiliki template terpisah.</p>
 
                 <div x-show="importState.message !== ''" x-transition class="mt-4 flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-500/10 dark:text-rose-300">
                     <svg class="h-5 w-5 shrink-0 text-rose-500 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -546,7 +558,28 @@
                 </div>
 
                 <template x-if="importState.step === 1">
-                    <div class="mt-5">
+                    <div class="mt-5 space-y-4">
+                        <div>
+                            <label for="import-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Jenis Soal</label>
+                            <select id="import-type" x-model="importState.type" @change="importState.message = ''" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                                <option value="">-- Pilih Jenis Soal --</option>
+                                @foreach ($types as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            <div class="mt-2 flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-800/60">
+                                <p class="text-xs text-gray-500 dark:text-gray-400">
+                                    <template x-if="importState.type">
+                                        <span>Unduh template untuk jenis soal yang dipilih, lalu isi dan simpan sebagai .xlsx/.csv.</span>
+                                    </template>
+                                    <template x-if="!importState.type">
+                                        <span>Pilih jenis soal untuk menampilkan tautan template.</span>
+                                    </template>
+                                </p>
+                                <a :href="importState.templateUrl()" :class="importState.type ? 'text-indigo-600 hover:text-indigo-500 dark:text-indigo-400' : 'pointer-events-none text-gray-400 dark:text-gray-600'" class="shrink-0 text-sm font-medium underline">Unduh Template (.xlsx)</a>
+                            </div>
+                        </div>
+
                         <div class="rounded-lg border-2 border-dashed border-gray-300 p-6 text-center dark:border-gray-600">
                             <input
                                 type="file"
@@ -554,17 +587,18 @@
                                 @change="importState.onFileChange($event)"
                                 class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20"
                             />
-                            <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">Format: .xlsx, .xls, atau .csv (maks 5 MB). Unduh template terlebih dahulu jika perlu.</p>
-                        </div>
-                        <div class="mt-3">
-                            <a href="{{ route('admin.questions.import-template') }}" class="text-sm font-medium text-indigo-600 transition hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">Unduh Template Impor (.xlsx)</a>
+                            <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">Format: .xlsx, .xls, atau .csv (maks 5 MB). Baris contoh pada template otomatis dilewati saat impor.</p>
                         </div>
                     </div>
                 </template>
 
                 <template x-if="importState.step === 2">
                     <div class="mt-5">
-                        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                            Hasil validasi untuk soal jenis
+                            <span class="font-semibold text-gray-800 dark:text-gray-200" x-text="importState.result?.type_label ?? ''"></span>:
+                        </p>
+                        <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                             <div class="rounded-lg bg-gray-50 p-4 text-center dark:bg-gray-800">
                                 <p class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="importState.result?.total ?? 0"></p>
                                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Total Baris</p>
@@ -603,7 +637,8 @@
                             <div>
                                 <p class="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Import selesai</p>
                                 <p class="mt-1 text-sm text-emerald-700 dark:text-emerald-400">
-                                    <span class="font-bold" x-text="importState.finished?.created ?? 0"></span> soal baru ditambahkan.
+                                    <span class="font-bold" x-text="importState.finished?.created ?? 0"></span> soal baru ditambahkan untuk jenis
+                                    <span class="font-bold" x-text="importState.result?.type_label ?? ''"></span>.
                                 </p>
                                 <template x-if="(importState.finished?.failed_count ?? 0) > 0">
                                     <p class="mt-2 text-sm text-rose-700 dark:text-rose-400">
@@ -625,10 +660,15 @@
                         </button>
                     </template>
                     <template x-if="importState.step === 2">
-                        <button type="button" @click="importState.confirm()" :disabled="importState.busy" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">
-                            <span x-show="importState.busy" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
-                            Konfirmasi Impor
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button type="button" @click="importState.step = 1; importState.result = null; importState.message = ''" class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                                Kembali
+                            </button>
+                            <button type="button" @click="importState.confirm()" :disabled="importState.busy" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">
+                                <span x-show="importState.busy" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+                                Konfirmasi Impor
+                            </button>
+                        </div>
                     </template>
                     <template x-if="importState.step === 3">
                         <button type="button" @click="window.location.reload()" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">

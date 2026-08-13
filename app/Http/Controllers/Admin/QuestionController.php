@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -137,7 +138,13 @@ class QuestionController extends Controller
 
     public function store(StoreQuestionRequest $request): RedirectResponse
     {
-        Question::create($this->payload($request->validated()));
+        $payload = $this->payload($request->validated());
+
+        if ($request->hasFile('image')) {
+            $payload['image_path'] = $request->file('image')->store('question-images', 'public');
+        }
+
+        Question::create($payload);
 
         return redirect()->route('admin.questions.index')->with('success', 'Soal berhasil ditambahkan.');
     }
@@ -153,7 +160,18 @@ class QuestionController extends Controller
 
     public function update(UpdateQuestionRequest $request, Question $question): RedirectResponse
     {
-        $question->update($this->payload($request->validated()));
+        $data = $request->validated();
+        $payload = $this->payload($data);
+
+        if ($request->hasFile('image')) {
+            $this->deleteImageFile($question->image_path);
+            $payload['image_path'] = $request->file('image')->store('question-images', 'public');
+        } elseif (! empty($data['remove_image'])) {
+            $this->deleteImageFile($question->image_path);
+            $payload['image_path'] = null;
+        }
+
+        $question->update($payload);
 
         return redirect()->route('admin.questions.index')->with('success', 'Soal berhasil diperbarui.');
     }
@@ -164,6 +182,7 @@ class QuestionController extends Controller
             return back()->with('error', 'Soal ini sudah pernah dijawab oleh peserta pada ujian sebelumnya dan tidak bisa dihapus.');
         }
 
+        $this->deleteImageFile($question->image_path);
         $question->delete();
 
         return redirect()->route('admin.questions.index')->with('success', 'Soal berhasil dihapus.');
@@ -192,6 +211,7 @@ class QuestionController extends Controller
             return back()->with('error', "{$labels} sudah pernah dijawab oleh peserta pada ujian sebelumnya dan tidak bisa dihapus.");
         }
 
+        $this->deleteImageFiles($ids->all());
         $deleted = Question::query()->whereIn('id', $ids)->delete();
 
         return back()->with('success', "{$deleted} soal berhasil dihapus.");
@@ -264,6 +284,32 @@ class QuestionController extends Controller
     private function questionAlreadyAnswered(int $questionId): bool
     {
         return ExamAnswer::query()->where('question_id', $questionId)->exists();
+    }
+
+    private function deleteImageFile(?string $path): void
+    {
+        if (filled($path)) {
+            Storage::disk('public')->delete($path);
+        }
+    }
+
+    /**
+     * Hapus file gambar dari banyak soal (dipanggil sebelum delete massal).
+     *
+     * @param  array<int, int>  $ids
+     */
+    private function deleteImageFiles(array $ids): void
+    {
+        $paths = Question::query()
+            ->whereIn('id', $ids)
+            ->whereNotNull('image_path')
+            ->pluck('image_path')
+            ->filter()
+            ->all();
+
+        if (! empty($paths)) {
+            Storage::disk('public')->delete($paths);
+        }
     }
 
     /**
