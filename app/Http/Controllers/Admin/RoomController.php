@@ -82,6 +82,57 @@ class RoomController extends Controller
         return redirect()->route('admin.rooms.index')->with('success', "Ruangan {$name} berhasil dihapus.");
     }
 
+    public function bulkDelete(Request $request): RedirectResponse
+    {
+        $ids = collect($request->input('ids', []))
+            ->filter(fn ($id) => filter_var($id, FILTER_VALIDATE_INT))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return back()->with('error', 'Pilih minimal satu ruangan untuk dihapus.');
+        }
+
+        $deleted = 0;
+        $blocked = [];
+
+        DB::transaction(function () use ($ids, &$deleted, &$blocked) {
+            $rooms = Room::query()
+                ->withCount('examSchedules')
+                ->whereIn('id', $ids)
+                ->get();
+
+            foreach ($rooms as $room) {
+                if ($room->exam_schedules_count > 0) {
+                    $blocked[] = $room->name;
+
+                    continue;
+                }
+
+                $room->delete();
+                $deleted++;
+            }
+        });
+
+        $flash = [];
+
+        if ($deleted > 0) {
+            $flash['success'] = "{$deleted} ruangan berhasil dihapus.";
+        }
+
+        if ($blocked !== []) {
+            $names = implode(', ', $blocked);
+            $flash['error'] = "Ruangan {$names} tidak dapat dihapus karena masih memiliki jadwal ujian. Hapus jadwalnya terlebih dahulu.";
+        }
+
+        if ($flash === []) {
+            $flash['error'] = 'Ruangan yang dipilih tidak ditemukan.';
+        }
+
+        return back()->with($flash);
+    }
+
     /**
      * @param  array<mixed>|null  $input
      * @return list<int>

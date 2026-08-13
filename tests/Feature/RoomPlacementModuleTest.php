@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ExamSchedule;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Supervisor;
@@ -205,5 +206,63 @@ class RoomPlacementModuleTest extends TestCase
         $this->actingAs($peserta)
             ->post(route('admin.rooms.store'), ['name' => 'Ruang X'])
             ->assertForbidden();
+    }
+
+    public function test_bulk_delete_removes_rooms_without_schedules(): void
+    {
+        $rooms = Room::factory()->count(3)->create();
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.rooms.bulk-delete'), [
+                'ids' => [$rooms[0]->id, $rooms[1]->id],
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', '2 ruangan berhasil dihapus.');
+
+        $this->assertDatabaseMissing('rooms', ['id' => $rooms[0]->id]);
+        $this->assertDatabaseMissing('rooms', ['id' => $rooms[1]->id]);
+        $this->assertDatabaseHas('rooms', ['id' => $rooms[2]->id]);
+    }
+
+    public function test_bulk_delete_skips_rooms_with_exam_schedules_and_reports_error(): void
+    {
+        $scheduledRoom = Room::factory()->create(['name' => 'Ruang A']);
+        $cleanRoom = Room::factory()->create(['name' => 'Ruang B']);
+
+        ExamSchedule::factory()->create(['room_id' => $scheduledRoom->id]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.rooms.bulk-delete'), [
+                'ids' => [$scheduledRoom->id, $cleanRoom->id],
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', '1 ruangan berhasil dihapus.')
+            ->assertSessionHas('error');
+
+        $this->assertStringContainsString('Ruang A', session('error'));
+        $this->assertStringContainsString('jadwal ujian', session('error'));
+
+        $this->assertDatabaseMissing('rooms', ['id' => $cleanRoom->id]);
+        $this->assertDatabaseHas('rooms', ['id' => $scheduledRoom->id]);
+    }
+
+    public function test_bulk_delete_requires_selection(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('admin.rooms.bulk-delete'), ['ids' => []])
+            ->assertRedirect()
+            ->assertSessionHas('error', 'Pilih minimal satu ruangan untuk dihapus.');
+    }
+
+    public function test_rooms_index_renders_bulk_delete_ui(): void
+    {
+        Room::factory()->count(2)->create();
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.rooms.index'))
+            ->assertOk()
+            ->assertSee('Hapus Terpilih')
+            ->assertSee('smartexam_selected_rooms')
+            ->assertSee('confirm-bulk-delete');
     }
 }
