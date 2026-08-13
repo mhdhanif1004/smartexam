@@ -221,4 +221,71 @@ class ExamRoomAssignmentTest extends TestCase
         $this->assertSame(1, ExamRoomAssignment::query()->where('student_id', $student->id)->count());
         $this->assertDatabaseCount('exam_schedules', 1);
     }
+
+    public function test_show_lists_students_per_room_from_assignments(): void
+    {
+        $roomA = Room::factory()->create(['name' => 'R. 01', 'capacity' => 2]);
+        $roomB = Room::factory()->create(['name' => 'R. 02', 'capacity' => 2]);
+
+        $this->student('Adam', 'XI RPL 1');
+        $this->student('Bella', 'XI RPL 1');
+        $this->student('Cinta', 'XI RPL 1');
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.exam-periods.groups.store', $this->period), $this->payload([
+                'rooms' => [$roomA->id, $roomB->id],
+            ]))
+            ->assertSessionHas('success');
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.exam-periods.show', $this->period))
+            ->assertOk()
+            ->assertSee('R. 01')
+            ->assertSee('R. 02')
+            ->assertSee('Adam')
+            ->assertSee('Bella')
+            ->assertSee('Cinta')
+            ->assertSee('Daftar Peserta')
+            ->assertSee('Cetak Roster');
+    }
+
+    public function test_rooms_index_shows_assigned_students_count(): void
+    {
+        $room = Room::factory()->create(['name' => 'R. 101', 'capacity' => 10]);
+
+        $this->student('Adam', 'XI RPL 1');
+        $this->student('Bella', 'XI RPL 1');
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.exam-periods.groups.store', $this->period), $this->payload([
+                'rooms' => [$room->id],
+            ]))
+            ->assertSessionHas('success');
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.rooms.index'))
+            ->assertOk()
+            ->assertSee('R. 101')
+            ->assertSee('2 peserta');
+    }
+
+    public function test_room_roster_page_shows_assignments_for_printing(): void
+    {
+        $room = Room::factory()->create(['name' => 'R. 101', 'capacity' => 5]);
+
+        $this->student('Adam', 'XI RPL 1');
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.exam-periods.groups.store', $this->period), $this->payload([
+                'rooms' => [$room->id],
+            ]))
+            ->assertSessionHas('success');
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.exam-periods.room-roster', [$this->period, $room]))
+            ->assertOk()
+            ->assertSee('R. 101')
+            ->assertSee('Adam')
+            ->assertSee('Tanda Tangan');
+    }
 }

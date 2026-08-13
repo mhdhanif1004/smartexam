@@ -79,6 +79,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::post('exam-periods/auto-generate', [ExamPeriodController::class, 'autoGenerateStore'])->name('exam-periods.auto-generate.store');
         Route::get('exam-periods/{examPeriod}/groups/create', [ExamPeriodController::class, 'groupsCreate'])->name('exam-periods.groups.create');
         Route::post('exam-periods/{examPeriod}/groups', [ExamPeriodController::class, 'groupsStore'])->name('exam-periods.groups.store');
+        Route::get('exam-periods/{examPeriod}/rooms/{room}/roster', [ExamPeriodController::class, 'roomRoster'])->name('exam-periods.room-roster');
 
         Route::resource('questions', QuestionController::class)->except(['show']);
         Route::get('questions/by-subject/{subject}', [QuestionController::class, 'bySubject'])->name('questions.by-subject');

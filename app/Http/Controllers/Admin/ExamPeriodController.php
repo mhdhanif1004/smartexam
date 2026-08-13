@@ -192,11 +192,49 @@ class ExamPeriodController extends Controller
 
     public function show(ExamPeriod $examPeriod): View
     {
-        $examPeriod->load(['schedules.subject', 'schedules.room']);
+        $examPeriod->load([
+            'schedules.subject',
+            'schedules.room',
+            'roomAssignments.student.user',
+            'roomAssignments.room',
+        ]);
+        $examPeriod->loadCount('schedules');
+
+        $roomGroups = $examPeriod->schedules
+            ->groupBy(fn (ExamSchedule $schedule) => $schedule->room_id)
+            ->map(function (Collection $schedules, int $roomId) use ($examPeriod): array {
+                return [
+                    'room' => $schedules->first()?->room,
+                    'schedules' => $schedules,
+                    'assignments' => $examPeriod->roomAssignments
+                        ->where('room_id', $roomId)
+                        ->sortBy('seat_number')
+                        ->values(),
+                ];
+            })
+            ->sortBy(fn (array $group) => $group['room']?->name ?? '')
+            ->values();
 
         return view('admin.exam-periods.show', [
             'examPeriod' => $examPeriod,
+            'roomGroups' => $roomGroups,
             'statuses' => ExamSchedule::STATUSES,
+        ]);
+    }
+
+    public function roomRoster(ExamPeriod $examPeriod, Room $room): View
+    {
+        $assignments = ExamRoomAssignment::query()
+            ->with(['student.user'])
+            ->where('exam_period_id', $examPeriod->id)
+            ->where('room_id', $room->id)
+            ->orderBy('seat_number')
+            ->get();
+
+        return view('admin.exam-periods.room-roster', [
+            'examPeriod' => $examPeriod,
+            'room' => $room,
+            'assignments' => $assignments,
         ]);
     }
 

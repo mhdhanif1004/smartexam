@@ -17,7 +17,12 @@ class RoomController extends Controller
     public function index(Request $request): View
     {
         $rooms = Room::query()
-            ->withCount(['supervisors', 'students', 'examSchedules'])
+            ->withCount([
+                'supervisors',
+                'students',
+                'examSchedules',
+                'roomAssignments as assigned_students_count' => fn ($query) => $query->selectRaw('COUNT(DISTINCT student_id)'),
+            ])
             ->when($request->filled('search'), function ($query) use ($request) {
                 $query->where('name', 'like', '%'.$request->string('search')->trim().'%');
             })

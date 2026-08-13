@@ -32,7 +32,7 @@ class RoomPlacementModuleTest extends TestCase
             ->get(route('admin.rooms.index'))
             ->assertOk()
             ->assertSee('Ruang A')
-            ->assertSee('3 siswa');
+            ->assertSee('3 siswa tetap');
     }
 
     public function test_admin_can_create_room_with_capacity_and_supervisors(): void
