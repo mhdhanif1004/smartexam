@@ -398,4 +398,21 @@ class QuestionModuleTest extends TestCase
             ->assertSee('smartexam_selected_questions')
             ->assertSee('confirm-bulk-delete');
     }
+
+    public function test_questions_index_distinguishes_same_name_subjects_by_class_label(): void
+    {
+        $math10 = Subject::factory()->create(['name' => 'Matematika', 'class_label' => '10']);
+        $math11 = Subject::factory()->create(['name' => 'Matematika', 'class_label' => '11']);
+
+        Question::factory()->count(2)->create(['subject_id' => $math10->id]);
+        Question::factory()->create(['subject_id' => $math11->id]);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.questions.index'))
+            ->assertOk();
+
+        $response->assertSee('Kelas 10');
+        $response->assertSee('Kelas 11');
+        $response->assertSee('Matematika (Kelas 10)');
+        $response->assertSee('Matematika (Kelas 11)');
+    }
 }

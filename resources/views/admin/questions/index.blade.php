@@ -230,7 +230,7 @@
                 <select name="subject_id" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 lg:w-auto">
                     <option value="">Semua Mata Pelajaran</option>
                     @foreach ($allSubjects as $subject)
-                        <option value="{{ $subject->id }}" @selected(request('subject_id') == $subject->id)>{{ $subject->name }}</option>
+                        <option value="{{ $subject->id }}" @selected(request('subject_id') == $subject->id)>{{ $subject->name }}{{ filled($subject->class_label) ? ' (Kelas '.$subject->class_label.')' : '' }}</option>
                     @endforeach
                 </select>
             </div>
@@ -306,6 +306,9 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                             </svg>
                             <span class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $subject->name }}</span>
+                            @if (filled($subject->class_label))
+                                <span class="shrink-0 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">Kelas {{ $subject->class_label }}</span>
+                            @endif
                             <span class="shrink-0 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $subject->questions_count }} soal</span>
                         </span>
                         <span x-show="isLoading({{ $subject->id }})" class="flex shrink-0 items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
@@ -381,7 +384,7 @@
                         <select id="bulk-subject" name="subject_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                             <option value="">-- Biarkan Tidak Berubah --</option>
                             @foreach ($allSubjects as $subject)
-                                <option value="{{ $subject->id }}">{{ $subject->name }}</option>
+                                <option value="{{ $subject->id }}">{{ $subject->name }}{{ filled($subject->class_label) ? ' (Kelas '.$subject->class_label.')' : '' }}</option>
                             @endforeach
                         </select>
                     </div>
