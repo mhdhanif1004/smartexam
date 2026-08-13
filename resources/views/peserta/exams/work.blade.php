@@ -1,4 +1,4 @@
-<x-layouts.peserta :title="'Mengerjakan - '.($schedule->subject?->name ?? 'Ujian')">
+<x-layouts.peserta-exam :title="'Mengerjakan - '.($schedule->subject?->name ?? 'Ujian')">
     <div class="space-y-6"
          x-data="examApp({
              questions: {{ Js::from($questionsData) }},
@@ -18,6 +18,7 @@
           })"> 
 
 
+        <div :class="fullscreenLost ? 'pointer-events-none opacity-60' : ''">
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div>
@@ -28,7 +29,7 @@
                     </p>
                 </div>
 
-                <div class="flex items-center gap-4">
+                <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
                     <div class="text-center">
                         <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Sisa Waktu</p>
                         <p class="font-mono text-2xl font-bold tabular-nums" :class="remaining < 300 ? 'text-rose-600 dark:text-rose-400' : 'text-gray-900 dark:text-gray-100'" x-text="formatTime(remaining)"></p>
@@ -46,7 +47,7 @@
                 </div>
             </div>
 
-            <div class="mt-3 flex items-center gap-4 border-t border-gray-100 pt-3 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+            <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-100 pt-3 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
                 <span x-show="saving" class="text-amber-600 dark:text-amber-400">Menyimpan jawaban...</span>
                 <span x-show="!saving && lastSaved" class="text-emerald-600 dark:text-emerald-400">Tersimpan otomatis pukul <span x-text="lastSaved"></span></span>
                 <span x-show="!saving && !lastSaved">Jawaban disimpan otomatis saat dipilih.</span>
@@ -126,7 +127,7 @@
                                                 <span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-700 dark:bg-gray-700/60 dark:text-gray-300" x-text="letter(index)"></span>
                                                 <span class="text-sm text-gray-800 dark:text-gray-200" x-text="text"></span>
                                             </div>
-                                            <select @change="setMatching(q, letter(index), $event.target.value)" :value="(answerFor(q) || {})[letter(index)] || ''" class="rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                                            <select @change="setMatching(q, letter(index), $event.target.value)" :value="(answerFor(q) || {})[letter(index)] || ''" class="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
                                                 <option value="">Pilih pasangan</option>
                                                 <template x-for="(rightText, rightIndex) in (q.options?.right ?? [])" :key="rightIndex">
                                                     <option :value="String(rightIndex + 1)" x-text="(rightIndex + 1) + '. ' + rightText"></option>
@@ -141,15 +142,26 @@
                                     <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">Jawaban essay akan dikoreksi oleh pengawas/guru.</p>
                                 </div>
                             </div>
+
+                            <div class="mt-5 flex items-center justify-between gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
+                                <button type="button" @click="openReset(q)" :disabled="!isAnswered(q)"
+                                        class="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-amber-700 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                                    </svg>
+                                    Reset Jawaban
+                                </button>
+                                <p class="text-xs text-gray-400 dark:text-gray-500" x-text="isAnswered(q) ? 'Tanda ragu-ragu tidak ikut dihapus.' : 'Soal belum dijawab.'"></p>
+                            </div>
                         </div>
                     </template>
 
-                    <div class="flex items-center justify-between gap-3 border-t border-gray-100 p-4 sm:px-8 dark:border-gray-800">
+                    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-gray-100 p-4 sm:flex-nowrap sm:px-8 dark:border-gray-800">
                         <button type="button" @click="prev()" :disabled="current === 0"
                                 class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
                             &larr; Sebelumnya
                         </button>
-                        <div class="flex items-center gap-3">
+                        <div class="order-3 flex w-full items-center justify-center gap-3 sm:order-none sm:w-auto">
                             <button type="button" @click="toggleDoubtful(questions[current])"
                                     :class="isDoubtful(questions[current]) ? 'bg-amber-400 text-amber-950 ring-2 ring-amber-500' : 'border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20'"
                                     class="rounded-lg px-4 py-2 text-sm font-semibold transition">
@@ -204,9 +216,57 @@
                     <p class="text-center text-[11px] text-gray-400 dark:text-gray-500">Sisa waktu akan otomatis mengumpulkan jawabanmu.</p>
                 </div>
             </div>
+        </div>
         @endif
 
-        <div x-show="toastVisible" x-cloak x-transition.opacity class="fixed right-4 top-4 z-50 flex max-w-sm items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-lg dark:border-amber-800 dark:bg-amber-500/10">
+        @if (!$questionsData->isEmpty())
+            <div x-show="!started" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 p-4">
+                <div class="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl dark:bg-gray-900 dark:ring-1 dark:ring-gray-700">
+                    <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-500/10">
+                        <svg class="h-8 w-8 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                        </svg>
+                    </div>
+                    <h2 class="mt-5 text-xl font-bold text-gray-900 dark:text-gray-100">Siap Mengerjakan Ujian?</h2>
+                    <p class="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                        Ujian akan dimulai dalam mode layar penuh. Keluar dari mode layar penuh selama ujian akan
+                        dicatat sebagai pelanggaran.
+                    </p>
+                    <button type="button" @click="startExam()"
+                            class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                        </svg>
+                        Mulai Ujian
+                    </button>
+
+                </div>
+            </div>
+
+            <div x-show="fullscreenLost" x-cloak class="fixed inset-0 z-[70] flex items-center justify-center bg-gray-900/90 p-4">
+                <div class="w-full max-w-md rounded-2xl border border-amber-300 bg-white p-8 text-center shadow-2xl dark:border-amber-700 dark:bg-gray-900">
+                    <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-500/10">
+                        <svg class="h-8 w-8 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                        </svg>
+                    </div>
+                    <h2 class="mt-5 text-xl font-bold text-amber-800 dark:text-amber-300">Mode Layar Penuh Terputus</h2>
+                    <p class="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                        Keluar dari mode layar penuh dicatat sebagai pelanggaran. Kembalikan mode layar penuh untuk
+                        melanjutkan mengerjakan ujian.
+                    </p>
+                    <button type="button" @click="returnToFullscreen()"
+                            class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                        </svg>
+                        Kembali ke Mode Layar Penuh
+                    </button>
+                </div>
+            </div>
+        @endif
+
+        <div x-show="toastVisible" x-cloak x-transition.opacity class="fixed left-4 right-4 top-4 z-50 mx-auto flex max-w-sm items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-lg dark:border-amber-800 dark:bg-amber-500/10">
         <svg class="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
         </svg>
@@ -233,6 +293,22 @@
         </div>
     </div>
 
+    <x-modal name="reset-answer" maxWidth="sm">
+        <div class="p-6">
+            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-500/10">
+                <svg class="h-6 w-6 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                </svg>
+            </div>
+            <h3 class="mt-4 text-lg font-bold text-gray-900 dark:text-gray-100">Yakin ingin mengosongkan jawaban soal ini?</h3>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Jawaban pada soal ini akan dihapus dari penyimpanan. Tanda ragu-ragu tidak ikut dihapus.</p>
+            <div class="mt-5 flex justify-end gap-3">
+                <button type="button" @click="$dispatch('close-modal', 'reset-answer')" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Batal</button>
+                <button type="button" @click="confirmReset()" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500">Ya, Reset</button>
+            </div>
+        </div>
+    </x-modal>
+
     <div x-show="zoomImage" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4" @click="zoomImage = null">
         <img :src="zoomImage" class="max-h-full max-w-full rounded-lg object-contain shadow-2xl" alt="Gambar soal diperbesar" />
         <button type="button" @click="zoomImage = null" class="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20" aria-label="Tutup gambar">
@@ -243,4 +319,4 @@
         <p class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">Klik di mana saja untuk menutup</p>
     </div>
     </div>
-</x-layouts.peserta>
+</x-layouts.peserta-exam>

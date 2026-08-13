@@ -8,6 +8,10 @@ const TYPE_LABELS = {
     essay: 'Essay',
 };
 
+const FULLSCREEN_CHANGE_EVENTS = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
+
+const FULLSCREEN_ERROR_EVENTS = ['fullscreenerror', 'webkitfullscreenerror'];
+
 export function examApp(config) {
     return {
         questions: config.questions,
@@ -16,11 +20,13 @@ export function examApp(config) {
         current: 0,
         remaining: Math.max(0, config.deadline - Math.floor(Date.now() / 1000)),
         saving: false,
+        saveQueued: false,
         submitting: false,
         lastSaved: null,
         timer: null,
         saveTimer: null,
         showConfirm: false,
+        resetConfirmId: null,
         zoomImage: null,
         toast: '',
         toastVisible: false,
@@ -31,16 +37,69 @@ export function examApp(config) {
         statusTimer: null,
         leaving: false,
         windowWidth: window.innerWidth,
+        started: false,
+        fullscreenLost: false,
+        hasEnteredFullscreen: false,
+        violationListeners: [],
 
         init() {
+            this.trackViolations();
+            this.csrfRefreshTimer = setInterval(() => this.refreshCsrf(), 15 * 60 * 1000);
+        },
+
+        /**
+         * Mulai ujian: jalankan timer + aktifkan mode layar penuh.
+         * Dipanggil dari tombol "Mulai Ujian" di overlay.
+         */
+        startExam() {
+            if (this.started) return;
+            this.started = true;
+            this.remaining = Math.max(0, config.deadline - Math.floor(Date.now() / 1000));
             this.timer = setInterval(() => {
                 this.remaining -= 1;
                 if (this.remaining <= 0) {
                     this.submit(true);
                 }
             }, 1000);
-            this.trackViolations();
-            this.csrfRefreshTimer = setInterval(() => this.refreshCsrf(), 15 * 60 * 1000);
+
+            if (!this.requestFullscreen()) {
+                this.showToast('Browser/perangkat ini tidak mendukung mode layar penuh. Ujian tetap dapat dikerjakan.');
+            }
+        },
+
+        requestFullscreen() {
+            const el = document.documentElement;
+            const request = el.requestFullscreen
+                || el.webkitRequestFullscreen
+                || el.msRequestFullscreen
+                || el.mozRequestFullScreen;
+            if (!request || this.fullscreenElement()) return true;
+
+            try {
+                const promise = request.call(el);
+                if (promise && typeof promise.catch === 'function') {
+                    promise.catch(() => {
+                        if (this.fullscreenLost) {
+                            this.showToast('Gagal mengaktifkan mode layar penuh. Silakan coba lagi.');
+                        } else {
+                            this.showToast('Mode layar penuh ditolak browser. Ujian tetap berjalan.');
+                        }
+                    });
+                }
+                return true;
+            } catch (e) {
+                return false;
+            }
+        },
+
+        returnToFullscreen() {
+            if (this.fullscreenElement()) {
+                this.fullscreenLost = false;
+                return;
+            }
+            if (!this.requestFullscreen()) {
+                this.showToast('Browser/perangkat ini tidak mendukung mode layar penuh.');
+            }
         },
 
         async refreshCsrf() {
@@ -65,8 +124,8 @@ export function examApp(config) {
         },
 
         trackViolations() {
-            const record = (type) => {
-                if (this.leaving) return;
+            const record = (type, options = {}) => {
+                if (this.leaving || !this.started) return;
                 const now = Date.now();
                 if (now - this.lastViolationAt < 3000) return;
                 this.lastViolationAt = now;
@@ -76,7 +135,8 @@ export function examApp(config) {
                         return response.json().catch(() => ({}));
                     })
                     .then((data) => {
-                        if (!data || !data.redirect || !data.url) return;
+                        if (!data || options.block) return;
+                        if (!data.redirect || !data.url) return;
                         this.leaving = true;
                         this.showToast('Terdeteksi aktivitas mencurigakan. Anda akan diarahkan kembali ke dashboard.');
                         setTimeout(() => {
@@ -85,40 +145,60 @@ export function examApp(config) {
                     })
                     .catch(() => {});
             };
-            document.addEventListener('visibilitychange', () => {
+            const onVisibilityChange = () => {
                 if (document.hidden) record('berpindah_tab');
-            });
-            window.addEventListener('blur', () => record('kehilangan_fokus'));
-            window.addEventListener('resize', () => {
+            };
+            const onWindowBlur = () => record('kehilangan_fokus');
+            const onResize = () => {
                 const delta = Math.abs(window.innerWidth - this.windowWidth);
                 if (delta >= 120) {
                     this.windowWidth = window.innerWidth;
                     record('resize_jendela');
                 }
+            };
+            const onFullscreenChange = () => {
+                if (this.fullscreenElement()) {
+                    this.hasEnteredFullscreen = true;
+                    this.fullscreenLost = false;
+                    return;
+                }
+                if (this.hasEnteredFullscreen && !this.leaving) {
+                    this.showConfirm = false;
+                    this.fullscreenLost = true;
+                    record('keluar_fullscreen', { block: true });
+                }
+            };
+            const onFullscreenError = () => {
+                console.warn('[SmartExam] Mode layar penuh gagal diaktifkan oleh browser; ujian tetap berjalan.');
+            };
+
+            this.violationListeners = [
+                [document, 'visibilitychange', onVisibilityChange],
+                [window, 'blur', onWindowBlur],
+                [window, 'resize', onResize],
+            ];
+            FULLSCREEN_CHANGE_EVENTS.forEach((type) => {
+                this.violationListeners.push([document, type, onFullscreenChange]);
             });
-            document.addEventListener('fullscreenchange', () => {
-                if (!document.fullscreenElement) record('keluar_fullscreen');
+            FULLSCREEN_ERROR_EVENTS.forEach((type) => {
+                this.violationListeners.push([document, type, onFullscreenError]);
             });
-            this.forceFullscreen();
+            this.violationListeners.forEach(([target, type, handler]) => target.addEventListener(type, handler));
+
             this.statusTimer = setInterval(() => this.checkStatus(), 20000);
         },
 
-        forceFullscreen() {
-            const request = () => {
-                try {
-                    const el = document.documentElement;
-                    if (el.requestFullscreen && !document.fullscreenElement) {
-                        el.requestFullscreen().catch(() => {});
-                    }
-                } catch (e) {
-                    // Browser menolak tanpa gestur pengguna; diabaikan.
-                }
-            };
-            request();
-            document.addEventListener('click', function firstClick() {
-                request();
-                document.removeEventListener('click', firstClick);
-            });
+        teardownViolationListeners() {
+            if (!this.violationListeners.length) return;
+            this.violationListeners.forEach(([target, type, handler]) => target.removeEventListener(type, handler));
+            this.violationListeners = [];
+        },
+
+        fullscreenElement() {
+            return document.fullscreenElement
+                || document.webkitFullscreenElement
+                || document.msFullscreenElement
+                || null;
         },
 
         async checkStatus() {
@@ -216,6 +296,34 @@ export function examApp(config) {
             }
         },
 
+        emptyAnswer(q) {
+            if (q.type === 'multiple_choice') return [];
+            if (q.type === 'matching') return {};
+            if (q.type === 'essay') return '';
+            return null;
+        },
+
+        openReset(q) {
+            this.resetConfirmId = q.id;
+            this.$dispatch('open-modal', 'reset-answer');
+        },
+
+        confirmReset() {
+            const id = this.resetConfirmId;
+            this.resetConfirmId = null;
+            this.$dispatch('close-modal', 'reset-answer');
+
+            const q = this.questions.find((item) => item.id === id);
+            if (!q) return;
+
+            this.answers[q.id] = this.emptyAnswer(q);
+            if (this.saveTimer) {
+                clearTimeout(this.saveTimer);
+                this.saveTimer = null;
+            }
+            this.saveAnswer();
+        },
+
         goTo(index) {
             this.flushSave();
             this.current = index;
@@ -272,6 +380,10 @@ export function examApp(config) {
 
         async saveAnswer() {
             if (this.submitting) return;
+            if (this.saving) {
+                this.saveQueued = true;
+                return;
+            }
             this.saving = true;
             try {
                 const response = await this.post(config.saveUrl, { answers: this.answers });
@@ -290,6 +402,10 @@ export function examApp(config) {
                 // Gangguan jaringan: jawaban tetap disimpan lokal dan akan dikirim ulang.
             } finally {
                 this.saving = false;
+                if (this.saveQueued) {
+                    this.saveQueued = false;
+                    this.saveAnswer();
+                }
             }
         },
 
@@ -340,6 +456,7 @@ export function examApp(config) {
             this.showConfirm = false;
             this.submitting = true;
             this.leaving = true;
+            this.teardownViolationListeners();
             if (this.timer) {
                 clearInterval(this.timer);
                 this.timer = null;

@@ -14,6 +14,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use Tests\TestCase;
@@ -619,6 +620,64 @@ class QuestionModuleEnhancementTest extends TestCase
             ->assertSee('Soal aktif di ujian')
             ->assertDontSee('Soal nonaktif TIDAK tampil');
 
+        Carbon::setTestNow();
+    }
+
+    public function test_exam_work_page_image_url_follows_request_host(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-07 09:00:00'));
+
+        Storage::fake('public');
+        Storage::disk('public')->put('question-images/gambar-uji.png', 'dummy');
+
+        $room = Room::factory()->create();
+        $student = Student::factory()->create(['room_id' => $room->id]);
+        $user = $student->user;
+        $subject = Subject::factory()->create(['name' => 'Matematika']);
+        $schedule = ExamSchedule::factory()->create([
+            'room_id' => $room->id,
+            'subject_id' => $subject->id,
+            'class_name' => 'XI RPL 1',
+            'exam_date' => now()->toDateString(),
+            'start_time' => '08:30:00',
+            'end_time' => '10:30:00',
+            'duration_minutes' => 60,
+            'status' => 'ongoing',
+        ]);
+
+        Question::factory()->create([
+            'subject_id' => $subject->id,
+            'type' => Question::TYPE_ESSAY,
+            'question_text' => 'Soal dengan gambar?',
+            'image_path' => 'question-images/gambar-uji.png',
+            'is_active' => true,
+        ]);
+
+        ExamSession::create([
+            'student_id' => $student->id,
+            'exam_schedule_id' => $schedule->id,
+            'status' => ExamSession::STATUS_IN_PROGRESS,
+            'started_at' => now(),
+            'attendance_confirmed' => true,
+        ]);
+
+        // Simulasikan akses lewat http://localhost:8000 (bukan APP_URL yang
+        // tidak memuat port). URL gambar harus mengikuti root akses ini.
+        URL::forceRootUrl('http://localhost:8000');
+
+        $response = $this->actingAs($user)
+            ->get(route('peserta.exams.work', $schedule->id))
+            ->assertOk();
+
+        // Js::from() meng-escape slash menjadi \/ dalam JSON.parse; normalisasi
+        // agar bisa dicek sebagai string URL biasa.
+        $html = str_replace('\\', '', $response->getContent());
+
+        $this->assertStringContainsString('http://localhost:8000/storage/question-images/gambar-uji.png', $html);
+        $this->assertStringNotContainsString('http://localhost/storage/question-images/gambar-uji.png', $html);
+        $this->assertStringContainsString('Mulai Ujian', $html);
+
+        URL::forceRootUrl(null);
         Carbon::setTestNow();
     }
 

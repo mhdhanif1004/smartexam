@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Storage;
 
 class Question extends Model
 {
@@ -67,10 +66,14 @@ class Question extends Model
 
     /**
      * URL publik gambar soal (di bawah public/storage), null jika tidak ada.
+     *
+     * Memakai asset('storage/...') agar host/port mengikuti request saat ini,
+     * bukan APP_URL (yang bisa salah arah bila aplikasi diakses lewat port
+     * lain — misalnya http://localhost:8000 vs APP_URL http://localhost).
      */
     public function imageUrl(): ?string
     {
-        return filled($this->image_path) ? Storage::disk('public')->url($this->image_path) : null;
+        return filled($this->image_path) ? asset('storage/'.$this->image_path) : null;
     }
 
     /**

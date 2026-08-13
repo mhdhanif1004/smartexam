@@ -16,6 +16,10 @@ class ViolationController extends Controller
      * Terima laporan pelanggaran otomatis dari mesin deteksi peserta.
      * Mencatat pelanggaran, mengaktifkan slot checklist berikutnya, lalu
      * menonaktifkan absensi peserta agar sesi ujian dihentikan otomatis.
+     *
+     * Pengecualian: keluar dari mode layar penuh hanya dicatat. Peserta
+     * diharapkan kembali ke layar penuh lewat modal blocking, sehingga sesi
+     * tidak dinonaktifkan dan tidak memerlukan absensi ulang pengawas.
      */
     public function store(Request $request, ExamSchedule $schedule): JsonResponse
     {
@@ -56,6 +60,10 @@ class ViolationController extends Controller
             'occurred_at' => now(),
             'reported_by' => null,
         ]);
+
+        if ($type === Violation::TYPE_FULLSCREEN_EXIT) {
+            return response()->json(['recorded' => true]);
+        }
 
         $session->activateNextViolationFlag();
         $session->update(['attendance_confirmed' => false]);

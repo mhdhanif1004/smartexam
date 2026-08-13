@@ -1,16 +1,16 @@
 @props(['title' => 'Dashboard'])
 
 <header class="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 dark:border-gray-800 dark:bg-gray-900 sm:px-6">
-    <div class="flex items-center gap-3">
-        <button type="button" @click="sidebarOpen = true" class="rounded-md p-2 text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 md:hidden">
+    <div class="flex min-w-0 flex-1 items-center gap-3">
+        <button type="button" @click="sidebarOpen = true" class="shrink-0 rounded-md p-2 text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 md:hidden">
             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
             </svg>
         </button>
-        <h1 class="text-lg font-semibold text-gray-800 dark:text-gray-100">{{ $title }}</h1>
+        <h1 class="truncate text-lg font-semibold text-gray-800 dark:text-gray-100">{{ $title }}</h1>
     </div>
 
-    <div class="flex items-center gap-3">
+    <div class="flex shrink-0 items-center gap-3">
         <span class="hidden items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300 sm:inline-flex">
             {{ ucfirst(auth()->user()->role ?? 'user') }}
         </span>

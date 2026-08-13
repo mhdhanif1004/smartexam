@@ -141,11 +141,11 @@ class AntiCheatModuleTest extends TestCase
             ->assertOk();
     }
 
-    public function test_three_violations_fill_three_flags_and_fourth_is_ignored(): void
+    public function test_three_violations_fill_three_flags_and_fullscreen_exit_adds_no_flag(): void
     {
         $session = $this->workingSession();
 
-        foreach ([Violation::TYPE_TAB_SWITCH, Violation::TYPE_BLUR, Violation::TYPE_RESIZE, Violation::TYPE_FULLSCREEN_EXIT] as $type) {
+        foreach ([Violation::TYPE_TAB_SWITCH, Violation::TYPE_BLUR, Violation::TYPE_RESIZE] as $type) {
             $this->actingAs($this->user)->postJson(route('peserta.exams.violation', $this->schedule->id), [
                 'violation_type' => $type,
             ])->assertOk()->assertJson(['redirect' => true]);
@@ -156,7 +156,43 @@ class AntiCheatModuleTest extends TestCase
         $this->assertTrue($session->violation_flag_2);
         $this->assertTrue($session->violation_flag_3);
         $this->assertFalse($session->attendance_confirmed);
+        $this->assertSame(3, $session->violations()->count());
+
+        // Keluar fullscreen hanya dicatat, tidak mengaktifkan flag tambahan.
+        $this->actingAs($this->user)->postJson(route('peserta.exams.violation', $this->schedule->id), [
+            'violation_type' => Violation::TYPE_FULLSCREEN_EXIT,
+        ])->assertOk()->assertJson(['recorded' => true]);
+
+        $session->refresh();
+        $this->assertTrue($session->violation_flag_1);
+        $this->assertTrue($session->violation_flag_2);
+        $this->assertTrue($session->violation_flag_3);
+        $this->assertFalse($session->attendance_confirmed);
         $this->assertSame(4, $session->violations()->count());
+    }
+
+    public function test_fullscreen_exit_is_recorded_without_disabling_session(): void
+    {
+        $session = $this->workingSession();
+
+        $this->actingAs($this->user)->postJson(route('peserta.exams.violation', $this->schedule->id), [
+            'violation_type' => Violation::TYPE_FULLSCREEN_EXIT,
+        ])->assertOk()
+            ->assertJson(['recorded' => true])
+            ->assertJsonMissing(['redirect' => true]);
+
+        $this->assertDatabaseHas('violations', [
+            'exam_session_id' => $session->id,
+            'violation_type' => Violation::TYPE_FULLSCREEN_EXIT,
+        ]);
+
+        $session->refresh();
+        $this->assertFalse($session->violation_flag_1);
+        $this->assertTrue($session->attendance_confirmed);
+
+        // Sesi tetap aktif: peserta masih bisa mengerjakan tanpa absensi ulang.
+        $this->actingAs($this->user)->get(route('peserta.exams.work', $this->schedule->id))
+            ->assertOk();
     }
 
     public function test_admin_lock_blocks_student_until_unlock(): void

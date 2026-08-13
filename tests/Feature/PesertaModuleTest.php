@@ -353,6 +353,44 @@ class PesertaModuleTest extends TestCase
             ->assertSee('Pilihan dua');
     }
 
+    public function test_exam_work_page_hides_portal_header_and_sidebar(): void
+    {
+        $this->beginSession();
+        Question::factory()->create([
+            'subject_id' => $this->subject->id,
+            'type' => Question::TYPE_SINGLE_CHOICE,
+            'options' => ['A' => 'Pilihan A', 'B' => 'Pilihan B'],
+            'answer_key' => 'A',
+        ]);
+
+        $workHtml = $this->actingAs($this->user)
+            ->get(route('peserta.exams.work', $this->schedule->id))
+            ->assertOk()
+            ->getContent();
+
+        // Tanpa header/navbar portal dan tanpa sidebar: tidak ada hamburger,
+        // role badge, toggle tema, dropdown profil, atau tombol keluar.
+        $this->assertStringNotContainsString('sidebarOpen', $workHtml);
+        $this->assertStringNotContainsString('translate-x-0', $workHtml);
+        $this->assertStringNotContainsString('Aktifkan mode terang', $workHtml);
+        $this->assertStringNotContainsString('Profil', $workHtml);
+        $this->assertStringNotContainsString('/logout', $workHtml);
+
+        // Konten ujian tetap dirender lengkap.
+        $this->assertStringContainsString('Pilihan A', $workHtml);
+        $this->assertStringContainsString('Mulai Ujian', $workHtml);
+
+        // Halaman lain portal peserta tetap menampilkan header/sidebar.
+        $this->actingAs($this->user)->get(route('peserta.dashboard'))
+            ->assertOk()
+            ->assertSee('sidebarOpen', false)
+            ->assertSee('Aktifkan mode terang', false);
+
+        $this->actingAs($this->user)->get(route('peserta.exams.token', $this->schedule->id))
+            ->assertOk()
+            ->assertSee('sidebarOpen', false);
+    }
+
     public function test_save_answer_persists_and_ignores_foreign_question(): void
     {
         $session = $this->beginSession();
@@ -594,5 +632,91 @@ class PesertaModuleTest extends TestCase
             'exam_session_id' => $session->id,
             'violation_type' => Violation::TYPE_TAB_SWITCH,
         ]);
+    }
+
+    public function test_reset_answer_keeps_row_when_doubtful(): void
+    {
+        $session = $this->beginSession();
+        $question = Question::factory()->create([
+            'subject_id' => $this->subject->id,
+            'type' => Question::TYPE_SINGLE_CHOICE,
+            'options' => ['A' => 'Opsi A', 'B' => 'Opsi B'],
+            'answer_key' => 'A',
+        ]);
+
+        $this->actingAs($this->user)->postJson(route('peserta.exams.save-answer', $this->schedule->id), [
+            'answers' => [$question->id => 'A'],
+        ])->assertOk();
+
+        $this->actingAs($this->user)->postJson(route('peserta.exams.questions.toggle-doubtful', [$this->schedule->id, $question->id]), [])
+            ->assertOk()
+            ->assertJson(['is_doubtful' => true]);
+
+        $this->actingAs($this->user)->postJson(route('peserta.exams.save-answer', $this->schedule->id), [
+            'answers' => [$question->id => null],
+        ])->assertOk()->assertJson(['ok' => true]);
+
+        $this->assertDatabaseHas('exam_answers', [
+            'exam_session_id' => $session->id,
+            'question_id' => $question->id,
+            'is_doubtful' => true,
+        ]);
+        $saved = ExamAnswer::where('exam_session_id', $session->id)->where('question_id', $question->id)->first();
+        $this->assertNotNull($saved);
+        $this->assertNull($saved->student_answer);
+    }
+
+    public function test_reset_answer_deletes_non_doubtful_rows(): void
+    {
+        $session = $this->beginSession();
+        $single = Question::factory()->create([
+            'subject_id' => $this->subject->id,
+            'type' => Question::TYPE_SINGLE_CHOICE,
+            'options' => ['A' => 'Opsi A', 'B' => 'Opsi B'],
+            'answer_key' => 'A',
+        ]);
+        $matching = Question::factory()->create([
+            'subject_id' => $this->subject->id,
+            'type' => Question::TYPE_MATCHING,
+            'options' => ['left' => ['Kiri 1', 'Kiri 2'], 'right' => ['Kanan 1', 'Kanan 2']],
+            'answer_key' => ['A' => '1', 'B' => '2'],
+        ]);
+
+        $this->actingAs($this->user)->postJson(route('peserta.exams.save-answer', $this->schedule->id), [
+            'answers' => [$single->id => 'A', $matching->id => ['A' => '1', 'B' => '2']],
+        ])->assertOk();
+
+        $this->assertDatabaseCount('exam_answers', 2);
+
+        $this->actingAs($this->user)->postJson(route('peserta.exams.save-answer', $this->schedule->id), [
+            'answers' => [$single->id => null, $matching->id => []],
+        ])->assertOk()->assertJson(['ok' => true]);
+
+        $this->assertDatabaseMissing('exam_answers', [
+            'exam_session_id' => $session->id,
+            'question_id' => $single->id,
+        ]);
+        $this->assertDatabaseMissing('exam_answers', [
+            'exam_session_id' => $session->id,
+            'question_id' => $matching->id,
+        ]);
+    }
+
+    public function test_reset_answer_after_completion_is_rejected(): void
+    {
+        $session = $this->beginSession();
+        $question = Question::factory()->create([
+            'subject_id' => $this->subject->id,
+            'type' => Question::TYPE_ESSAY,
+            'answer_key' => 'kunci essay',
+        ]);
+        $session->update([
+            'status' => ExamSession::STATUS_COMPLETED,
+            'finished_at' => now(),
+        ]);
+
+        $this->actingAs($this->user)->postJson(route('peserta.exams.save-answer', $this->schedule->id), [
+            'answers' => [$question->id => ''],
+        ])->assertStatus(403);
     }
 }
