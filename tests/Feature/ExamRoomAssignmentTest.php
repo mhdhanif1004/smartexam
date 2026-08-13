@@ -288,4 +288,67 @@ class ExamRoomAssignmentTest extends TestCase
             ->assertSee('Adam')
             ->assertSee('Tanda Tangan');
     }
+
+    public function test_rooms_index_has_detail_action_link(): void
+    {
+        $room = Room::factory()->create(['name' => 'R. 101']);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.rooms.index'))
+            ->assertOk()
+            ->assertSee(route('admin.rooms.detail', $room));
+    }
+
+    public function test_room_detail_shows_empty_state_without_assignments(): void
+    {
+        $room = Room::factory()->create(['name' => 'R. 101', 'capacity' => 10]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.rooms.detail', $room))
+            ->assertOk()
+            ->assertSee('Detail R. 101')
+            ->assertSee('Total Sesi')
+            ->assertSee('Belum ada peserta yang ditempatkan di ruangan ini.');
+    }
+
+    public function test_room_detail_groups_participants_by_period_in_order(): void
+    {
+        $room = Room::factory()->create(['name' => 'R. 101', 'capacity' => 10]);
+
+        $this->student('Adam', 'XI RPL 1');
+        $this->student('Bella', 'XI RPL 1');
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.exam-periods.groups.store', $this->period), $this->payload([
+                'rooms' => [$room->id],
+            ]))
+            ->assertSessionHas('success');
+
+        $laterPeriod = ExamPeriod::factory()->create([
+            'name' => 'Sesi 2',
+            'exam_date' => '2026-08-11',
+            'start_time' => '10:00:00',
+            'end_time' => '13:00:00',
+        ]);
+
+        $this->student('Cinta', 'XI RPL 1');
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.exam-periods.groups.store', $laterPeriod), $this->payload([
+                'rooms' => [$room->id],
+            ]))
+            ->assertSessionHas('success');
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.rooms.detail', $room))
+            ->assertOk()
+            ->assertSee('Detail R. 101')
+            ->assertSeeInOrder(['Sesi 1', 'Sesi 2'])
+            ->assertSee('Adam')
+            ->assertSee('Bella')
+            ->assertSee('Cinta')
+            ->assertSee('2 siswa')
+            ->assertSee('3 siswa')
+            ->assertSee('Total Peserta Ter-assign');
+    }
 }

@@ -69,6 +69,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::post('subjects/bulk-delete', [SubjectController::class, 'bulkDelete'])->name('subjects.bulk-delete');
         Route::resource('rooms', RoomController::class)->except(['show']);
         Route::post('rooms/bulk-delete', [RoomController::class, 'bulkDelete'])->name('rooms.bulk-delete');
+        Route::get('rooms/{room}/detail', [RoomController::class, 'detail'])->name('rooms.detail');
         Route::resource('classrooms', ClassroomController::class)->except(['show']);
         Route::get('exam-schedules/by-date', [ExamScheduleController::class, 'byDate'])->name('exam-schedules.by-date');
         Route::resource('exam-schedules', ExamScheduleController::class)->except(['show']);

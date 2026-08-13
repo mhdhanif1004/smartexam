@@ -90,6 +90,7 @@
                                 </td>
                                 <td class="px-4 py-3 text-sm">
                                     <div class="flex items-center gap-2">
+                                        <a href="{{ route('admin.rooms.detail', $room) }}" class="rounded-md bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 dark:bg-sky-500/10 dark:text-sky-300 dark:hover:bg-sky-500/20">Detail</a>
                                         <a href="{{ route('admin.rooms.edit', $room) }}" class="rounded-md bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20">Edit</a>
                                         <button type="button" @click="deleteUrl = '{{ route('admin.rooms.destroy', $room) }}'; $dispatch('open-modal', 'confirm-delete')" class="rounded-md bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20">Hapus</button>
                                     </div>

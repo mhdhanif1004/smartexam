@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreRoomRequest;
 use App\Http\Requests\Admin\UpdateRoomRequest;
+use App\Models\ExamRoomAssignment;
 use App\Models\Room;
 use App\Models\Supervisor;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -31,6 +33,28 @@ class RoomController extends Controller
             ->withQueryString();
 
         return view('admin.rooms.index', compact('rooms'));
+    }
+
+    public function detail(Room $room): View
+    {
+        $assignments = ExamRoomAssignment::query()
+            ->with(['examPeriod', 'student.user'])
+            ->where('room_id', $room->id)
+            ->orderBy('exam_period_id')
+            ->orderBy('seat_number')
+            ->get();
+
+        $assignmentsByPeriod = $assignments
+            ->groupBy(fn (ExamRoomAssignment $assignment) => $assignment->exam_period_id)
+            ->sortBy(fn (Collection $group) => $group->first()?->examPeriod?->exam_date.'|'.$group->first()?->examPeriod?->start_time)
+            ->values();
+
+        return view('admin.rooms.detail', [
+            'room' => $room,
+            'assignmentsByPeriod' => $assignmentsByPeriod,
+            'totalSessions' => $assignmentsByPeriod->count(),
+            'totalStudents' => $assignments->unique('student_id')->count(),
+        ]);
     }
 
     public function create(): View
