@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ExamSchedule;
+use App\Models\ExamSession;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
@@ -124,8 +125,19 @@ class ExamScheduleTimingTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-08-10 10:00:00'));
         $this->assertSame(ExamSchedule::STATUS_FINISHED, $schedule->computedStatus());
 
-        // setelah waktu selesai -> jendela tertutup
-        Carbon::setTestNow(Carbon::parse('2026-08-10 10:00:01'));
+        // dalam toleransi absensi ulang (10 menit setelah selesai) -> absensi
+        // tetap terbuka, token sudah tertutup
+        Carbon::setTestNow(Carbon::parse('2026-08-10 10:05:00'));
+        $this->assertTrue($schedule->isAttendanceWindowOpen());
+        $this->assertFalse($schedule->isTokenWindowOpen());
+
+        // tepat 10 menit setelah selesai -> jendela absensi masih terbuka (inklusif)
+        Carbon::setTestNow(Carbon::parse('2026-08-10 10:10:00'));
+        $this->assertTrue($schedule->isAttendanceWindowOpen());
+        $this->assertFalse($schedule->isTokenWindowOpen());
+
+        // lewat toleransi -> jendela absensi tertutup total
+        Carbon::setTestNow(Carbon::parse('2026-08-10 10:10:01'));
         $this->assertFalse($schedule->isAttendanceWindowOpen());
         $this->assertFalse($schedule->isTokenWindowOpen());
     }
@@ -157,6 +169,79 @@ class ExamScheduleTimingTest extends TestCase
             ->assertOk()
             ->assertSee('akan aktif mulai pukul', false)
             ->assertSee('08:50', false);
+    }
+
+    public function test_attendance_reconfirm_allowed_until_tolerance_after_exam_end(): void
+    {
+        [$room, $pengawas] = $this->supervisorRoom();
+        $subject = Subject::factory()->create(['name' => 'Matematika']);
+        $schedule = ExamSchedule::factory()->create([
+            'room_id' => $room->id,
+            'subject_id' => $subject->id,
+            'class_name' => 'XI RPL 1',
+            'exam_date' => '2026-08-10',
+            'start_time' => '09:00:00',
+            'end_time' => '10:00:00',
+            'status' => ExamSchedule::STATUS_FINISHED,
+        ]);
+        $student = Student::factory()->create(['class_name' => 'XI RPL 1', 'room_id' => $room->id]);
+        $session = ExamSession::create([
+            'student_id' => $student->id,
+            'exam_schedule_id' => $schedule->id,
+            'status' => ExamSession::STATUS_IN_PROGRESS,
+            'started_at' => now(),
+            'attendance_confirmed' => false,
+            'violation_flag_1' => true,
+        ]);
+
+        // 9 menit setelah ujian selesai (masih dalam toleransi) -> absensi ulang boleh
+        Carbon::setTestNow(Carbon::parse('2026-08-10 10:09:00'));
+        $this->actingAs($pengawas)
+            ->patchJson(route('pengawas.attendance.confirm', $schedule->id), [
+                'student_id' => $student->id,
+                'confirmed' => true,
+            ])->assertOk();
+
+        $this->assertDatabaseHas('exam_sessions', [
+            'id' => $session->id,
+            'attendance_confirmed' => true,
+        ]);
+
+        // 11 menit setelah selesai (lewat toleransi) -> ditolak 404
+        Carbon::setTestNow(Carbon::parse('2026-08-10 10:11:00'));
+        $this->actingAs($pengawas)
+            ->patchJson(route('pengawas.attendance.confirm', $schedule->id), [
+                'student_id' => $student->id,
+                'confirmed' => true,
+            ])->assertStatus(404);
+    }
+
+    public function test_attendance_index_still_lists_schedule_within_tolerance_after_end(): void
+    {
+        [$room, $pengawas] = $this->supervisorRoom();
+        $subject = Subject::factory()->create(['name' => 'Fisika']);
+        $schedule = ExamSchedule::factory()->create([
+            'room_id' => $room->id,
+            'subject_id' => $subject->id,
+            'class_name' => 'XI RPL 1',
+            'exam_date' => '2026-08-10',
+            'start_time' => '09:00:00',
+            'end_time' => '10:00:00',
+            'status' => ExamSchedule::STATUS_FINISHED,
+        ]);
+
+        // 5 menit setelah selesai -> jadwal masih muncul di halaman absensi
+        Carbon::setTestNow(Carbon::parse('2026-08-10 10:05:00'));
+        $this->actingAs($pengawas)->get(route('pengawas.attendance.index'))
+            ->assertOk()
+            ->assertSee('Fisika')
+            ->assertSee('absensi ulang peserta yang dinonaktifkan', false);
+
+        // 11 menit setelah selesai -> jadwal tidak lagi muncul
+        Carbon::setTestNow(Carbon::parse('2026-08-10 10:11:00'));
+        $this->actingAs($pengawas)->get(route('pengawas.attendance.index'))
+            ->assertOk()
+            ->assertDontSee('Fisika');
     }
 
     public function test_token_page_available_five_minutes_before_start(): void

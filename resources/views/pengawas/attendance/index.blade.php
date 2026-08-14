@@ -37,7 +37,9 @@
             @endif
 
             @php
-                $earlyWindow = $schedule->computedStatus() === \App\Models\ExamSchedule::STATUS_SCHEDULED;
+                $earlyWindow = $schedule->isAttendanceWindowOpen()
+                    && $schedule->computedStatus() !== \App\Models\ExamSchedule::STATUS_ONGOING;
+                $examOver = $schedule->computedStatus() === \App\Models\ExamSchedule::STATUS_FINISHED;
             @endphp
 
             <div class="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-gray-800 dark:bg-gray-900">
@@ -51,7 +53,13 @@
                 <x-badge-status :status="$earlyWindow ? 'belum_mulai' : 'berlangsung'" :label="$earlyWindow ? 'Jendela Absensi' : 'Sedang Berlangsung'" />
             </div>
 
-            @if ($earlyWindow)
+            @if ($earlyWindow && $examOver)
+                <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+                    Waktu ujian telah berakhir. Jendela absensi tetap terbuka
+                    <strong>{{ $schedule->attendanceToleranceMinutes() }} menit</strong> setelah selesai untuk
+                    absensi ulang peserta yang dinonaktifkan karena pelanggaran.
+                </div>
+            @elseif ($earlyWindow)
                 <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
                     Jendela absensi telah dibuka (10 menit sebelum ujian). Ujian resmi dimulai pukul
                     <strong>{{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }}</strong>.

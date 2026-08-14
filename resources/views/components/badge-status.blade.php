@@ -21,6 +21,7 @@
         'izin' => 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-400/30',
         'bisa_dimulai' => 'bg-sky-50 text-sky-700 ring-sky-600/20 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-400/30',
         'terlewat' => 'bg-gray-100 text-gray-500 ring-gray-500/20 dark:bg-gray-700/60 dark:text-gray-400 dark:ring-gray-500/40',
+        'absensi_tertutup' => 'bg-gray-100 text-gray-500 ring-gray-500/20 dark:bg-gray-700/60 dark:text-gray-400 dark:ring-gray-500/40',
     ];
 @endphp
 

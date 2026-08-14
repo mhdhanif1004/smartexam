@@ -62,6 +62,17 @@ class DashboardController extends Controller
         }
 
         if ($session !== null && $session->status === ExamSession::STATUS_IN_PROGRESS) {
+            if (! $session->attendance_confirmed
+                && $session->activeViolationFlags() > 0
+                && ! $schedule->isAttendanceWindowOpen()) {
+                return [
+                    'key' => 'absensi_tertutup',
+                    'label' => 'Sesi Berakhir',
+                    'can_start' => false,
+                    'url' => null,
+                ];
+            }
+
             return [
                 'key' => 'sedang_mengerjakan',
                 'label' => 'Sedang Mengerjakan',

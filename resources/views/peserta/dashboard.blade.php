@@ -46,6 +46,11 @@
                                         </svg>
                                         {{ $display['key'] === 'sedang_mengerjakan' ? 'Lanjutkan' : 'Masuk Ujian' }}
                                     </a>
+                                @elseif ($display['key'] === 'absensi_tertutup')
+                                    <span class="cursor-not-allowed rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-400 dark:bg-gray-800 dark:text-gray-500"
+                                          title="Sesi ujian telah berakhir, absensi ulang tidak lagi tersedia">
+                                        Sesi Berakhir
+                                    </span>
                                 @elseif ($display['key'] === 'selesai' && $display['url'])
                                     <a href="{{ $display['url'] }}" class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90">
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">

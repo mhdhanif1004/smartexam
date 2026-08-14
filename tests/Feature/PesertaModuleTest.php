@@ -719,4 +719,32 @@ class PesertaModuleTest extends TestCase
             'answers' => [$question->id => ''],
         ])->assertStatus(403);
     }
+
+    public function test_dashboard_hides_resume_button_when_re_attendance_window_closed(): void
+    {
+        $session = $this->beginSession();
+        $session->update([
+            'status' => ExamSession::STATUS_IN_PROGRESS,
+            'attendance_confirmed' => false,
+            'violation_flag_1' => true,
+        ]);
+
+        // Masih dalam jendela absensi (sebelum end_time) -> tombol Lanjutkan tampil.
+        $this->actingAs($this->user)->get(route('peserta.dashboard'))
+            ->assertOk()
+            ->assertSee('Lanjutkan');
+
+        // Lewat end_time + toleransi 10 menit (10:30 + 10 = 10:40) -> tombol hilang.
+        Carbon::setTestNow(Carbon::parse('2026-07-31 10:41:00'));
+        $this->actingAs($this->user)->get(route('peserta.dashboard'))
+            ->assertOk()
+            ->assertDontSee('Lanjutkan')
+            ->assertSee('Sesi Berakhir');
+
+        // Peserta tanpa pelanggaran tetap bisa lanjut walaupun lewat end_time.
+        $session->update(['attendance_confirmed' => true, 'violation_flag_1' => false]);
+        $this->actingAs($this->user)->get(route('peserta.dashboard'))
+            ->assertOk()
+            ->assertSee('Lanjutkan');
+    }
 }

@@ -30,7 +30,7 @@ trait ScopesSupervisorRoom
      *
      * @return Collection<int, ExamSchedule>
      */
-    protected function windowSchedules(Room $room, int $earlyMinutes): Collection
+    protected function windowSchedules(Room $room, int $earlyMinutes, int $lateMinutes = 0): Collection
     {
         $today = now()->startOfDay();
 
@@ -41,7 +41,7 @@ trait ScopesSupervisorRoom
             ->where('exam_date', '<', $today->copy()->addDay())
             ->orderBy('start_time')
             ->get()
-            ->filter(fn (ExamSchedule $schedule) => $schedule->windowOpen($earlyMinutes))
+            ->filter(fn (ExamSchedule $schedule) => $schedule->windowOpen($earlyMinutes, $lateMinutes))
             ->values();
     }
 
@@ -49,9 +49,9 @@ trait ScopesSupervisorRoom
      * Sesi yang sedang dalam jendela untuk halaman absensi/token
      * (dengan pilihan lewat query param).
      */
-    protected function currentSchedule(Room $room, ?int $requestedId = null, int $earlyMinutes = 0): ?ExamSchedule
+    protected function currentSchedule(Room $room, ?int $requestedId = null, int $earlyMinutes = 0, int $lateMinutes = 0): ?ExamSchedule
     {
-        $schedules = $this->windowSchedules($room, $earlyMinutes);
+        $schedules = $this->windowSchedules($room, $earlyMinutes, $lateMinutes);
 
         if ($schedules->isEmpty()) {
             return null;
@@ -71,7 +71,7 @@ trait ScopesSupervisorRoom
      *
      * @return Collection<int, ExamSchedule>
      */
-    protected function upcomingSchedules(Room $room, int $earlyMinutes): Collection
+    protected function upcomingSchedules(Room $room, int $earlyMinutes, int $lateMinutes = 0): Collection
     {
         $today = now()->startOfDay();
 
@@ -83,7 +83,7 @@ trait ScopesSupervisorRoom
             ->orderBy('start_time')
             ->get()
             ->filter(fn (ExamSchedule $schedule) => $schedule->computedStatus() === ExamSchedule::STATUS_SCHEDULED
-                && ! $schedule->windowOpen($earlyMinutes))
+                && ! $schedule->windowOpen($earlyMinutes, $lateMinutes))
             ->map(function (ExamSchedule $schedule) use ($earlyMinutes) {
                 $schedule->setAttribute('window_start', $schedule->windowOpensAt($earlyMinutes)->format('H:i'));
 

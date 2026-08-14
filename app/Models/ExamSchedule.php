@@ -70,17 +70,28 @@ class ExamSchedule extends Model
     }
 
     /**
+     * Toleransi absensi ulang: jendela absensi pengawas tetap terbuka sampai
+     * N menit setelah waktu ujian selesai. Nilai diambil dari config
+     * exam.attendance_tolerance_minutes (default 10), bukan di-hardcode.
+     */
+    public static function attendanceToleranceMinutes(): int
+    {
+        return (int) config('exam.attendance_tolerance_minutes', 10);
+    }
+
+    /**
      * Jendela absensi pengawas: terbuka 10 menit sebelum ujian dimulai dan
-     * menutup saat waktu selesai (inklusif), sesuai exam_date + start_time/end_time.
+     * menutup tolerance menit SETELAH waktu selesai (inklusif), supaya
+     * pengawas tetap bisa melakukan absensi ulang selama jeda antar sesi.
      */
     public function isAttendanceWindowOpen(): bool
     {
-        return $this->windowOpen(10);
+        return $this->windowOpen(10, self::attendanceToleranceMinutes());
     }
 
     /**
      * Jendela token ujian: tersedia 5 menit sebelum ujian dimulai dan
-     * menutup saat waktu selesai (inklusif).
+     * menutup saat waktu selesai (inklusif). Token TIDAK diberi toleransi.
      */
     public function isTokenWindowOpen(): bool
     {
@@ -88,13 +99,22 @@ class ExamSchedule extends Model
     }
 
     /**
-     * Apakah waktu sekarang berada dalam jendela [start_time - earlyMinutes, end_time].
+     * Waktu jendela absensi ditutup total = end_time + tolerance menit.
      */
-    public function windowOpen(int $earlyMinutes = 0): bool
+    public function attendanceWindowClosesAt(): Carbon
+    {
+        return $this->examEnd()->addMinutes(self::attendanceToleranceMinutes());
+    }
+
+    /**
+     * Apakah waktu sekarang berada dalam jendela
+     * [start_time - earlyMinutes, end_time + lateMinutes].
+     */
+    public function windowOpen(int $earlyMinutes = 0, int $lateMinutes = 0): bool
     {
         $now = Carbon::now();
 
-        return $now->gte($this->windowOpensAt($earlyMinutes)) && $now->lte($this->examEnd());
+        return $now->gte($this->windowOpensAt($earlyMinutes)) && $now->lte($this->examEnd()->addMinutes($lateMinutes));
     }
 
     /**
