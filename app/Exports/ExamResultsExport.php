@@ -52,7 +52,7 @@ class ExamResultsExport implements FromCollection, WithHeadings, WithMapping
             $student?->class_name ?? '-',
             $schedule?->subject?->name ?? '-',
             $schedule?->exam_date?->format('d/m/Y') ?? '-',
-            $schedule?->room?->name ?? '-',
+            $schedule?->room?->display_name ?? '-',
             $result->total_score,
             $result->is_passed ? 'Lulus' : 'Tidak Lulus',
         ];

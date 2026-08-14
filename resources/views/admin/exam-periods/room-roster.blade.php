@@ -1,4 +1,4 @@
-<x-layouts.admin :title="'Roster - '.$room->name.' - '.$examPeriod->name">
+<x-layouts.admin :title="'Roster - '.$room->display_name.' - '.$examPeriod->name">
     <style>
         @media print {
             aside, header { display: none !important; }
@@ -34,7 +34,7 @@
                     <p class="text-sm text-gray-500 dark:text-gray-400">{{ $examPeriod->exam_date->format('d M Y') }} &middot; {{ \Illuminate\Support\Str::substr($examPeriod->start_time, 0, 5) }} - {{ \Illuminate\Support\Str::substr($examPeriod->end_time, 0, 5) }}</p>
                 </div>
                 <div class="text-right">
-                    <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">Ruangan: {{ $room->name }}</p>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">Ruangan: {{ $room->display_name }}</p>
                     <p class="text-sm text-gray-500 dark:text-gray-400">{{ $assignments->count() }} siswa</p>
                 </div>
             </div>

@@ -174,11 +174,12 @@ class AdminCrudTest extends TestCase
         $this->assertDatabaseHas('subjects', ['code' => 'FIS', 'class_label' => 'XI RPL 1']);
 
         $this->actingAs($this->admin)->post('/admin/rooms', [
-            'name' => 'Ruang 10',
+            'room_number' => 10,
             'capacity' => 40,
+            'supervisor_count' => 1,
         ])->assertRedirect(route('admin.rooms.index'));
 
-        $this->assertDatabaseHas('rooms', ['name' => 'Ruang 10']);
+        $this->assertDatabaseHas('rooms', ['room_number' => 10]);
     }
 
     public function test_admin_can_create_exam_schedule(): void

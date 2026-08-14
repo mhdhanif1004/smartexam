@@ -26,9 +26,15 @@ class RoomController extends Controller
                 'roomAssignments as assigned_students_count' => fn ($query) => $query->selectRaw('COUNT(DISTINCT student_id)'),
             ])
             ->when($request->filled('search'), function ($query) use ($request) {
-                $query->where('name', 'like', '%'.$request->string('search')->trim().'%');
+                $search = $request->string('search')->trim();
+
+                if (preg_match('/^\d+$/', (string) $search)) {
+                    $query->whereRaw('CAST(room_number AS CHAR) LIKE ?', [(string) $search.'%']);
+                } else {
+                    $query->whereRaw('0 = 1');
+                }
             })
-            ->orderBy('name')
+            ->orderBy('room_number')
             ->paginate(10)
             ->withQueryString();
 
@@ -69,8 +75,9 @@ class RoomController extends Controller
 
         $room = DB::transaction(function () use ($validated, $supervisorIds) {
             $room = Room::create([
-                'name' => $validated['name'],
-                'capacity' => (int) ($validated['capacity'] ?? 0),
+                'room_number' => (int) $validated['room_number'],
+                'capacity' => (int) $validated['capacity'],
+                'supervisor_count' => (int) $validated['supervisor_count'],
             ]);
 
             $this->assignSupervisors($supervisorIds, $room);
@@ -78,7 +85,7 @@ class RoomController extends Controller
             return $room;
         });
 
-        return redirect()->route('admin.rooms.index')->with('success', "Ruangan {$room->name} berhasil ditambahkan.");
+        return redirect()->route('admin.rooms.index')->with('success', "Ruangan {$room->display_name} berhasil ditambahkan.");
     }
 
     public function edit(Room $room): View
@@ -93,19 +100,20 @@ class RoomController extends Controller
 
         DB::transaction(function () use ($validated, $supervisorIds, $room) {
             $room->update([
-                'name' => $validated['name'],
-                'capacity' => (int) ($validated['capacity'] ?? 0),
+                'room_number' => (int) $validated['room_number'],
+                'capacity' => (int) $validated['capacity'],
+                'supervisor_count' => (int) $validated['supervisor_count'],
             ]);
 
             $this->assignSupervisors($supervisorIds, $room);
         });
 
-        return redirect()->route('admin.rooms.index')->with('success', "Ruangan {$room->name} berhasil diperbarui.");
+        return redirect()->route('admin.rooms.index')->with('success', "Ruangan {$room->display_name} berhasil diperbarui.");
     }
 
     public function destroy(Room $room): RedirectResponse
     {
-        $name = $room->name;
+        $name = $room->display_name;
         $room->delete();
 
         return redirect()->route('admin.rooms.index')->with('success', "Ruangan {$name} berhasil dihapus.");
@@ -134,7 +142,7 @@ class RoomController extends Controller
 
             foreach ($rooms as $room) {
                 if ($room->exam_schedules_count > 0) {
-                    $blocked[] = $room->name;
+                    $blocked[] = $room->display_name;
 
                     continue;
                 }

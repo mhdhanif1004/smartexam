@@ -98,10 +98,10 @@ class BulkFakeDataSeeder extends Seeder
     private function ensureRooms(): Collection
     {
         foreach (range(1, 20) as $i) {
-            Room::firstOrCreate(['name' => "Ruang {$i}"], ['capacity' => 60]);
+            Room::firstOrCreate(['room_number' => $i], ['capacity' => 60]);
         }
 
-        return Room::query()->orderBy('name')->get();
+        return Room::query()->orderBy('room_number')->get();
     }
 
     /**

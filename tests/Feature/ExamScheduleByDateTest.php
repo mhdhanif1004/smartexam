@@ -28,7 +28,7 @@ class ExamScheduleByDateTest extends TestCase
         $this->admin = User::factory()->admin()->create();
         $this->subject = Subject::factory()->create(['name' => 'Matematika']);
         Question::factory()->create(['subject_id' => $this->subject->id]);
-        $this->room = Room::factory()->create(['name' => 'Ruang 1']);
+        $this->room = Room::factory()->create(['room_number' => 1]);
     }
 
     /**

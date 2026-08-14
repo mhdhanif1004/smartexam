@@ -30,7 +30,7 @@ class LoginCardController extends Controller
         $selectedRoom = null;
 
         if ($type === 'pengawas') {
-            $rooms = Room::query()->orderBy('name')->get();
+            $rooms = Room::query()->orderBy('room_number')->get();
 
             $supervisors = Supervisor::query()
                 ->with(['user', 'room'])

@@ -31,7 +31,7 @@
 
     $sessions = $sessionNames->isNotEmpty() ? $sessionNames->implode(', ') : '-';
 
-    $assignmentRooms = $assignments->map(fn ($assignment) => $assignment->room?->name ?? '-');
+    $assignmentRooms = $assignments->map(fn ($assignment) => $assignment->room?->display_name ?? '-');
 
     // Gelar (token berakhiran titik) dilem dengan non-breaking space agar tidak
     // turun ke baris berikutnya; nama tetap bisa wrap di antara kata biasa.

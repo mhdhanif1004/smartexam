@@ -207,7 +207,7 @@
                                 <div :class="roomCardClass(@js($periodIndex), @js($roomIndex))" class="overflow-hidden rounded-xl border shadow-sm border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
                                     <button type="button" @click="toggleRoom(@js($roomKey))" class="w-full px-4 py-3 text-left">
                                         <div class="flex items-center justify-between gap-2">
-                                            <h4 class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ $room['room']?->name ?? 'Tanpa Ruangan' }}</h4>
+                                            <h4 class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ $room['room']?->display_name ?? 'Tanpa Ruangan' }}</h4>
                                             <svg class="h-4 w-4 text-gray-400 transition-transform" :class="isOpenRoom(@js($roomKey)) ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                                             </svg>

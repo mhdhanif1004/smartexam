@@ -28,7 +28,7 @@ class LoginCardSessionTest extends TestCase
 
     public function test_card_preview_shows_session_name_from_exam_period(): void
     {
-        $room = Room::factory()->create(['name' => 'R. 101']);
+        $room = Room::factory()->create(['room_number' => 101]);
         $student = Student::factory()->create(['class_name' => 'XI RPL 1', 'room_id' => $room->id]);
         $subject = Subject::factory()->create(['name' => 'Matematika']);
         Question::factory()->create(['subject_id' => $subject->id]);
@@ -68,7 +68,7 @@ class LoginCardSessionTest extends TestCase
 
     public function test_card_preview_merges_multiple_sessions_separated_by_comma(): void
     {
-        $room = Room::factory()->create(['name' => 'R. 101']);
+        $room = Room::factory()->create(['room_number' => 101]);
         $student = Student::factory()->create(['class_name' => 'XI RPL 1', 'room_id' => $room->id]);
         $subjectA = Subject::factory()->create(['name' => 'Matematika']);
         $subjectB = Subject::factory()->create(['name' => 'B. Indonesia']);
@@ -121,7 +121,7 @@ class LoginCardSessionTest extends TestCase
 
     public function test_card_preview_falls_back_to_dash_when_schedule_has_no_session(): void
     {
-        $room = Room::factory()->create(['name' => 'R. 101']);
+        $room = Room::factory()->create(['room_number' => 101]);
         $student = Student::factory()->create(['class_name' => 'XI RPL 1', 'room_id' => $room->id]);
         $subject = Subject::factory()->create(['name' => 'Matematika']);
         Question::factory()->create(['subject_id' => $subject->id]);
@@ -147,7 +147,7 @@ class LoginCardSessionTest extends TestCase
 
     public function test_index_page_shows_session_badge_from_exam_period(): void
     {
-        $room = Room::factory()->create(['name' => 'R. 101']);
+        $room = Room::factory()->create(['room_number' => 101]);
         $student = Student::factory()->create(['class_name' => 'XI RPL 1', 'room_id' => $room->id]);
         $subject = Subject::factory()->create(['name' => 'Matematika']);
         Question::factory()->create(['subject_id' => $subject->id]);

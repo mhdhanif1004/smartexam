@@ -21,7 +21,7 @@
                 </div>
                 <div class="flex justify-between gap-4">
                     <dt class="text-gray-500 dark:text-gray-400">Ruangan</dt>
-                    <dd class="font-semibold text-gray-900 dark:text-gray-100">{{ $session->examSchedule->room?->name }}</dd>
+                    <dd class="font-semibold text-gray-900 dark:text-gray-100">{{ $session->examSchedule->room?->display_name }}</dd>
                 </div>
                 <div class="flex justify-between gap-4">
                     <dt class="text-gray-500 dark:text-gray-400">Waktu Pengerjaan</dt>

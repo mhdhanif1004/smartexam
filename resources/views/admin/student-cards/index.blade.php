@@ -51,7 +51,7 @@
                     <select name="room" id="room" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                         <option value="">Semua Ruangan</option>
                         @foreach ($rooms as $room)
-                            <option value="{{ $room->id }}" @selected($selectedRoom === $room->id)>{{ $room->name }}</option>
+                            <option value="{{ $room->id }}" @selected($selectedRoom === $room->id)>{{ $room->display_name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -94,7 +94,7 @@
                                 <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $supervisor->user?->name }}</p>
                                 <p class="text-xs text-gray-500 dark:text-gray-400">{{ $supervisor->user?->email }}</p>
                             </div>
-                            <span class="rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-700/60 dark:text-gray-400">{{ $supervisor->room?->name ?? 'Belum ditugaskan' }}</span>
+                            <span class="rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-700/60 dark:text-gray-400">{{ $supervisor->room?->display_name ?? 'Belum ditugaskan' }}</span>
                         </label>
                     @empty
                         <p class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Tidak ada pengawas.</p>
@@ -163,7 +163,7 @@
                                         @php
                                             $assignments = $roomAssignments[$student->id] ?? collect();
                                             $assignmentRoom = $assignments->isNotEmpty()
-                                                ? $assignments->first()->room?->name
+                                                ? $assignments->first()->room?->display_name
                                                 : null;
                                             $assignmentSessions = $assignments->isNotEmpty()
                                                 ? $assignments->map(fn ($a) => $a->examPeriod?->name)->filter()->unique()->values()->implode(', ')

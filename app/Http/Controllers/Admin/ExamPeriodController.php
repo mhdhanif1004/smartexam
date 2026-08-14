@@ -12,6 +12,8 @@ use App\Models\ExamSchedule;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Models\Supervisor;
+use App\Models\SupervisorRoomAssignment;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection;
@@ -53,7 +55,7 @@ class ExamPeriodController extends Controller
     {
         return view('admin.exam-periods.auto-generate-create', [
             'subjects' => Subject::query()->orderBy('name')->get(),
-            'rooms' => Room::query()->orderBy('name')->get(),
+            'rooms' => Room::query()->orderBy('room_number')->get(),
             'classes' => Student::query()->distinct()->orderBy('class_name')->pluck('class_name'),
         ]);
     }
@@ -130,6 +132,7 @@ class ExamPeriodController extends Controller
 
             $createdPeriods = [];
             $placed = 0;
+            $unfilledSlots = 0;
 
             for ($n = 1; $n <= $numberOfSessions; $n++) {
                 $sessionEnd = $sessionStart->copy()->addMinutes($sessionDuration);
@@ -171,6 +174,9 @@ class ExamPeriodController extends Controller
                 $this->placeStudentsIntoRooms($period, $roomIds, $slice);
                 $placed += count($slice);
 
+                $rotation = $this->assignRoomSupervisors($period, $roomIds);
+                $unfilledSlots += $rotation['total_slots'] - $rotation['filled_slots'];
+
                 $createdPeriods[] = $period;
                 $sessionStart = $sessionEnd->copy()->addMinutes($gapMinutes);
             }
@@ -179,6 +185,7 @@ class ExamPeriodController extends Controller
                 'periods' => $createdPeriods,
                 'numberOfSessions' => $numberOfSessions,
                 'totalStudents' => $totalStudents,
+                'unfilledSlots' => $unfilledSlots,
             ];
         });
 
@@ -186,8 +193,14 @@ class ExamPeriodController extends Controller
             ->map(fn (ExamPeriod $period) => $period->name)
             ->implode(', ');
 
+        $message = "Berhasil membuat {$result['numberOfSessions']} sesi ({$names}) untuk {$result['totalStudents']} siswa di ".count($roomIds).' ruangan.';
+
+        if ($result['unfilledSlots'] > 0) {
+            $message .= ' Peringatan: '.$result['unfilledSlots'].' slot pengawas belum terisi karena jumlah pengawas aktif kurang dari kebutuhan total.';
+        }
+
         return redirect()->route('admin.exam-periods.index')
-            ->with('success', "Berhasil membuat {$result['numberOfSessions']} sesi ({$names}) untuk {$result['totalStudents']} siswa di ".count($roomIds).' ruangan.');
+            ->with('success', $message);
     }
 
     public function show(ExamPeriod $examPeriod): View
@@ -197,6 +210,8 @@ class ExamPeriodController extends Controller
             'schedules.room',
             'roomAssignments.student.user',
             'roomAssignments.room',
+            'supervisorRoomAssignments.supervisor.user',
+            'supervisorRoomAssignments.room',
         ]);
         $examPeriod->loadCount('schedules');
 
@@ -206,13 +221,17 @@ class ExamPeriodController extends Controller
                 return [
                     'room' => $schedules->first()?->room,
                     'schedules' => $schedules,
+                    'supervisors' => $examPeriod->supervisorRoomAssignments
+                        ->where('room_id', $roomId)
+                        ->map->supervisor
+                        ->values(),
                     'assignments' => $examPeriod->roomAssignments
                         ->where('room_id', $roomId)
                         ->sortBy('seat_number')
                         ->values(),
                 ];
             })
-            ->sortBy(fn (array $group) => $group['room']?->name ?? '')
+            ->sortBy(fn (array $group) => $group['room']?->room_number ?? PHP_INT_MAX)
             ->values();
 
         return view('admin.exam-periods.show', [
@@ -243,7 +262,7 @@ class ExamPeriodController extends Controller
         return view('admin.exam-periods.groups-create', [
             'examPeriod' => $examPeriod,
             'subjects' => Subject::query()->orderBy('name')->get(),
-            'rooms' => Room::query()->orderBy('name')->get(),
+            'rooms' => Room::query()->orderBy('room_number')->get(),
             'classes' => Student::query()->distinct()->orderBy('class_name')->pluck('class_name'),
         ]);
     }
@@ -265,8 +284,9 @@ class ExamPeriodController extends Controller
         $className = implode(', ', $classNames);
         $examDate = $examPeriod->exam_date->toDateString();
         $created = 0;
+        $unfilledSlots = 0;
 
-        DB::transaction(function () use ($roomIds, $subjectRows, $className, $classNames, $examDate, $examPeriod, &$created): void {
+        DB::transaction(function () use ($roomIds, $subjectRows, $className, $classNames, $examDate, $examPeriod, &$created, &$unfilledSlots): void {
             $rooms = Room::query()->whereIn('id', $roomIds)->get()->keyBy('id');
             $subjects = Subject::query()
                 ->whereIn('id', collect($subjectRows)->pluck('subject_id'))
@@ -277,7 +297,7 @@ class ExamPeriodController extends Controller
             $conflicts = [];
 
             foreach ($roomIds as $roomId) {
-                $roomName = $rooms->get($roomId)?->name ?? "Ruangan #{$roomId}";
+                $roomName = $rooms->get($roomId)?->display_name ?? "Ruangan #{$roomId}";
 
                 foreach ($subjectRows as $row) {
                     $subject = $subjects->get((int) $row['subject_id']);
@@ -342,10 +362,61 @@ class ExamPeriodController extends Controller
             }
 
             $this->placeStudentsIntoRooms($examPeriod, $roomIds, $this->orderedStudentIds($classNames));
+
+            $rotation = $this->assignRoomSupervisors($examPeriod, $roomIds);
+            $unfilledSlots = $rotation['total_slots'] - $rotation['filled_slots'];
         });
 
+        $message = "{$created} jadwal ujian berhasil dibuat untuk {$examPeriod->name}.";
+
+        if ($unfilledSlots > 0) {
+            $message .= ' Peringatan: '.$unfilledSlots.' slot pengawas belum terisi karena jumlah pengawas aktif kurang dari kebutuhan total.';
+        }
+
         return redirect()->route('admin.exam-periods.show', $examPeriod)
-            ->with('success', "{$created} jadwal ujian berhasil dibuat untuk {$examPeriod->name}.");
+            ->with('success', $message);
+    }
+
+    /**
+     * Generate rotasi pengawas untuk satu periode (isi ruangan yang masih
+     * kosong saja, TIDAK menimpa penugasan yang sudah ada). Ruangan yang
+     * dipertimbangkan adalah semua ruangan yang memiliki jadwal pada periode
+     * tersebut.
+     */
+    public function supervisorRotation(ExamPeriod $examPeriod): RedirectResponse
+    {
+        $roomIds = ExamSchedule::query()
+            ->where('exam_period_id', $examPeriod->id)
+            ->distinct()
+            ->pluck('room_id')
+            ->filter()
+            ->values()
+            ->all();
+
+        if ($roomIds === []) {
+            return back()->with('error', 'Sesi ini belum memiliki jadwal ujian sehingga belum ada ruangan yang perlu diisi pengawas.');
+        }
+
+        $result = $this->assignRoomSupervisors($examPeriod, $roomIds);
+        $created = $result['assignments'];
+        $totalSlots = $result['total_slots'];
+        $filledSlots = $result['filled_slots'];
+
+        if ($created === []) {
+            if ($filledSlots >= $totalSlots) {
+                return back()->with('info', 'Semua slot pengawas pada sesi ini sudah terisi.');
+            }
+
+            return back()->with('info', "Pengawas aktif tidak mencukupi: baru {$filledSlots} dari {$totalSlots} slot pengawas yang terisi.");
+        }
+
+        $message = 'Rotasi pengawas berhasil: '.count($created).' slot pengawas baru terisi.';
+
+        if ($filledSlots < $totalSlots) {
+            $message .= " Pengawas aktif tidak mencukupi kebutuhan {$totalSlots} slot (baru terisi {$filledSlots}); slot yang belum terisi tampil sebagai \"Belum ditugaskan\".";
+        }
+
+        return back()->with('success', $message);
     }
 
     public function destroy(ExamPeriod $examPeriod): RedirectResponse
@@ -412,7 +483,7 @@ class ExamPeriodController extends Controller
         $conflicts = [];
 
         foreach ($roomIds as $roomId) {
-            $roomName = $rooms->get($roomId)?->name ?? "Ruangan #{$roomId}";
+            $roomName = $rooms->get($roomId)?->display_name ?? "Ruangan #{$roomId}";
             $subjectStart = $sessionStart->copy();
 
             foreach ($subjectRows as $row) {
@@ -445,7 +516,7 @@ class ExamPeriodController extends Controller
      * Penempatan otomatis siswa ke ruangan untuk satu sesi ujian.
      *
      * Siswa diterima sebagai daftar ID yang sudah terurut (urutan kelas dipilih
-     * lalu alfabetis nama). Ruangan diurutkan ascending berdasarkan nama dan
+     * lalu alfabetis nama). Ruangan diurutkan ascending berdasarkan nomor ruangan dan
      * diisi sequential: ruangan pertama penuh dulu, lalu lanjut ke ruangan
      * berikutnya (boleh ada campuran ekor kelas A dan awal kelas B dalam satu
      * ruangan). Nomor kursi dihitung ulang dari 1 di tiap ruangan. Dipanggil di
@@ -459,7 +530,7 @@ class ExamPeriodController extends Controller
     {
         $rooms = Room::query()
             ->whereIn('id', $roomIds)
-            ->orderBy('name')
+            ->orderBy('room_number')
             ->get();
 
         $alreadyPlaced = ExamRoomAssignment::query()
@@ -509,5 +580,150 @@ class ExamPeriodController extends Controller
         if ($assignments !== []) {
             ExamRoomAssignment::insert($assignments);
         }
+    }
+
+    /**
+     * Rotasi penugasan ruangan pengawas untuk satu periode ujian.
+     *
+     * Algoritma:
+     *  1. Ambil ruangan yang dipakai periode ini (urutan nomor ruangan, deterministik)
+     *     beserta kebutuhan pengawasnya (rooms.supervisor_count, dibatasi
+     *     maksimum config max_supervisors_per_room). Setiap ruangan wajib
+     *     mendapat SEBANYAK supervisor_count slot pengawas.
+     *  2. Ambil pengawas aktif (users.is_active = true).
+     *  3. 1 pengawas maksimal 1 slot pada tanggal periode (unique constraint
+     *     (periode, tanggal, pengawas) dijamin di database).
+     *  4. Konstraint utama: hindari pengawas mendapat ruangan yang sama di
+     *     tanggal yang sama (termasuk lintas periode/gelombang), dan utamakan
+     *     pengawas yang paling lama tidak bertugas di ruangan itu.
+     *  5. Fallback: bila pengawas aktif tidak mencukupi kebutuhan slot
+     *     (SUM supervisor_count), slot yang bisa diisi tetap diisi dan sisanya
+     *     dibiarkan kosong (tampil "Belum ditugaskan").
+     *  6. Distribusi merata: antrean diurutkan berdasarkan beban (jumlah
+     *     penugasan di periode ini) naik, lalu nama naik.
+     *
+     * Method ini hanya mengisi slot (periode, tanggal, ruangan) yang BELUM punya
+     * pengawas, sehingga aman dipanggil saat auto-generate/groupsStore maupun
+     * tombol "Generate Rotasi Pengawas" tanpa menimpa penugasan lama.
+     *
+     * @param  array<int, int>  $roomIds
+     * @return array{assignments: array<int, array<string, mixed>>, total_slots: int, filled_slots: int}
+     */
+    private function assignRoomSupervisors(ExamPeriod $examPeriod, array $roomIds): array
+    {
+        $date = $examPeriod->exam_date->toDateString();
+
+        $rooms = Room::query()->whereIn('id', $roomIds)->orderBy('room_number')->get();
+
+        $active = Supervisor::query()
+            ->whereHas('user', fn ($query) => $query->where('is_active', true))
+            ->with('user')
+            ->orderBy('user_id')
+            ->get();
+
+        $maxPerRoom = (int) config('exam.max_supervisors_per_room', 3);
+
+        $needs = $rooms->mapWithKeys(fn (Room $room) => [
+            $room->id => max(1, min($maxPerRoom, (int) $room->supervisor_count)),
+        ]);
+
+        $totalSlots = $needs->sum();
+
+        if ($rooms->isEmpty() || $active->isEmpty()) {
+            return ['assignments' => [], 'total_slots' => $totalSlots, 'filled_slots' => 0];
+        }
+
+        $existing = SupervisorRoomAssignment::query()
+            ->where('exam_period_id', $examPeriod->id)
+            ->get();
+
+        $filledByRoom = $existing
+            ->filter(fn ($assignment) => $assignment->exam_date?->toDateString() === $date)
+            ->groupBy('room_id')
+            ->map->count();
+        $burden = $existing->groupBy('supervisor_id')->map->count();
+        $assignedSupervisorIds = $existing->pluck('supervisor_id')->all();
+
+        $activeIds = $active->pluck('id');
+
+        // Supervisor pernah bertugas di ruangan apa saja pada TANGGAL ini
+        // (lintas periode/gelombang), untuk mencegah ruangan sama di hari sama.
+        $roomHistoryOnDate = SupervisorRoomAssignment::query()
+            ->where('exam_date', $date)
+            ->whereIn('supervisor_id', $activeIds)
+            ->get()
+            ->groupBy('supervisor_id')
+            ->map(fn ($group) => $group->pluck('room_id')->all());
+
+        // Tanggal terakhir tiap pasangan (pengawas, ruangan) pernah bertugas,
+        // untuk memprioritaskan pengawas yang paling lama tidak dapat ruangan itu.
+        $lastDateByPair = SupervisorRoomAssignment::query()
+            ->where('exam_date', '<=', $date)
+            ->whereIn('supervisor_id', $activeIds)
+            ->get()
+            ->groupBy(fn ($assignment) => $assignment->supervisor_id.'-'.$assignment->room_id)
+            ->map(fn ($group) => $group->max(fn ($assignment) => $assignment->exam_date?->toDateString()));
+
+        $queue = $active
+            ->sortBy(fn (Supervisor $supervisor) => [
+                $burden->get($supervisor->id, 0),
+                $supervisor->user?->name ?? '',
+            ])
+            ->values();
+
+        $used = [];
+        $assignments = [];
+        $filledSlots = 0;
+
+        foreach ($rooms as $room) {
+            $need = $needs->get($room->id, 1);
+            $filled = $filledByRoom->get($room->id, 0);
+
+            while ($filled < $need) {
+                $candidates = $queue
+                    ->filter(fn (Supervisor $supervisor) => ! in_array($supervisor->id, $assignedSupervisorIds, true))
+                    ->filter(fn (Supervisor $supervisor) => ! isset($used[$supervisor->id]))
+                    ->sortBy(fn (Supervisor $supervisor) => [
+                        in_array($room->id, $roomHistoryOnDate[$supervisor->id] ?? [], true),
+                        in_array($room->id, $used[$supervisor->id] ?? [], true),
+                        count($used[$supervisor->id] ?? []),
+                        $burden->get($supervisor->id, 0),
+                        $lastDateByPair->get($supervisor->id.'-'.$room->id) ?? '',
+                        $supervisor->user?->name ?? '',
+                    ])
+                    ->values();
+
+                if ($candidates->isEmpty()) {
+                    break;
+                }
+
+                $supervisor = $candidates->first();
+
+                $assignments[] = [
+                    'exam_period_id' => $examPeriod->id,
+                    'exam_date' => $date,
+                    'supervisor_id' => $supervisor->id,
+                    'room_id' => $room->id,
+                    'rotation_index' => $existing->where('supervisor_id', $supervisor->id)->count() + 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+
+                $used[$supervisor->id] = array_merge($used[$supervisor->id] ?? [], [$room->id]);
+                $queue = $queue->reject(fn (Supervisor $item) => $item->id === $supervisor->id);
+                $filled++;
+                $filledSlots++;
+            }
+        }
+
+        if ($assignments !== []) {
+            SupervisorRoomAssignment::insert($assignments);
+        }
+
+        return [
+            'assignments' => $assignments,
+            'total_slots' => $totalSlots,
+            'filled_slots' => $filledSlots,
+        ];
     }
 }

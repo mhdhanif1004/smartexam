@@ -3,7 +3,7 @@
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Selamat datang, {{ auth()->user()->name }}!</h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Ruangan Anda: <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $room->name }}</span> (kapasitas {{ $room->capacity }} peserta).
+                Ruangan Anda: <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $room->display_name }}</span> (kapasitas {{ $room->capacity }} peserta).
             </p>
         </div>
 
@@ -28,7 +28,7 @@
                             <div class="min-w-0">
                                 <h3 class="truncate text-lg font-bold text-gray-900 dark:text-gray-100">{{ $schedule->subject?->name }}</h3>
                                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                    Kelas {{ $schedule->class_name }} &middot; {{ $schedule->room?->name }}
+                                    Kelas {{ $schedule->class_name }} &middot; {{ $schedule->room?->display_name }}
                                 </p>
                             </div>
                             <x-badge-status :status="$badge[0]" :label="$badge[1]" />

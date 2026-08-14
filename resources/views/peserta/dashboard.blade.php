@@ -29,7 +29,7 @@
                         <tr class="transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
                             <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $index + 1 }}</td>
                             <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $schedule->subject?->name }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $schedule->room?->name }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $schedule->room?->display_name }}</td>
                             <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
                                 {{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }} - {{ \Illuminate\Support\Str::substr($schedule->end_time, 0, 5) }} WIB
                             </td>

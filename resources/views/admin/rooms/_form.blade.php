@@ -3,7 +3,8 @@
     $action = $isEdit ? route('admin.rooms.update', $room) : route('admin.rooms.store');
     $method = $isEdit ? 'PUT' : 'POST';
     $buttonLabel = $isEdit ? 'Perbarui' : 'Simpan';
-    $currentRoomName = $isEdit ? $room->name : '';
+    $currentRoomName = $isEdit ? $room->display_name : '';
+    $maxSupervisors = (int) config('exam.max_supervisors_per_room');
 @endphp
 
 <form id="room-form" method="POST" action="{{ $action }}" class="space-y-6">
@@ -18,15 +19,25 @@
         <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Informasi Ruangan</h3>
         <div class="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
-                <x-input-label for="name" :value="__('Nama Ruangan')" />
-                <x-text-input id="name" name="name" type="text" class="mt-1 block w-full" value="{{ old('name', $isEdit ? $room->name : '') }}" required placeholder="contoh: Ruang 1" autofocus />
-                <x-input-error :messages="$errors->get('name')" class="mt-2" />
+                <x-input-label for="room_number" :value="__('Nomor Ruangan')" />
+                <x-text-input id="room_number" name="room_number" type="number" min="1" max="99999" class="mt-1 block w-full" value="{{ old('room_number', $isEdit ? $room->room_number : '') }}" required placeholder="contoh: 80" autofocus />
+                <x-input-error :messages="$errors->get('room_number')" class="mt-2" />
             </div>
             <div>
-                <x-input-label for="capacity" :value="__('Kapasitas')" />
-                <x-text-input id="capacity" name="capacity" type="number" min="0" max="1000" class="mt-1 block w-full" value="{{ old('capacity', $isEdit ? $room->capacity : '') }}" required placeholder="contoh: 20" />
+                <x-input-label for="capacity" :value="__('Kapasitas Murid')" />
+                <x-text-input id="capacity" name="capacity" type="number" min="1" max="1000" class="mt-1 block w-full" value="{{ old('capacity', $isEdit ? $room->capacity : '') }}" required placeholder="contoh: 20" />
                 <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Jumlah kursi yang tersedia di ruangan ini.</p>
                 <x-input-error :messages="$errors->get('capacity')" class="mt-2" />
+            </div>
+            <div>
+                <x-input-label for="supervisor_count" :value="__('Maksimal Pengawas')" />
+                <select id="supervisor_count" name="supervisor_count" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                    @for ($i = 1; $i <= $maxSupervisors; $i++)
+                        <option value="{{ $i }}" {{ old('supervisor_count', $isEdit ? $room->supervisor_count : 1) == $i ? 'selected' : '' }}>{{ $i }} pengawas</option>
+                    @endfor
+                </select>
+                <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Berapa pengawas yang wajib ditugaskan ke ruangan ini pada setiap hari ujian (rotasi).</p>
+                <x-input-error :messages="$errors->get('supervisor_count')" class="mt-2" />
             </div>
         </div>
     </div>
@@ -46,11 +57,11 @@
             @forelse ($supervisors as $supervisor)
                 <label class="supervisor-item flex cursor-pointer items-start gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm transition hover:border-indigo-300 hover:bg-indigo-50/40 dark:border-gray-700 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10 {{ in_array($supervisor->id, $currentSupervisorIds) ? 'border-indigo-200 bg-indigo-50/60 dark:border-indigo-500/40 dark:bg-indigo-500/10' : '' }}"
                        data-name="{{ mb_strtolower($supervisor->user?->name ?? '') }}">
-                    <input type="checkbox" name="supervisor_ids[]" value="{{ $supervisor->id }}" data-room-name="{{ $supervisor->room?->name ?? '' }}" {{ in_array($supervisor->id, $currentSupervisorIds) ? 'checked' : '' }} class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
+                    <input type="checkbox" name="supervisor_ids[]" value="{{ $supervisor->id }}" data-room-name="{{ $supervisor->room?->display_name ?? '' }}" {{ in_array($supervisor->id, $currentSupervisorIds) ? 'checked' : '' }} class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
                     <span class="min-w-0">
                         <span class="block truncate font-medium text-gray-900 dark:text-gray-100">{{ $supervisor->user?->name }}</span>
-                        @if ($supervisor->room?->name)
-                            <span class="block text-xs text-gray-500 dark:text-gray-400">sekarang di {{ $supervisor->room->name }}</span>
+                        @if ($supervisor->room?->display_name)
+                            <span class="block text-xs text-gray-500 dark:text-gray-400">sekarang di {{ $supervisor->room->display_name }}</span>
                         @else
                             <span class="block text-xs text-gray-400 dark:text-gray-500">belum ditempatkan</span>
                         @endif

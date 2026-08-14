@@ -36,7 +36,7 @@ class SupervisorController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        $rooms = Room::query()->orderBy('name')->get();
+        $rooms = Room::query()->orderBy('room_number')->get();
 
         return view('admin.supervisors.index', compact('supervisors', 'rooms'));
     }
@@ -44,6 +44,43 @@ class SupervisorController extends Controller
     public function create(): View
     {
         return view('admin.supervisors.create');
+    }
+
+    public function show(Supervisor $supervisor): View
+    {
+        $supervisor->load([
+            'user',
+            'room',
+            'roomAssignments.examPeriod',
+            'roomAssignments.room',
+        ]);
+
+        $dayNames = [
+            'Sunday' => 'Minggu',
+            'Monday' => 'Senin',
+            'Tuesday' => 'Selasa',
+            'Wednesday' => 'Rabu',
+            'Thursday' => 'Kamis',
+            'Friday' => 'Jumat',
+            'Saturday' => 'Sabtu',
+        ];
+
+        $assignmentsByDate = $supervisor->roomAssignments
+            ->sortByDesc(fn ($assignment) => $assignment->exam_date?->toDateString() ?? '0000-00-00')
+            ->groupBy(fn ($assignment) => $assignment->exam_date?->toDateString() ?? '0000-00-00')
+            ->map(function ($group, string $date) use ($dayNames): array {
+                $dateObj = $group->first()->exam_date;
+
+                return [
+                    'date' => $dateObj,
+                    'dateLabel' => $dateObj->format('d M Y'),
+                    'dayLabel' => $dayNames[$dateObj->format('l')] ?? $dateObj->format('l'),
+                    'assignments' => $group,
+                ];
+            })
+            ->values();
+
+        return view('admin.supervisors.show', compact('supervisor', 'assignmentsByDate'));
     }
 
     public function store(StoreSupervisorRequest $request): RedirectResponse

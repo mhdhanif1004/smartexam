@@ -185,7 +185,7 @@
                 <select name="room" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 lg:w-auto">
                     <option value="">Semua Ruangan</option>
                     @foreach ($rooms as $room)
-                        <option value="{{ $room->id }}" @selected(request('room') == $room->id)>{{ $room->name }}</option>
+                        <option value="{{ $room->id }}" @selected(request('room') == $room->id)>{{ $room->display_name }}</option>
                     @endforeach
                 </select>
             </div>
@@ -221,7 +221,6 @@
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Nama</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Email</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Password</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Ruangan</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Status</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Aksi</th>
                         </tr>
@@ -236,23 +235,12 @@
                                 <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $supervisor->user?->name }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $supervisor->user?->email }}</td>
                                 @include('admin.partials.password-cell', ['user' => $supervisor->user])
-                                <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                                    @if ($supervisor->room)
-                                        <span class="inline-flex items-center gap-1.5">
-                                            <svg class="h-4 w-4 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-                                            </svg>
-                                            {{ $supervisor->room->name }}
-                                        </span>
-                                    @else
-                                        <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700/60 dark:text-gray-400">Belum ditugaskan</span>
-                                    @endif
-                                </td>
                                 <td class="px-4 py-3 text-sm">
                                     <x-badge-status :status="$supervisor->user?->is_active ? 'aktif' : 'nonaktif'" />
                                 </td>
                                 <td class="px-4 py-3 text-sm">
                                     <div class="flex items-center gap-2">
+                                        <a href="{{ route('admin.supervisors.show', $supervisor) }}" class="rounded-md bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:bg-gray-700/60 dark:text-gray-300 dark:hover:bg-gray-600">Detail</a>
                                         <a href="{{ route('admin.supervisors.edit', $supervisor) }}" class="rounded-md bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20">Edit</a>
                                         <button type="button" @click="deleteUrl = '{{ route('admin.supervisors.destroy', $supervisor) }}'; $dispatch('open-modal', 'confirm-delete')" class="rounded-md bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20">Hapus</button>
                                     </div>
@@ -260,7 +248,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Tidak ada data pengawas.</td>
+                                <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Tidak ada data pengawas.</td>
                             </tr>
                         @endforelse
                     </tbody>

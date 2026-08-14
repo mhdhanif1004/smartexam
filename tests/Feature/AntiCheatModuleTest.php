@@ -37,7 +37,7 @@ class AntiCheatModuleTest extends TestCase
 
         Carbon::setTestNow(Carbon::parse('2026-07-31 09:00:00'));
 
-        $this->room = Room::factory()->create(['name' => 'Ruang Ujian']);
+        $this->room = Room::factory()->create(['room_number' => 1]);
         $this->student = Student::factory()->create([
             'class_name' => 'XI RPL 1',
             'room_id' => $this->room->id,

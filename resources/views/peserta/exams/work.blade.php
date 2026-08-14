@@ -25,7 +25,7 @@
                     <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">Ujian Berlangsung</p>
                     <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ $schedule->subject?->name }}</h2>
                     <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                        {{ auth()->user()->name }} &middot; {{ $schedule->class_name }} &middot; {{ $schedule->room?->name }}
+                        {{ auth()->user()->name }} &middot; {{ $schedule->class_name }} &middot; {{ $schedule->room?->display_name }}
                     </p>
                 </div>
 

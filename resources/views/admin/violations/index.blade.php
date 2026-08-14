@@ -21,7 +21,7 @@
                 <select name="room_id" id="room_id" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                     <option value="">Semua Ruangan</option>
                     @foreach ($rooms as $room)
-                        <option value="{{ $room->id }}" @selected($filters['room_id'] === $room->id)>{{ $room->name }}</option>
+                        <option value="{{ $room->id }}" @selected($filters['room_id'] === $room->id)>{{ $room->display_name }}</option>
                     @endforeach
                 </select>
             </div>
@@ -57,7 +57,7 @@
                         <span class="block text-xs font-normal text-gray-500 dark:text-gray-400">{{ $student?->nisn ?? '' }}</span>
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $student?->class_name ?? '-' }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $schedule?->room?->name ?? '-' }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $schedule?->room?->display_name ?? '-' }}</td>
                     <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $schedule?->subject?->name ?? '-' }}</td>
                     <td class="px-4 py-3 text-sm">
                         <x-badge-status :status="'dilaporkan'" />

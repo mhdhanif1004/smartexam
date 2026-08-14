@@ -41,7 +41,7 @@ class ViolationController extends Controller
 
         return view('admin.violations.index', [
             'violations' => $violations,
-            'rooms' => Room::query()->orderBy('name')->get(),
+            'rooms' => Room::query()->orderBy('room_number')->get(),
             'violationTypes' => Violation::query()->distinct()->orderBy('violation_type')->pluck('violation_type'),
             'filters' => $filters,
         ]);

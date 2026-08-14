@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\ExamSchedule;
 use App\Models\SupervisorAttendance;
+use App\Models\SupervisorRoomAssignment;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Middleware\RedirectIfAuthenticated;
 use Illuminate\Http\Request;
@@ -38,7 +39,7 @@ class AppServiceProvider extends ServiceProvider
 
             $supervisor = $user->supervisor;
 
-            if (! $supervisor || ! $supervisor->room_id) {
+            if (! $supervisor) {
                 return;
             }
 
@@ -46,10 +47,27 @@ class AppServiceProvider extends ServiceProvider
             $today = $now->copy()->startOfDay();
             $tomorrow = $today->copy()->addDay();
 
+            // Ruangan hari ini berasal dari penugasan rotasi pengawas; fallback
+            // ke ruangan statis lama bila belum ada penugasan rotasi.
+            $roomIds = SupervisorRoomAssignment::query()
+                ->where('supervisor_id', $supervisor->id)
+                ->where('exam_date', '>=', $today)
+                ->where('exam_date', '<', $tomorrow)
+                ->pluck('room_id')
+                ->all();
+
+            if ($roomIds === [] && $supervisor->room_id !== null) {
+                $roomIds = [$supervisor->room_id];
+            }
+
+            if ($roomIds === []) {
+                return;
+            }
+
             // Ambil semua jadwal hari ini di ruangan pengawas; status real-time
             // dihitung via computedStatus() (jangan pakai kolom status statis).
             $todaysSchedules = ExamSchedule::query()
-                ->where('room_id', $supervisor->room_id)
+                ->whereIn('room_id', $roomIds)
                 ->where('exam_date', '>=', $today)
                 ->where('exam_date', '<', $tomorrow)
                 ->get();
@@ -82,7 +100,7 @@ class AppServiceProvider extends ServiceProvider
                         'exam_schedule_id' => $schedule->id,
                     ],
                     [
-                        'room_id' => $supervisor->room_id,
+                        'room_id' => $schedule->room_id,
                         'status' => SupervisorAttendance::STATUS_PRESENT,
                         'checked_in_at' => $checkInTime,
                     ]

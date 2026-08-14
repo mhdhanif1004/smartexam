@@ -156,7 +156,7 @@ class ExamScheduleController extends Controller
     {
         return [
             'subjects' => Subject::query()->orderBy('name')->get(),
-            'rooms' => Room::query()->orderBy('name')->get(),
+            'rooms' => Room::query()->orderBy('room_number')->get(),
             'classes' => Student::query()->distinct()->orderBy('class_name')->pluck('class_name'),
             'statuses' => ExamSchedule::STATUSES,
         ];

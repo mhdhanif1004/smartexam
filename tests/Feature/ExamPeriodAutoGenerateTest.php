@@ -44,8 +44,8 @@ class ExamPeriodAutoGenerateTest extends TestCase
             Question::factory()->create(['subject_id' => $subject->id]);
         }
 
-        $this->roomA = Room::factory()->create(['name' => 'R. 01', 'capacity' => 25]);
-        $this->roomB = Room::factory()->create(['name' => 'R. 02', 'capacity' => 25]);
+        $this->roomA = Room::factory()->create(['room_number' => 1, 'capacity' => 25]);
+        $this->roomB = Room::factory()->create(['room_number' => 2, 'capacity' => 25]);
     }
 
     /**
@@ -236,7 +236,7 @@ class ExamPeriodAutoGenerateTest extends TestCase
         $this->postGenerate(['subjects' => []])
             ->assertSessionHasErrors('subjects');
 
-        $zeroCapacity = Room::factory()->create(['name' => 'R. Kosong', 'capacity' => 0]);
+        $zeroCapacity = Room::factory()->create(['room_number' => 999, 'capacity' => 0]);
         $this->from(route('admin.exam-periods.auto-generate.create'))
             ->postGenerate(['rooms' => [$zeroCapacity->id]])
             ->assertSessionHasErrors('rooms');

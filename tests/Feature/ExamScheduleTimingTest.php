@@ -39,7 +39,7 @@ class ExamScheduleTimingTest extends TestCase
      */
     private function supervisorRoom(): array
     {
-        $room = Room::factory()->create(['name' => 'Ruang A']);
+        $room = Room::factory()->create(['room_number' => 1]);
         $pengawas = Supervisor::factory()->create(['room_id' => $room->id])->user;
 
         return [$room, $pengawas];

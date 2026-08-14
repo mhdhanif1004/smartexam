@@ -50,8 +50,8 @@ class SupervisorImportExportTest extends TestCase
 
     public function test_export_respects_room_filter(): void
     {
-        $roomA = Room::factory()->create(['name' => 'Ruang 1']);
-        $roomB = Room::factory()->create(['name' => 'Ruang 2']);
+        $roomA = Room::factory()->create(['room_number' => 1]);
+        $roomB = Room::factory()->create(['room_number' => 2]);
 
         $inRoom = Supervisor::factory()->create(['room_id' => $roomA->id]);
         Supervisor::factory()->create(['room_id' => $roomB->id]);

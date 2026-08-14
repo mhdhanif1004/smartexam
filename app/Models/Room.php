@@ -13,9 +13,23 @@ class Room extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name',
+        'room_number',
         'capacity',
+        'supervisor_count',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'room_number' => 'integer',
+            'supervisor_count' => 'integer',
+        ];
+    }
+
+    public function getDisplayNameAttribute(): string
+    {
+        return 'Ruang '.$this->room_number;
+    }
 
     public function students(): HasMany
     {
@@ -35,5 +49,10 @@ class Room extends Model
     public function roomAssignments(): HasMany
     {
         return $this->hasMany(ExamRoomAssignment::class);
+    }
+
+    public function supervisorRoomAssignments(): HasMany
+    {
+        return $this->hasMany(SupervisorRoomAssignment::class);
     }
 }

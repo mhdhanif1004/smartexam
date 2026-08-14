@@ -23,7 +23,7 @@ class SupervisorImportExportController extends Controller
     {
         $extension = $request->string('format')->toString() === 'csv' ? 'csv' : 'xlsx';
 
-        $query = Supervisor::query()->with(['user', 'room']);
+        $query = Supervisor::query()->with(['user', 'room', 'roomAssignments.room']);
 
         if ($request->string('scope')->toString() === 'selected') {
             $ids = collect($request->input('ids', []))
@@ -49,7 +49,7 @@ class SupervisorImportExportController extends Controller
         }
 
         $rows = $query
-            ->orderBy(Room::query()->select('name')->whereColumn('rooms.id', 'supervisors.room_id'))
+            ->orderBy(Room::query()->select('room_number')->whereColumn('rooms.id', 'supervisors.room_id'))
             ->orderBy('user_id')
             ->get();
 

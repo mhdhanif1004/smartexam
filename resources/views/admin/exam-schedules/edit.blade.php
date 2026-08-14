@@ -28,7 +28,7 @@
                         <select id="room_id" name="room_id" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                             <option value="">-- Pilih Ruangan --</option>
                             @foreach ($rooms as $room)
-                                <option value="{{ $room->id }}" @selected(old('room_id', $examSchedule->room_id) == $room->id)>{{ $room->name }} (kapasitas {{ $room->capacity }})</option>
+                                <option value="{{ $room->id }}" @selected(old('room_id', $examSchedule->room_id) == $room->id)>{{ $room->display_name }} (kapasitas {{ $room->capacity }})</option>
                             @endforeach
                         </select>
                         <x-input-error :messages="$errors->get('room_id')" class="mt-2" />

@@ -9,6 +9,7 @@ use App\Models\ExamSession;
 use App\Models\Student;
 use App\Models\Supervisor;
 use App\Models\SupervisorAttendance;
+use App\Models\SupervisorRoomAssignment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -70,11 +71,25 @@ class AttendanceController extends Controller
             ->get()
             ->groupBy('exam_schedule_id');
 
-        $supervisorsByRoom = Supervisor::query()
-            ->with('user')
-            ->whereIn('room_id', $schedules->pluck('room_id')->filter())
+        // Supervisor per ruangan dibaca dari penugasan rotasi untuk tanggal ini.
+        // Untuk ruangan yang belum memiliki penugasan rotasi (jadwal legacy),
+        // fallback ke relasi statis supervisors.room_id.
+        $roomIds = $schedules->pluck('room_id')->filter()->unique()->values();
+
+        $supervisorsByRoom = SupervisorRoomAssignment::query()
+            ->with('supervisor.user')
+            ->whereDate('exam_date', $date)
+            ->whereIn('room_id', $roomIds)
             ->get()
-            ->groupBy('room_id');
+            ->groupBy('room_id')
+            ->map(fn ($assignments) => $assignments->map->supervisor->values());
+
+        Supervisor::query()
+            ->with('user')
+            ->whereIn('room_id', $roomIds->diff($supervisorsByRoom->keys())->values())
+            ->get()
+            ->groupBy('room_id')
+            ->each(fn ($group, int $roomId) => $supervisorsByRoom->put($roomId, $group));
 
         $students = Student::query()
             ->with('user')

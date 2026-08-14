@@ -30,7 +30,7 @@ class SupervisorsExport implements FromCollection, WithColumnWidths, WithEvents,
      */
     public function headings(): array
     {
-        return ['Nama', 'Email', 'Password', 'Ruangan'];
+        return ['Nama', 'Email', 'Password', 'Ruangan Penugasan'];
     }
 
     /**
@@ -39,11 +39,19 @@ class SupervisorsExport implements FromCollection, WithColumnWidths, WithEvents,
      */
     public function map($supervisor): array
     {
+        $rooms = $supervisor->roomAssignments
+            ->pluck('room.room_number')
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->map(fn ($number) => 'Ruang '.$number);
+
         return [
             $supervisor->user?->name ?? '-',
             $supervisor->user?->email ?? '-',
             $supervisor->user?->plain_password ?? '-',
-            $supervisor->room?->name ?? '-',
+            $rooms->isEmpty() ? ($supervisor->room?->display_name ?? '-') : $rooms->implode(', '),
         ];
     }
 

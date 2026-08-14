@@ -25,6 +25,15 @@
                     </svg>
                     Tambah Kelompok Ruangan
                 </a>
+                <form method="POST" action="{{ route('admin.exam-periods.supervisor-rotation', $examPeriod) }}" class="inline">
+                    @csrf
+                    <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                        Generate Rotasi Pengawas
+                    </button>
+                </form>
                 <a href="{{ route('admin.exam-periods.index') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Kembali</a>
             </div>
         </div>
@@ -36,9 +45,14 @@
                 <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-5 py-3 dark:border-gray-800">
                     <button type="button" @click="toggleRoom(@js($group['room']?->id))" class="flex min-w-0 flex-1 items-center justify-between gap-3 text-left">
                         <div class="flex flex-wrap items-center gap-2">
-                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $group['room']?->name ?? 'Tanpa Ruangan' }}</h3>
+                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $group['room']?->display_name ?? 'Tanpa Ruangan' }}</h3>
                             <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">{{ $group['schedules']->count() }} jadwal</span>
                             <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">{{ $group['assignments']->count() }} siswa</span>
+                            @forelse ($group['supervisors'] as $supervisor)
+                                <span class="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">Pengawas: {{ $supervisor->user?->name }}</span>
+                            @empty
+                                <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700/60 dark:text-gray-400">Belum ada pengawas</span>
+                            @endforelse
                         </div>
                         <span class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                             <span class="max-w-[16rem] truncate">{{ $group['schedules']->first()?->class_name }}</span>

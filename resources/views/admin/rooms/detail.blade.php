@@ -1,4 +1,4 @@
-<x-layouts.admin :title="'Detail '.$room->name">
+<x-layouts.admin :title="'Detail '.$room->display_name">
     <div
         x-data="{
             openPeriods: {},
@@ -13,7 +13,7 @@
     >
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-                <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Detail {{ $room->name }}</h2>
+                <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Detail {{ $room->display_name }}</h2>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Peserta yang pernah/akan di-assign ke ruangan ini, dikelompokkan per sesi ujian.</p>
             </div>
             <a href="{{ route('admin.rooms.index') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Kembali</a>

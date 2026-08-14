@@ -32,4 +32,9 @@ class Supervisor extends Model
     {
         return $this->hasMany(SupervisorAttendance::class);
     }
+
+    public function roomAssignments(): HasMany
+    {
+        return $this->hasMany(SupervisorRoomAssignment::class);
+    }
 }

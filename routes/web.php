@@ -63,6 +63,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         });
 
         Route::resource('supervisors', SupervisorController::class)->except(['show']);
+        Route::get('supervisors/{supervisor}', [SupervisorController::class, 'show'])->name('supervisors.show');
         Route::post('supervisors/bulk-delete', [SupervisorController::class, 'bulkDelete'])->name('supervisors.bulk-delete');
         Route::resource('subjects', SubjectController::class)->except(['show']);
         Route::post('subjects/bulk-delete-preview', [SubjectController::class, 'bulkDeletePreview'])->name('subjects.bulk-delete-preview');
@@ -80,6 +81,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::post('exam-periods/auto-generate', [ExamPeriodController::class, 'autoGenerateStore'])->name('exam-periods.auto-generate.store');
         Route::get('exam-periods/{examPeriod}/groups/create', [ExamPeriodController::class, 'groupsCreate'])->name('exam-periods.groups.create');
         Route::post('exam-periods/{examPeriod}/groups', [ExamPeriodController::class, 'groupsStore'])->name('exam-periods.groups.store');
+        Route::post('exam-periods/{examPeriod}/supervisor-rotation', [ExamPeriodController::class, 'supervisorRotation'])->name('exam-periods.supervisor-rotation');
         Route::get('exam-periods/{examPeriod}/rooms/{room}/roster', [ExamPeriodController::class, 'roomRoster'])->name('exam-periods.room-roster');
 
         Route::resource('questions', QuestionController::class)->except(['show']);

@@ -63,7 +63,7 @@ class ExamSessionBulkCreateTest extends TestCase
 
     public function test_groups_create_page_submits_room_checkboxes_under_rooms_key(): void
     {
-        $room = Room::factory()->create(['name' => 'R. 101']);
+        $room = Room::factory()->create(['room_number' => 101]);
 
         $this->actingAs($this->admin)
             ->get(route('admin.exam-periods.groups.create', $this->period))
@@ -74,9 +74,9 @@ class ExamSessionBulkCreateTest extends TestCase
 
     public function test_bulk_create_success_creates_room_times_subject_combinations(): void
     {
-        $room1 = Room::factory()->create(['name' => 'R. 101']);
-        $room2 = Room::factory()->create(['name' => 'R. 102']);
-        $room3 = Room::factory()->create(['name' => 'R. 103']);
+        $room1 = Room::factory()->create(['room_number' => 101]);
+        $room2 = Room::factory()->create(['room_number' => 102]);
+        $room3 = Room::factory()->create(['room_number' => 103]);
 
         $this->actingAs($this->admin)
             ->from(route('admin.exam-periods.groups.create', $this->period))
@@ -84,7 +84,8 @@ class ExamSessionBulkCreateTest extends TestCase
                 'rooms' => [$room1->id, $room2->id, $room3->id],
             ]))
             ->assertRedirect(route('admin.exam-periods.show', $this->period))
-            ->assertSessionHas('success', '6 jadwal ujian berhasil dibuat untuk Sesi 1.');
+            ->assertSessionHas('success')
+            ->assertSessionHas('success', fn (string $message) => str_starts_with($message, '6 jadwal ujian berhasil dibuat untuk Sesi 1.'));
 
         $this->assertDatabaseCount('exam_schedules', 6);
 
@@ -110,7 +111,7 @@ class ExamSessionBulkCreateTest extends TestCase
 
     public function test_bulk_create_rejects_overlap_within_same_request_and_rolls_back_fully(): void
     {
-        $room = Room::factory()->create(['name' => 'R. 101']);
+        $room = Room::factory()->create(['room_number' => 101]);
 
         $this->actingAs($this->admin)
             ->from(route('admin.exam-periods.groups.create', $this->period))
@@ -126,14 +127,14 @@ class ExamSessionBulkCreateTest extends TestCase
         $this->assertDatabaseCount('exam_schedules', 0);
 
         $error = session('errors')->get('subjects')[0] ?? '';
-        $this->assertStringContainsString('R. 101', $error);
+        $this->assertStringContainsString('Ruang 101', $error);
         $this->assertStringContainsString('bentrok', $error);
         $this->assertStringContainsString('kelompok yang sama', $error);
     }
 
     public function test_bulk_create_rejects_conflict_with_existing_schedule_and_rolls_back_fully(): void
     {
-        $room = Room::factory()->create(['name' => 'R. 101']);
+        $room = Room::factory()->create(['room_number' => 101]);
 
         ExamSchedule::factory()->create([
             'room_id' => $room->id,
@@ -159,7 +160,7 @@ class ExamSessionBulkCreateTest extends TestCase
         $this->assertDatabaseCount('exam_schedules', 1);
 
         $error = session('errors')->get('subjects')[0] ?? '';
-        $this->assertStringContainsString('R. 101', $error);
+        $this->assertStringContainsString('Ruang 101', $error);
         $this->assertStringContainsString('bentrok', $error);
         $this->assertStringContainsString('Matematika', $error);
         $this->assertStringContainsString('sudah ada', $error);
@@ -167,8 +168,8 @@ class ExamSessionBulkCreateTest extends TestCase
 
     public function test_two_groups_in_same_period_with_different_rooms_do_not_conflict(): void
     {
-        $roomA = Room::factory()->create(['name' => 'R. Kelas 12']);
-        $roomB = Room::factory()->create(['name' => 'R. Kelas 11']);
+        $roomA = Room::factory()->create(['room_number' => 12]);
+        $roomB = Room::factory()->create(['room_number' => 11]);
 
         $this->actingAs($this->admin)
             ->post(route('admin.exam-periods.groups.store', $this->period), $this->payload([

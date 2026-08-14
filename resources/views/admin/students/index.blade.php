@@ -242,7 +242,7 @@
                                 <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $student->class_name }}</td>
                                 <td class="px-4 py-3 text-sm">
                                     @if ($student->room)
-                                        <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">{{ $student->room->name }}</span>
+                                        <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">{{ $student->room->display_name }}</span>
                                     @else
                                         <span class="text-xs text-gray-400 dark:text-gray-500">-</span>
                                     @endif

@@ -18,8 +18,9 @@ class StoreRoomRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:100', Rule::unique('rooms', 'name')],
-            'capacity' => ['nullable', 'integer', 'min:0', 'max:1000'],
+            'room_number' => ['required', 'integer', 'min:1', 'max:99999', Rule::unique('rooms', 'room_number')],
+            'capacity' => ['required', 'integer', 'min:1', 'max:1000'],
+            'supervisor_count' => ['required', 'integer', 'min:1', 'max:'.config('exam.max_supervisors_per_room')],
             'supervisor_ids' => ['nullable', 'array'],
             'supervisor_ids.*' => ['integer', 'exists:supervisors,id'],
         ];

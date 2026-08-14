@@ -32,8 +32,8 @@ class PengawasModuleTest extends TestCase
     {
         parent::setUp();
 
-        $this->roomA = Room::factory()->create(['name' => 'Ruang A']);
-        $this->roomB = Room::factory()->create(['name' => 'Ruang B']);
+        $this->roomA = Room::factory()->create(['room_number' => 1]);
+        $this->roomB = Room::factory()->create(['room_number' => 2]);
         $this->pengawasA = Supervisor::factory()->create(['room_id' => $this->roomA->id])->user;
         $this->pengawasB = Supervisor::factory()->create(['room_id' => $this->roomB->id])->user;
 
@@ -85,9 +85,9 @@ class PengawasModuleTest extends TestCase
         $response->assertOk()
             ->assertSee('Matematika')
             ->assertSee($student->user->name)
-            ->assertSee('Ruang A')
+            ->assertSee('Ruang 1')
             ->assertDontSee('Fisika')
-            ->assertDontSee('Ruang B');
+            ->assertDontSee('Ruang 2');
     }
 
     public function test_pengawas_dashboard_lists_all_today_schedules_with_time_based_status(): void

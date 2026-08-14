@@ -2,7 +2,7 @@
     <div class="space-y-6">
         <div>
             <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Token Ujian</h2>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Kelola token masuk peserta pada sesi ujian di ruangan {{ $room->name }}.</p>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Kelola token masuk peserta pada sesi ujian di ruangan {{ $room->display_name }}.</p>
         </div>
 
         @include('admin.partials.flash')
@@ -41,7 +41,7 @@
                     <div>
                         <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ $schedule->subject?->name }}</h3>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                            Kelas {{ $schedule->class_name }} &middot; {{ $schedule->room?->name }} &middot;
+                            Kelas {{ $schedule->class_name }} &middot; {{ $schedule->room?->display_name }} &middot;
                             {{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }} - {{ \Illuminate\Support\Str::substr($schedule->end_time, 0, 5) }} WIB
                         </p>
                     </div>

@@ -83,8 +83,8 @@ class ExamRoomAssignmentTest extends TestCase
 
     public function test_one_class_spills_into_next_room_with_sequential_seats(): void
     {
-        $roomA = Room::factory()->create(['name' => 'R. 01', 'capacity' => 3]);
-        $roomB = Room::factory()->create(['name' => 'R. 02', 'capacity' => 2]);
+        $roomA = Room::factory()->create(['room_number' => 1, 'capacity' => 3]);
+        $roomB = Room::factory()->create(['room_number' => 2, 'capacity' => 2]);
 
         $adam = $this->student('Adam', 'XI RPL 1');
         $bella = $this->student('Bella', 'XI RPL 1');
@@ -118,8 +118,8 @@ class ExamRoomAssignmentTest extends TestCase
 
     public function test_cross_class_placement_mixes_classes_in_the_same_room(): void
     {
-        $roomA = Room::factory()->create(['name' => 'R. 01', 'capacity' => 3]);
-        $roomB = Room::factory()->create(['name' => 'R. 02', 'capacity' => 3]);
+        $roomA = Room::factory()->create(['room_number' => 1, 'capacity' => 3]);
+        $roomB = Room::factory()->create(['room_number' => 2, 'capacity' => 3]);
 
         $adam = $this->student('Adam', 'XI RPL 1');
         $bella = $this->student('Bella', 'XI RPL 1');
@@ -151,8 +151,8 @@ class ExamRoomAssignmentTest extends TestCase
 
     public function test_insufficient_capacity_fails_atomically_without_saving_anything(): void
     {
-        $roomA = Room::factory()->create(['name' => 'R. 01', 'capacity' => 2]);
-        $roomB = Room::factory()->create(['name' => 'R. 02', 'capacity' => 2]);
+        $roomA = Room::factory()->create(['room_number' => 1, 'capacity' => 2]);
+        $roomB = Room::factory()->create(['room_number' => 2, 'capacity' => 2]);
 
         foreach (['Adam', 'Bella', 'Cinta', 'Dian', 'Eka'] as $name) {
             $this->student($name, 'XI RPL 1');
@@ -177,7 +177,7 @@ class ExamRoomAssignmentTest extends TestCase
 
     public function test_card_preview_shows_room_from_exam_room_assignments(): void
     {
-        $room = Room::factory()->create(['name' => 'R. 101', 'capacity' => 40]);
+        $room = Room::factory()->create(['room_number' => 101, 'capacity' => 40]);
         $student = $this->student('Siti Aminah', 'XI RPL 1');
 
         ExamRoomAssignment::factory()->create([
@@ -191,13 +191,13 @@ class ExamRoomAssignmentTest extends TestCase
             ->post(route('admin.student-cards.preview'), ['student_ids' => [$student->id]])
             ->assertOk()
             ->assertSee('<td class="lbl">Ruangan</td>', false)
-            ->assertSee('R. 101');
+            ->assertSee('Ruang 101');
     }
 
     public function test_duplicate_student_placement_in_same_period_is_rejected(): void
     {
-        $roomA = Room::factory()->create(['name' => 'R. 01', 'capacity' => 30]);
-        $roomB = Room::factory()->create(['name' => 'R. 02', 'capacity' => 30]);
+        $roomA = Room::factory()->create(['room_number' => 1, 'capacity' => 30]);
+        $roomB = Room::factory()->create(['room_number' => 2, 'capacity' => 30]);
         $student = $this->student('Adam', 'XI RPL 1');
 
         $this->actingAs($this->admin)
@@ -224,8 +224,8 @@ class ExamRoomAssignmentTest extends TestCase
 
     public function test_show_lists_students_per_room_from_assignments(): void
     {
-        $roomA = Room::factory()->create(['name' => 'R. 01', 'capacity' => 2]);
-        $roomB = Room::factory()->create(['name' => 'R. 02', 'capacity' => 2]);
+        $roomA = Room::factory()->create(['room_number' => 1, 'capacity' => 2]);
+        $roomB = Room::factory()->create(['room_number' => 2, 'capacity' => 2]);
 
         $this->student('Adam', 'XI RPL 1');
         $this->student('Bella', 'XI RPL 1');
@@ -240,8 +240,8 @@ class ExamRoomAssignmentTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('admin.exam-periods.show', $this->period))
             ->assertOk()
-            ->assertSee('R. 01')
-            ->assertSee('R. 02')
+            ->assertSee('Ruang 1')
+            ->assertSee('Ruang 2')
             ->assertSee('Adam')
             ->assertSee('Bella')
             ->assertSee('Cinta')
@@ -251,7 +251,7 @@ class ExamRoomAssignmentTest extends TestCase
 
     public function test_rooms_index_shows_assigned_students_count(): void
     {
-        $room = Room::factory()->create(['name' => 'R. 101', 'capacity' => 10]);
+        $room = Room::factory()->create(['room_number' => 101, 'capacity' => 10]);
 
         $this->student('Adam', 'XI RPL 1');
         $this->student('Bella', 'XI RPL 1');
@@ -265,13 +265,13 @@ class ExamRoomAssignmentTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('admin.rooms.index'))
             ->assertOk()
-            ->assertSee('R. 101')
+            ->assertSee('Ruang 101')
             ->assertSee('2 peserta');
     }
 
     public function test_room_roster_page_shows_assignments_for_printing(): void
     {
-        $room = Room::factory()->create(['name' => 'R. 101', 'capacity' => 5]);
+        $room = Room::factory()->create(['room_number' => 101, 'capacity' => 5]);
 
         $this->student('Adam', 'XI RPL 1');
 
@@ -284,14 +284,14 @@ class ExamRoomAssignmentTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('admin.exam-periods.room-roster', [$this->period, $room]))
             ->assertOk()
-            ->assertSee('R. 101')
+            ->assertSee('Ruang 101')
             ->assertSee('Adam')
             ->assertSee('Tanda Tangan');
     }
 
     public function test_rooms_index_has_detail_action_link(): void
     {
-        $room = Room::factory()->create(['name' => 'R. 101']);
+        $room = Room::factory()->create(['room_number' => 101]);
 
         $this->actingAs($this->admin)
             ->get(route('admin.rooms.index'))
@@ -301,19 +301,19 @@ class ExamRoomAssignmentTest extends TestCase
 
     public function test_room_detail_shows_empty_state_without_assignments(): void
     {
-        $room = Room::factory()->create(['name' => 'R. 101', 'capacity' => 10]);
+        $room = Room::factory()->create(['room_number' => 101, 'capacity' => 10]);
 
         $this->actingAs($this->admin)
             ->get(route('admin.rooms.detail', $room))
             ->assertOk()
-            ->assertSee('Detail R. 101')
+            ->assertSee('Detail Ruang 101')
             ->assertSee('Total Sesi')
             ->assertSee('Belum ada peserta yang ditempatkan di ruangan ini.');
     }
 
     public function test_room_detail_groups_participants_by_period_in_order(): void
     {
-        $room = Room::factory()->create(['name' => 'R. 101', 'capacity' => 10]);
+        $room = Room::factory()->create(['room_number' => 101, 'capacity' => 10]);
 
         $this->student('Adam', 'XI RPL 1');
         $this->student('Bella', 'XI RPL 1');
@@ -342,7 +342,7 @@ class ExamRoomAssignmentTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('admin.rooms.detail', $room))
             ->assertOk()
-            ->assertSee('Detail R. 101')
+            ->assertSee('Detail Ruang 101')
             ->assertSeeInOrder(['Sesi 1', 'Sesi 2'])
             ->assertSee('Adam')
             ->assertSee('Bella')

@@ -6,21 +6,65 @@ use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\Room;
 use App\Models\Student;
+use App\Models\Supervisor;
 use App\Models\Violation;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 trait ScopesSupervisorRoom
 {
     /**
-     * Ruangan yang menjadi tanggung jawab pengawas yang sedang login.
+     * Ruangan yang menjadi tanggung jawab pengawas yang sedang login pada
+     * hari ini. Diambil dari penugasan rotasi (supervisor_room_assignments)
+     * untuk tanggal hari ini; bila tidak ada (misal periode legacy / belum
+     * di-generate), fallback ke relasi statis Supervisor->room yang lama.
      */
     protected function supervisorRoom(): Room
     {
-        $room = auth()->user()?->supervisor?->room;
+        $supervisor = auth()->user()?->supervisor;
+
+        abort_unless($supervisor instanceof Supervisor, 403, 'Anda tidak terdaftar sebagai pengawas.');
+
+        $room = $this->roomAssignedOn(now()->toDateString(), $supervisor) ?? $supervisor->room;
 
         abort_unless($room instanceof Room, 403, 'Anda tidak ditugaskan pada ruangan ujian.');
 
         return $room;
+    }
+
+    /**
+     * Ruangan yang ditugaskan untuk pengawas pada tanggal tertentu melalui
+     * rotasi. Karena satu pengawas bisa punya beberapa periode pada tanggal
+     * yang sama (misal beberapa gelombang), ruangan yang aktif saat ini
+     * diprioritaskan, lalu ruangan periode terawal sebagai fallback.
+     */
+    private function roomAssignedOn(string $date, Supervisor $supervisor): ?Room
+    {
+        $assignments = $supervisor->roomAssignments()
+            ->with(['room', 'examPeriod'])
+            ->where('exam_date', $date)
+            ->get();
+
+        if ($assignments->isEmpty()) {
+            return null;
+        }
+
+        $now = now();
+
+        $active = $assignments->first(fn ($assignment) => $assignment->examPeriod !== null
+            && $now->between(
+                Carbon::parse($assignment->examPeriod->exam_date->format('Y-m-d').' '.$assignment->examPeriod->start_time),
+                Carbon::parse($assignment->examPeriod->exam_date->format('Y-m-d').' '.$assignment->examPeriod->end_time),
+            ));
+
+        if ($active !== null) {
+            return $active->room;
+        }
+
+        return $assignments
+            ->sortBy(fn ($assignment) => $assignment->examPeriod?->start_time ?? '99:99:99')
+            ->first()
+            ->room;
     }
 
     /**

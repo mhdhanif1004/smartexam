@@ -50,7 +50,7 @@
                             </div>
                             <div class="min-w-0 flex-1">
                                 <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $schedule->subject?->name }}</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $schedule->class_name }} &middot; {{ $schedule->room?->name }}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $schedule->class_name }} &middot; {{ $schedule->room?->display_name }}</p>
                             </div>
                             <div class="text-right">
                                 <p class="text-sm font-semibold text-gray-700 dark:text-gray-300">{{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }}</p>
@@ -125,7 +125,7 @@
                             </div>
                             <div class="min-w-0 flex-1">
                                 <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $attendance->supervisor->user->name ?? '-' }}</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $attendance->room->name ?? '-' }} &middot; {{ $attendance->examSchedule->subject->name ?? '-' }}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $attendance->room->display_name ?? '-' }} &middot; {{ $attendance->examSchedule->subject->name ?? '-' }}</p>
                             </div>
                             <div class="text-right">
                                 <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {{ $bgColor }} {{ $statusColor }}">

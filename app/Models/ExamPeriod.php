@@ -35,4 +35,9 @@ class ExamPeriod extends Model
     {
         return $this->hasMany(ExamRoomAssignment::class);
     }
+
+    public function supervisorRoomAssignments(): HasMany
+    {
+        return $this->hasMany(SupervisorRoomAssignment::class);
+    }
 }

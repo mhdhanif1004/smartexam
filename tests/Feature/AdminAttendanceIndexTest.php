@@ -39,7 +39,7 @@ class AdminAttendanceIndexTest extends TestCase
         $admin = User::factory()->admin()->create();
         $period = $this->period('Sesi 1');
         $subject = Subject::factory()->create(['name' => 'Matematika']);
-        $room = Room::factory()->create(['name' => 'Ruang 1']);
+        $room = Room::factory()->create(['room_number' => 1]);
         $schedule = $this->schedule($period, $subject, $room);
 
         $adam = $this->studentWithName('Adam Peserta', $room);
@@ -87,7 +87,7 @@ class AdminAttendanceIndexTest extends TestCase
         $period = $this->period('Sesi 1');
         $matematika = Subject::factory()->create(['name' => 'Matematika']);
         $inggris = Subject::factory()->create(['name' => 'Bahasa Inggris']);
-        $room = Room::factory()->create(['name' => 'Ruang 1']);
+        $room = Room::factory()->create(['room_number' => 1]);
 
         $scheduleA = $this->schedule($period, $matematika, $room);
         $scheduleB = ExamSchedule::factory()->create([
@@ -146,7 +146,7 @@ class AdminAttendanceIndexTest extends TestCase
         $admin = User::factory()->admin()->create();
         $period = $this->period('Sesi 1');
         $subject = Subject::factory()->create(['name' => 'Matematika']);
-        $room = Room::factory()->create(['name' => 'Ruang 1']);
+        $room = Room::factory()->create(['room_number' => 1]);
         $schedule = $this->schedule($period, $subject, $room);
 
         $adam = $this->studentWithName('Adam Peserta', $room);
@@ -252,7 +252,7 @@ class AdminAttendanceIndexTest extends TestCase
         $admin = User::factory()->admin()->create();
         $period = $this->period('Sesi 1');
         $subject = Subject::factory()->create(['name' => 'Matematika']);
-        $room = Room::factory()->create(['name' => 'Ruang 1']);
+        $room = Room::factory()->create(['room_number' => 1]);
         $schedule = $this->schedule($period, $subject, $room);
 
         $supervisor = Supervisor::factory()->create(['room_id' => $room->id]);
