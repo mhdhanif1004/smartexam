@@ -9,6 +9,7 @@ use App\Models\ExamSession;
 use App\Models\Student;
 use App\Models\Supervisor;
 use App\Models\SupervisorAttendance;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -20,6 +21,35 @@ class AttendanceController extends Controller
     {
         $date = $this->resolveDate($request->query('date'));
 
+        [$periods, $totals] = $this->attendanceData($date);
+
+        return view('admin.attendance.index', [
+            'date' => $date,
+            'periods' => $periods,
+            'totals' => $totals,
+            'summary' => $this->summaries($periods),
+        ]);
+    }
+
+    /**
+     * Ringkasan Hadir/Tidak Hadir per sesi & per ruangan dalam JSON, dipakai
+     * auto-refresh berkala di frontend supaya angka terbaru tanpa reload halaman.
+     */
+    public function summary(Request $request): JsonResponse
+    {
+        $date = $this->resolveDate($request->query('date'));
+
+        [$periods] = $this->attendanceData($date);
+
+        return response()->json($this->summaries($periods))
+            ->header('Cache-Control', 'no-store');
+    }
+
+    /**
+     * @return array{0: Collection<int, array<string, mixed>>, 1: array<string, int>}
+     */
+    private function attendanceData(string $date): array
+    {
         $schedules = ExamSchedule::query()
             ->with(['subject', 'room', 'examPeriod'])
             ->whereDate('exam_date', $date)
@@ -82,7 +112,39 @@ class AttendanceController extends Controller
 
         $totals = $this->totals($periods);
 
-        return view('admin.attendance.index', compact('date', 'periods', 'totals'));
+        return [$periods, $totals];
+    }
+
+    /**
+     * Ringkasan ringan (tanpa daftar peserta) untuk auto-refresh di frontend.
+     *
+     * @return array{totals: array<string, int>, periods: Collection<int, array<string, mixed>>}
+     */
+    private function summaries(Collection $periods): array
+    {
+        return [
+            'totals' => $this->totals($periods),
+            'periods' => $periods->map(function (array $period) {
+                $status = $period['status'];
+
+                return [
+                    'present' => $period['rooms']->sum('present'),
+                    'absent' => $period['rooms']->sum('absent'),
+                    'supervisorPresent' => $period['rooms']->sum('supervisorPresent'),
+                    'supervisorAbsent' => $period['rooms']->sum('supervisorAbsent'),
+                    'rooms' => $period['rooms']->map(fn (array $room) => [
+                        'present' => $room['present'],
+                        'absent' => $room['absent'],
+                        'unchecked' => $room['unchecked'],
+                        'total' => $room['present'] + $room['absent'] + $room['unchecked'],
+                        'supervisorPresent' => $room['supervisorPresent'],
+                        'supervisorAbsent' => $room['supervisorAbsent'],
+                        'supervisorUnchecked' => max(0, $room['supervisorTotal'] - $room['supervisorPresent'] - $room['supervisorAbsent']),
+                        'needsAttention' => $room['supervisorAbsent'] > 0 && in_array($status, [ExamSchedule::STATUS_ONGOING, ExamSchedule::STATUS_FINISHED], true),
+                    ])->values(),
+                ];
+            })->values(),
+        ];
     }
 
     private function resolveDate(mixed $value): string
