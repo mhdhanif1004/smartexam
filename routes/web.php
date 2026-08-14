@@ -111,6 +111,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         });
 
         Route::resource('attendance', AdminAttendanceController::class)->only(['index'])->names('attendance');
+        Route::get('attendance/summary', [AdminAttendanceController::class, 'summary'])->name('attendance.summary');
 
         Route::controller(ReportController::class)->prefix('reports')->name('reports.')->group(function () {
             Route::get('/results', 'index')->name('index');
