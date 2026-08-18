@@ -58,41 +58,41 @@
                             <th scope="col" class="px-4 py-3">
                                 <input type="checkbox" :checked="visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id))" :disabled="visibleIds.length === 0" @change="selectAll()" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800" />
                             </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">No</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Nomor Ruangan</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Kapasitas Murid</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Peserta Ter-assign</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Pengawas Terpasang</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Maksimal Pengawas</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Jumlah Jadwal</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Aksi</th>
+                            <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">No</th>
+                            <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Nomor Ruangan</th>
+                            <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Kapasitas Murid</th>
+                            <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Total Peserta Ter-assign</th>
+                            <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Pengawas Terpasang</th>
+                            <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Maksimal Pengawas</th>
+                            <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Jumlah Jadwal</th>
+                            <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Aksi</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900">
                         @forelse ($rooms as $index => $room)
                             <tr class="transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                                <td class="px-4 py-3">
+                                <td class="px-4 py-3.5">
                                     <input type="checkbox" :checked="selected.includes({{ $room->id }})" @change="toggleSelect({{ $room->id }})" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800" />
                                 </td>
-                                <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $rooms->firstItem() + $index }}</td>
-                                <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $room->display_name }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $room->capacity }} peserta</td>
-                                <td class="px-4 py-3 text-sm">
+                                <td class="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{{ $rooms->firstItem() + $index }}</td>
+                                <td class="px-4 py-3.5 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $room->display_name }}</td>
+                                <td class="px-4 py-3.5 text-sm text-gray-700 dark:text-gray-300">{{ $room->capacity }} peserta</td>
+                                <td class="px-4 py-3.5 text-sm">
                                     <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">{{ $room->assigned_students_count }} peserta</span>
                                     @if ($room->students_count > 0)
                                         <span class="ml-1.5 inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $room->students_count }} siswa tetap</span>
                                     @endif
                                 </td>
-                                <td class="px-4 py-3 text-sm">
+                                <td class="px-4 py-3.5 text-sm">
                                     <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">{{ $room->supervisors_count }} pengawas</span>
                                 </td>
-                                <td class="px-4 py-3 text-sm">
+                                <td class="px-4 py-3.5 text-sm">
                                     <span class="inline-flex items-center rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-semibold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">{{ $room->supervisor_count }}</span>
                                 </td>
-                                <td class="px-4 py-3 text-sm">
+                                <td class="px-4 py-3.5 text-sm">
                                     <span class="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">{{ $room->exam_schedules_count }} jadwal</span>
                                 </td>
-                                <td class="px-4 py-3 text-sm">
+                                <td class="px-4 py-3.5 text-sm">
                                     <div class="flex items-center gap-2">
                                         <a href="{{ route('admin.rooms.detail', $room) }}" class="rounded-md bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 dark:bg-sky-500/10 dark:text-sky-300 dark:hover:bg-sky-500/20">Detail</a>
                                         <a href="{{ route('admin.rooms.edit', $room) }}" class="rounded-md bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20">Edit</a>

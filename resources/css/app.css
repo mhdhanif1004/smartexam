@@ -119,5 +119,41 @@
         --color-surface: 13 21 38;
         --color-surface-container-lowest: 8 15 30;
         --color-on-tertiary-container: 224 227 229;
-}
+    }
+
+    /* ── Custom Scrollbar ─────────────────────────────────────────── */
+
+    /* Firefox: thin scrollbar with theme colors */
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: rgb(var(--color-outline-variant)) rgb(var(--color-surface));
+    }
+
+    .dark * {
+        scrollbar-color: rgb(var(--color-outline-variant)) rgb(var(--color-surface-container-low));
+    }
+
+    /* Webkit (Chrome / Edge / Safari): track + thumb + thumb hover */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: rgb(var(--color-surface));
+        border-radius: 9999px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: rgb(var(--color-outline-variant));
+        border-radius: 9999px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgb(var(--color-outline));
+    }
+
+    .dark ::-webkit-scrollbar-track {
+        background: rgb(var(--color-surface-container-low));
+    }
 }

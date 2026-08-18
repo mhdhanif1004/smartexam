@@ -59,8 +59,8 @@
     :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     class="fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-white shadow-xl transition-transform duration-200 dark:bg-gray-900 dark:shadow-none md:static md:z-auto md:translate-x-0 md:shadow-none"
 >
-    <div class="flex h-full flex-col overflow-y-auto border-r border-gray-200 dark:border-gray-800">
-        <div class="flex h-16 items-center justify-between px-5">
+    <div class="flex h-full flex-col overscroll-contain overflow-y-auto border-r border-gray-200 dark:border-gray-800">
+        <div class="flex h-auto items-center justify-between px-5 py-5">
             <a href="{{ url('/') }}" class="flex items-center gap-2.5">
                 <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">SE</span>
                 <span class="text-lg font-bold tracking-tight text-gray-800 dark:text-gray-100">SmartExam</span>
@@ -72,18 +72,18 @@
             </button>
         </div>
 
-        <div class="px-5 pb-4">
+        <div class="px-5 pb-5">
             <span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
                 {{ $roleLabels[$role] ?? ucfirst($role) }}
             </span>
         </div>
 
-        <nav class="flex-1 space-y-1 px-3 pb-6">
+        <nav class="flex-1 space-y-0.5 px-2.5 pb-6">
             @foreach ($items as $menu)
                 @php($active = request()->routeIs($menu['route']))
                 <a
                     href="{{ Route::has($menu['route']) ? route($menu['route']) : '#' }}"
-                    class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ $active ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100' }}"
+                    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {{ $active ? 'bg-indigo-600 text-white shadow-sm mx-1' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100' }}"
                 >
                     <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="{{ $icons[$menu['icon']] }}" />
@@ -96,7 +96,7 @@
         <div class="border-t border-gray-200 p-3 dark:border-gray-800">
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
-                <button type="submit" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-rose-50 hover:text-rose-700 dark:text-gray-400 dark:hover:bg-rose-500/10 dark:hover:text-rose-400">
+                <button type="submit" class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-rose-50 hover:text-rose-700 dark:text-gray-400 dark:hover:bg-rose-500/10 dark:hover:text-rose-400">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
                     </svg>
