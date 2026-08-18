@@ -41,7 +41,7 @@ class SupervisorRoomRotationTest extends TestCase
         $this->roomB = Room::factory()->create(['room_number' => 2, 'capacity' => 25]);
         $this->roomC = Room::factory()->create(['room_number' => 3, 'capacity' => 25]);
 
-        $this->subject = Subject::factory()->create(['name' => 'Matematika', 'class_label' => 'XII']);
+        $this->subject = Subject::factory()->create(['name' => 'Matematika']);
         Question::factory()->create(['subject_id' => $this->subject->id]);
     }
 

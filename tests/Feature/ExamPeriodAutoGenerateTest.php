@@ -36,9 +36,9 @@ class ExamPeriodAutoGenerateTest extends TestCase
 
         $this->admin = User::factory()->admin()->create();
 
-        $this->mtk = Subject::factory()->create(['name' => 'Matematika', 'class_label' => 'XII', 'default_duration_minutes' => 60]);
-        $this->bindo = Subject::factory()->create(['name' => 'Bahasa Indonesia', 'class_label' => 'XII', 'default_duration_minutes' => 60]);
-        $this->bing = Subject::factory()->create(['name' => 'Bahasa Inggris', 'class_label' => 'XII', 'default_duration_minutes' => 90]);
+        $this->mtk = Subject::factory()->create(['name' => 'Matematika', 'default_duration_minutes' => 60]);
+        $this->bindo = Subject::factory()->create(['name' => 'Bahasa Indonesia', 'default_duration_minutes' => 60]);
+        $this->bing = Subject::factory()->create(['name' => 'Bahasa Inggris', 'default_duration_minutes' => 90]);
 
         foreach ([$this->mtk, $this->bindo, $this->bing] as $subject) {
             Question::factory()->create(['subject_id' => $subject->id]);

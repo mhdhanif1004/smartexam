@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Imports\SupervisorsImport;
 use App\Models\Room;
 use App\Models\Supervisor;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 class SupervisorImportExportTest extends TestCase
@@ -180,14 +180,19 @@ class SupervisorImportExportTest extends TestCase
         $oldPassword = $existing->user->plain_password;
         $oldRoom = $existing->room;
 
-        $import = new SupervisorsImport;
-        $import->validRows = [
-            ['row' => 2, 'name' => 'Andi Pratama', 'email' => 'andi@example.com', 'mode' => 'create'],
-            ['row' => 3, 'name' => 'Budi Santoso', 'email' => $existing->user->email, 'mode' => 'update'],
+        $importData = [
+            'validRows' => [
+                ['row' => 2, 'name' => 'Andi Pratama', 'email' => 'andi@example.com', 'mode' => 'create'],
+                ['row' => 3, 'name' => 'Budi Santoso', 'email' => $existing->user->email, 'mode' => 'update'],
+            ],
+            'invalidRows' => [],
+            'headerError' => '',
         ];
 
+        Cache::put('import_pending_'.$this->admin->id, $importData, now()->addMinutes(10));
+
         $response = $this->actingAs($this->admin)
-            ->withSession(['import_pending' => $import])
+            ->withHeaders(['Cookie' => ''])
             ->post(route('admin.supervisors.import-confirm'))
             ->assertOk()
             ->assertJson([
@@ -216,13 +221,18 @@ class SupervisorImportExportTest extends TestCase
 
     public function test_import_confirm_generates_password_and_leaves_room_empty(): void
     {
-        $import = new SupervisorsImport;
-        $import->validRows = [
-            ['row' => 2, 'name' => 'Andi Pratama', 'email' => 'andi@example.com', 'mode' => 'create'],
+        $importData = [
+            'validRows' => [
+                ['row' => 2, 'name' => 'Andi Pratama', 'email' => 'andi@example.com', 'mode' => 'create'],
+            ],
+            'invalidRows' => [],
+            'headerError' => '',
         ];
 
+        Cache::put('import_pending_'.$this->admin->id, $importData, now()->addMinutes(10));
+
         $response = $this->actingAs($this->admin)
-            ->withSession(['import_pending' => $import])
+            ->withHeaders(['Cookie' => ''])
             ->post(route('admin.supervisors.import-confirm'))
             ->assertOk()
             ->assertJson(['ok' => true, 'created' => 1]);
@@ -240,13 +250,17 @@ class SupervisorImportExportTest extends TestCase
         $oldPassword = $existing->user->plain_password;
         $oldRoomId = $existing->room_id;
 
-        $import = new SupervisorsImport;
-        $import->validRows = [
-            ['row' => 2, 'name' => 'Nama Baru', 'email' => $existing->user->email, 'mode' => 'update'],
+        $importData = [
+            'validRows' => [
+                ['row' => 2, 'name' => 'Nama Baru', 'email' => $existing->user->email, 'mode' => 'update'],
+            ],
+            'invalidRows' => [],
+            'headerError' => '',
         ];
 
+        Cache::put('import_pending_'.$this->admin->id, $importData, now()->addMinutes(10));
+
         $this->actingAs($this->admin)
-            ->withSession(['import_pending' => $import])
             ->post(route('admin.supervisors.import-confirm'))
             ->assertOk();
 
@@ -258,20 +272,24 @@ class SupervisorImportExportTest extends TestCase
 
     public function test_import_confirm_stores_failed_rows_file(): void
     {
-        $import = new SupervisorsImport;
-        $import->validRows = [
-            ['row' => 2, 'name' => 'Andi Pratama', 'email' => 'andi@example.com', 'mode' => 'create'],
-        ];
-        $import->invalidRows = [
-            [
-                'row' => 3,
-                'data' => ['name' => 'Budi Santoso', 'email' => 'budi@example.com'],
-                'errors' => ['Email budi@example.com tidak valid.'],
+        $importData = [
+            'validRows' => [
+                ['row' => 2, 'name' => 'Andi Pratama', 'email' => 'andi@example.com', 'mode' => 'create'],
             ],
+            'invalidRows' => [
+                [
+                    'row' => 3,
+                    'data' => ['name' => 'Budi Santoso', 'email' => 'budi@example.com'],
+                    'errors' => ['Email budi@example.com tidak valid.'],
+                ],
+            ],
+            'headerError' => '',
         ];
 
+        Cache::put('import_pending_'.$this->admin->id, $importData, now()->addMinutes(10));
+
         $response = $this->actingAs($this->admin)
-            ->withSession(['import_pending' => $import])
+            ->withHeaders(['Cookie' => ''])
             ->post(route('admin.supervisors.import-confirm'))
             ->assertOk()
             ->assertJson(['ok' => true, 'created' => 1, 'failed_count' => 1]);

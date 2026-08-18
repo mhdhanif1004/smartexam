@@ -12,6 +12,7 @@ use App\Models\Classroom;
 use App\Models\Student;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
@@ -82,7 +83,14 @@ class StudentImportExportController extends Controller
             ], 422);
         }
 
-        session()->put('import_pending', $import);
+        // Store in cache with 10-minute TTL (avoid session encryption issues)
+        $cacheKey = 'import_pending_'.auth()->id();
+        Cache::put($cacheKey, [
+            'validRows' => $import->validRows,
+            'invalidRows' => $import->invalidRows,
+            'newClasses' => $import->newClasses,
+            'headerError' => $import->headerError,
+        ], now()->addMinutes(10));
 
         return response()->json([
             'ok' => true,
@@ -99,13 +107,20 @@ class StudentImportExportController extends Controller
 
     public function importConfirm(Request $request): JsonResponse
     {
-        $import = session()->pull('import_pending');
+        $cacheKey = 'import_pending_'.auth()->id();
+        $data = Cache::pull($cacheKey);
 
-        if (! $import instanceof StudentsImport) {
+        if (! is_array($data) || ! isset($data['validRows'])) {
             return response()->json([
                 'message' => 'Sesi import kadaluarsa, silakan upload ulang.',
             ], 422);
         }
+
+        // Reconstruct import object for persistRows()
+        $import = new StudentsImport;
+        $import->validRows = $data['validRows'];
+        $import->invalidRows = $data['invalidRows'];
+        $import->newClasses = $data['newClasses'] ?? [];
 
         $result = DB::transaction(function () use ($import): array {
             // Buat kelas baru (yang belum terdaftar di master data) di dalam

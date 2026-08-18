@@ -66,6 +66,8 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::get('supervisors/{supervisor}', [SupervisorController::class, 'show'])->name('supervisors.show');
         Route::post('supervisors/bulk-delete', [SupervisorController::class, 'bulkDelete'])->name('supervisors.bulk-delete');
         Route::resource('subjects', SubjectController::class)->except(['show']);
+        Route::get('subjects/{subject}/delete-preview', [SubjectController::class, 'deletePreview'])->name('subjects.delete-preview');
+        Route::patch('subjects/{subject}/name', [SubjectController::class, 'updateName'])->name('subjects.update-name');
         Route::post('subjects/bulk-delete-preview', [SubjectController::class, 'bulkDeletePreview'])->name('subjects.bulk-delete-preview');
         Route::post('subjects/bulk-delete', [SubjectController::class, 'bulkDelete'])->name('subjects.bulk-delete');
         Route::resource('rooms', RoomController::class)->except(['show']);
@@ -84,12 +86,14 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::post('exam-periods/{examPeriod}/supervisor-rotation', [ExamPeriodController::class, 'supervisorRotation'])->name('exam-periods.supervisor-rotation');
         Route::get('exam-periods/{examPeriod}/rooms/{room}/roster', [ExamPeriodController::class, 'roomRoster'])->name('exam-periods.room-roster');
 
-        Route::resource('questions', QuestionController::class)->except(['show']);
         Route::get('questions/by-subject/{subject}', [QuestionController::class, 'bySubject'])->name('questions.by-subject');
         Route::post('questions/bulk-delete', [QuestionController::class, 'bulkDelete'])->name('questions.bulk-delete');
         Route::post('questions/bulk-edit', [QuestionController::class, 'bulkEdit'])->name('questions.bulk-edit');
+        Route::patch('questions/bulk-classrooms', [QuestionController::class, 'bulkUpdateClassrooms'])->name('questions.bulk-classrooms');
+        Route::post('questions/group-delete-preview', [QuestionController::class, 'groupDeletePreview'])->name('questions.group-delete-preview');
         Route::post('questions/{question}/duplicate', [QuestionController::class, 'duplicate'])->name('questions.duplicate');
         Route::patch('questions/{question}/toggle-active', [QuestionController::class, 'toggleActive'])->name('questions.toggle-active');
+        Route::resource('questions', QuestionController::class)->except(['show']);
 
         Route::controller(QuestionImportExportController::class)->prefix('questions')->name('questions.')->group(function () {
             Route::get('/export', 'export')->name('export');

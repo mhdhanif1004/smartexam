@@ -21,11 +21,6 @@
                         <x-text-input id="name" name="name" type="text" class="mt-1 block w-full" value="{{ old('name', $subject->name) }}" required placeholder="contoh: Matematika" />
                         <x-input-error :messages="$errors->get('name')" class="mt-2" />
                     </div>
-                    <div>
-                        <x-input-label for="class_label" :value="__('Kelas/Tingkat')" />
-                        <x-text-input id="class_label" name="class_label" type="text" class="mt-1 block w-full" value="{{ old('class_label', $subject->class_label) }}" required placeholder="contoh: X atau Kelas 12 atau XI RPL" />
-                        <x-input-error :messages="$errors->get('class_label')" class="mt-2" />
-                    </div>
                     <div class="sm:col-span-2">
                         <x-input-label for="default_duration_minutes" :value="__('Durasi Default (menit)')" />
                         <x-text-input id="default_duration_minutes" name="default_duration_minutes" type="number" min="5" max="600" class="mt-1 block w-full" value="{{ old('default_duration_minutes', $subject->default_duration_minutes) }}" required />

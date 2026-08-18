@@ -138,6 +138,7 @@ class ExamController extends Controller
 
         $questions = $this->schedule->subject->questions()
             ->where('is_active', true)
+            ->targetingClassroom($this->student->classroom_id)
             ->orderBy('id')
             ->get();
 
@@ -203,7 +204,7 @@ class ExamController extends Controller
             return response()->json(['expired' => true], 422);
         }
 
-        $this->storeAnswers($session, $schedule, (array) $request->input('answers', []));
+        $this->storeAnswers($session, $schedule, (array) $request->input('answers', []), $student->classroom_id);
 
         return response()->json(['ok' => true]);
     }
@@ -240,6 +241,7 @@ class ExamController extends Controller
         $belongsToExam = $schedule->subject->questions()
             ->where('is_active', true)
             ->whereKey($question)
+            ->targetingClassroom($student->classroom_id)
             ->exists();
 
         if (! $belongsToExam) {
@@ -325,7 +327,7 @@ class ExamController extends Controller
             return $this->deny('Sesi ujian belum dimulai.');
         }
 
-        $this->storeAnswers($session, $this->schedule, (array) $request->input('answers', []));
+        $this->storeAnswers($session, $this->schedule, (array) $request->input('answers', []), $this->student->classroom_id);
         $this->grading->finalize($session, $this->schedule);
 
         return redirect()->route('peserta.exams.finished', $this->schedule->id)
@@ -464,6 +466,7 @@ class ExamController extends Controller
         return $this->schedule->subject
             ?->questions()
             ->where('is_active', true)
+            ->targetingClassroom($this->student->classroom_id)
             ->exists() ?? false;
     }
 
@@ -502,14 +505,15 @@ class ExamController extends Controller
     /**
      * Simpan atau hapus jawaban peserta (jawaban kosong dihapus agar jumlah
      * "soal dijawab" akurat). Hanya soal milik mata pelajaran ujian yang
-     * diterima.
+     * ditargetkan ke kelas peserta yang diterima.
      *
      * @param  array<mixed>  $answers
      */
-    private function storeAnswers(ExamSession $session, ExamSchedule $schedule, array $answers): void
+    private function storeAnswers(ExamSession $session, ExamSchedule $schedule, array $answers, int $classroomId): void
     {
         $validQuestionIds = $schedule->subject->questions()
             ->where('is_active', true)
+            ->targetingClassroom($classroomId)
             ->pluck('id')
             ->all();
         $validQuestionSet = array_flip($validQuestionIds);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSubjectRequest;
 use App\Http\Requests\Admin\UpdateSubjectRequest;
+use App\Models\ExamSession;
 use App\Models\Subject;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -25,12 +26,10 @@ class SubjectController extends Controller
                 $search = $request->string('search')->trim();
                 $query->where(function ($builder) use ($search) {
                     $builder->where('code', 'like', "%{$search}%")
-                        ->orWhere('name', 'like', "%{$search}%")
-                        ->orWhere('class_label', 'like', "%{$search}%");
+                        ->orWhere('name', 'like', "%{$search}%");
                 });
             })
             ->orderBy('code')
-            ->orderBy('class_label')
             ->paginate(10)
             ->withQueryString();
 
@@ -63,9 +62,47 @@ class SubjectController extends Controller
 
     public function destroy(Subject $subject): RedirectResponse
     {
+        $hasHistory = $subject->examSchedules()->has('examSessions')->exists();
+
+        if ($hasHistory) {
+            return back()->with('error', 'Mata pelajaran tidak dapat dihapus karena sudah memiliki histori ujian siswa.');
+        }
+
         $subject->delete();
 
         return redirect()->route('admin.subjects.index')->with('success', 'Mata pelajaran berhasil dihapus.');
+    }
+
+    /**
+     * Preview data terkait subject untuk modal konfirmasi hapus (per-baris).
+     */
+    public function deletePreview(Subject $subject): JsonResponse
+    {
+        $questionsCount = $subject->questions()->count();
+        $examSchedulesCount = $subject->examSchedules()->count();
+        $examSessionsCount = ExamSession::query()
+            ->whereHas('examSchedule', fn ($q) => $q->where('subject_id', $subject->id))
+            ->count();
+
+        return response()->json([
+            'questions_count' => $questionsCount,
+            'exam_schedules_count' => $examSchedulesCount,
+            'exam_sessions_count' => $examSessionsCount,
+        ]);
+    }
+
+    /**
+     * Update hanya nama mata pelajaran dari modal cepat di halaman Bank Soal.
+     */
+    public function updateName(Request $request, Subject $subject): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $subject->update($data);
+
+        return response()->json(['ok' => true, 'name' => $subject->name]);
     }
 
     /**

@@ -27,7 +27,9 @@ abstract class BaseQuestionTemplateSheet implements FromCollection, WithColumnWi
     /**
      * @param  Collection<int, Subject>  $subjects
      */
-    public function __construct(protected readonly Collection $subjects) {}
+    public function __construct(
+        protected readonly Collection $subjects,
+    ) {}
 
     abstract public function title(): string;
 
@@ -55,6 +57,11 @@ abstract class BaseQuestionTemplateSheet implements FromCollection, WithColumnWi
     {
         return [];
     }
+
+    /**
+     * Kolom "Kelas Target" tidak lagi dipakai di template — target kelas dipilih
+     * melalui multi-select di modal impor, bukan diisi pada file Excel.
+     */
 
     /**
      * Rentang sel untuk drop-down kunci jawaban, null jika tidak ada.

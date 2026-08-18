@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Classroom;
 use App\Models\ExamSchedule;
 use App\Models\Question;
 use App\Models\Room;
@@ -90,20 +91,25 @@ class DatabaseSeeder extends Seeder
             $room->update(['capacity' => $room->students()->count()]);
         });
 
-        // 5 mata pelajaran. Satu baris = 1 mapel untuk 1 kelas/tingkat tertentu.
+        // 5 mata pelajaran. Satu baris = 1 mapel murni (kelas target diatur
+        // per soal lewat pivot question_classroom).
         $subjects = collect([
-            ['code' => 'MTK', 'name' => 'Matematika', 'class_label' => 'XI RPL 1', 'default_duration_minutes' => 90],
-            ['code' => 'BIN', 'name' => 'Bahasa Indonesia', 'class_label' => 'XI RPL 1', 'default_duration_minutes' => 90],
-            ['code' => 'BIG', 'name' => 'Bahasa Inggris', 'class_label' => 'XI RPL 1', 'default_duration_minutes' => 60],
-            ['code' => 'PW', 'name' => 'Pemrograman Web', 'class_label' => 'XI RPL 1', 'default_duration_minutes' => 120],
-            ['code' => 'BD', 'name' => 'Basis Data', 'class_label' => 'XI RPL 1', 'default_duration_minutes' => 60],
+            ['code' => 'MTK', 'name' => 'Matematika', 'default_duration_minutes' => 90],
+            ['code' => 'BIN', 'name' => 'Bahasa Indonesia', 'default_duration_minutes' => 90],
+            ['code' => 'BIG', 'name' => 'Bahasa Inggris', 'default_duration_minutes' => 60],
+            ['code' => 'PW', 'name' => 'Pemrograman Web', 'default_duration_minutes' => 120],
+            ['code' => 'BD', 'name' => 'Basis Data', 'default_duration_minutes' => 60],
         ])->map(fn (array $data) => Subject::create($data));
 
         // Minimal 10 soal per mata pelajaran dengan variasi jenis soal.
+        // Semua soal ditargetkan ke kelas demo "XI RPL 1" agar langsung
+        // berfungsi saat ujian dijalankan.
         $subjects->each(function (Subject $subject) {
             Question::factory()->count(10)->create([
                 'subject_id' => $subject->id,
-            ]);
+            ])->each(function (Question $question) {
+                $question->classrooms()->sync(Classroom::where('name', 'XI RPL 1')->value('id'));
+            });
         });
 
         // Jadwal ujian hari ini: 1 mata pelajaran per ruangan, kelas yang sama.

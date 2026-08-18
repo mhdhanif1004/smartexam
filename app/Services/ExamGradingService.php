@@ -7,6 +7,7 @@ use App\Models\ExamResult;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\Question;
+use App\Models\Student;
 
 class ExamGradingService
 {
@@ -53,7 +54,14 @@ class ExamGradingService
     {
         $schedule ??= $session->examSchedule;
 
-        $questions = $schedule->subject->questions()->get()->keyBy('id');
+        $classroomId = Student::query()
+            ->whereKey($session->student_id)
+            ->value('classroom_id');
+
+        $questions = $schedule->subject->questions()
+            ->when($classroomId !== null, fn ($query) => $query->targetingClassroom($classroomId))
+            ->get()
+            ->keyBy('id');
         $answers = $session->examAnswers()->get();
 
         $totalScore = 0.0;

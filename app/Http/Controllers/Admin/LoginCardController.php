@@ -11,6 +11,7 @@ use App\Models\Student;
 use App\Models\Supervisor;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
@@ -18,6 +19,8 @@ use Illuminate\View\View;
 
 class LoginCardController extends Controller
 {
+    private const MAX_CARDS_PER_PRINT = 200;
+
     public function index(Request $request): View
     {
         $type = $request->string('type')->toString() === 'pengawas' ? 'pengawas' : 'peserta';
@@ -79,7 +82,7 @@ class LoginCardController extends Controller
         ));
     }
 
-    public function preview(Request $request): View
+    public function preview(Request $request): View|RedirectResponse
     {
         $setting = CardSetting::current() ?? new CardSetting;
         $tanggalCetak = $this->formatTanggalIndonesia(now());
@@ -91,12 +94,17 @@ class LoginCardController extends Controller
         }
 
         $students = $this->resolveStudents($request);
+
+        if ($redirect = $this->enforceCardLimit($students, $request)) {
+            return $redirect;
+        }
+
         $roomAssignments = $this->roomAssignmentsByStudent($students);
 
         return view('admin.student-cards.preview', compact('students', 'setting', 'tanggalCetak', 'roomAssignments'));
     }
 
-    public function print(Request $request): Response
+    public function print(Request $request): Response|RedirectResponse
     {
         $setting = CardSetting::current() ?? new CardSetting;
         $tanggalCetak = $this->formatTanggalIndonesia(now());
@@ -111,6 +119,11 @@ class LoginCardController extends Controller
         }
 
         $students = $this->resolveStudents($request);
+
+        if ($redirect = $this->enforceCardLimit($students, $request)) {
+            return $redirect;
+        }
+
         $roomAssignments = $this->roomAssignmentsByStudent($students);
 
         $pdf = Pdf::loadView('admin.student-cards.print', compact('students', 'setting', 'tanggalCetak', 'roomAssignments'))
@@ -209,6 +222,23 @@ class LoginCardController extends Controller
         }
 
         return [];
+    }
+
+    /**
+     * Cek apakah jumlah siswa melebihi batas aman untuk preview/cetak kartu.
+     * Jika ya, kembalikan redirect response dengan pesan error; jika tidak, null.
+     */
+    private function enforceCardLimit(Collection $students, Request $request): ?RedirectResponse
+    {
+        if ($students->count() > self::MAX_CARDS_PER_PRINT) {
+            session()->flash('error', 'Maksimal '.self::MAX_CARDS_PER_PRINT.' kartu per proses cetak, silakan pilih kelas atau kurangi jumlah siswa yang dipilih.');
+
+            return redirect()->route('admin.student-cards.index', [
+                'type' => $request->string('type')->toString() ?: 'peserta',
+            ]);
+        }
+
+        return null;
     }
 
     /**

@@ -71,6 +71,7 @@ class StudentController extends Controller
             $user->student()->create([
                 'nisn' => $request->nisn,
                 'class_name' => $request->class_name,
+                'classroom_id' => Classroom::idForName($request->class_name),
             ]);
         });
 
@@ -100,6 +101,7 @@ class StudentController extends Controller
             $student->update([
                 'nisn' => $request->nisn,
                 'class_name' => $request->class_name,
+                'classroom_id' => Classroom::idForName($request->class_name),
             ]);
         });
 

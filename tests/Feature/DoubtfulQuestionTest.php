@@ -69,12 +69,15 @@ class DoubtfulQuestionTest extends TestCase
 
     private function question(): Question
     {
-        return Question::factory()->create([
+        $question = Question::factory()->create([
             'subject_id' => $this->subject->id,
             'type' => Question::TYPE_SINGLE_CHOICE,
             'options' => ['A' => 'Apa', 'B' => 'Bapa'],
             'answer_key' => 'A',
         ]);
+        $question->classrooms()->sync($this->student->classroom_id);
+
+        return $question;
     }
 
     private function toggle(int $questionId): TestResponse

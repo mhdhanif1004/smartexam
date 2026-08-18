@@ -3,9 +3,11 @@
 namespace App\Models;
 
 use Database\Factories\QuestionFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Question extends Model
@@ -59,6 +61,16 @@ class Question extends Model
         return $this->belongsTo(Subject::class);
     }
 
+    /**
+     * Kelas-kelas yang berhak menerima soal ini. Sumber kebenaran tunggal
+     * untuk targeting kelas: tanpa relasi ini soal tidak akan pernah muncul
+     * pada ujian kelas manapun.
+     */
+    public function classrooms(): BelongsToMany
+    {
+        return $this->belongsToMany(Classroom::class, 'question_classroom')->withTimestamps();
+    }
+
     public function typeLabel(): string
     {
         return self::TYPES[$this->type] ?? ucwords(str_replace('_', ' ', $this->type));
@@ -100,5 +112,15 @@ class Question extends Model
     public function examAnswers(): HasMany
     {
         return $this->hasMany(ExamAnswer::class);
+    }
+
+    /**
+     * Filter soal yang boleh dikerjakan siswa dari classroom_id tertentu.
+     * Satu-satunya sumber kebenaran targeting kelas adalah pivot
+     * question_classroom; soal tanpa relasi pivot tidak akan pernah muncul.
+     */
+    public function scopeTargetingClassroom(Builder $query, int $classroomId): Builder
+    {
+        return $query->whereHas('classrooms', fn (Builder $q) => $q->whereKey($classroomId));
     }
 }

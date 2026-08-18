@@ -65,7 +65,16 @@
         </tr>
         <tr>
             <td class="lbl">Password</td>
-            <td class="val password">{{ $supervisor->user?->plain_password ?? '-' }}</td>
+            <td class="val password">
+                @php
+                    try {
+                        $plainPassword = $supervisor->user?->plain_password ?? '-';
+                    } catch (\Illuminate\Contracts\Encryption\DecryptException) {
+                        $plainPassword = '-';
+                    }
+                @endphp
+                {{ $plainPassword }}
+            </td>
         </tr>
     </table>
 

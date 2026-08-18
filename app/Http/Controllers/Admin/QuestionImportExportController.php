@@ -69,7 +69,7 @@ class QuestionImportExportController extends Controller
     {
         $extension = $request->string('format')->toString() === 'csv' ? 'csv' : 'xlsx';
 
-        $query = Question::query()->with('subject');
+        $query = Question::query()->with(['subject', 'classrooms']);
 
         if ($request->string('scope')->toString() === 'selected') {
             $ids = collect($request->input('ids', []))
@@ -118,6 +118,7 @@ class QuestionImportExportController extends Controller
 
         /** @var BaseTypeImport $import */
         $import = new $template['import'];
+        $import->applyClassroomIds = $request->validated()['classroom_ids'];
 
         try {
             Excel::import($import, $request->file('file'));

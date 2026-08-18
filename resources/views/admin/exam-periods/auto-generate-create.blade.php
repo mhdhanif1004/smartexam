@@ -171,7 +171,7 @@
                                 <select :name="'subjects[' + index + '][subject_id]'" x-model="row.subject_id" @change="subjectChanged(row, $event)" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                                     <option value="">-- Pilih Mata Pelajaran --</option>
                                     @foreach ($subjects as $subject)
-                                        <option value="{{ $subject->id }}">{{ $subject->name }} ({{ $subject->code }})@if ($subject->class_label) - {{ $subject->class_label }}@endif</option>
+                                        <option value="{{ $subject->id }}">{{ $subject->name }} ({{ $subject->code }})</option>
                                     @endforeach
                                 </select>
                                 <p class="mt-1 text-xs text-rose-600 dark:text-rose-400" x-text="subjectError(index, 'subject_id')"></p>

@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Imports\StudentsImport;
 use App\Models\Classroom;
 use App\Models\Student;
 use App\Models\User;
 use Database\Seeders\ClassroomSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 class StudentImportExportTest extends TestCase
@@ -215,14 +215,19 @@ class StudentImportExportTest extends TestCase
         $existing = Student::factory()->create(['nisn' => '0098765432', 'class_name' => 'X RPL 1']);
         $oldUsername = $existing->user->username;
 
-        $import = new StudentsImport;
-        $import->validRows = [
-            ['row' => 2, 'nisn' => '0012345678', 'name' => 'Andi Pratama', 'class_name' => 'XI RPL 1', 'mode' => 'create'],
-            ['row' => 3, 'nisn' => '0098765432', 'name' => 'Budi Santoso', 'class_name' => 'XI RPL 1', 'mode' => 'update'],
+        $importData = [
+            'validRows' => [
+                ['row' => 2, 'nisn' => '0012345678', 'name' => 'Andi Pratama', 'class_name' => 'XI RPL 1', 'mode' => 'create'],
+                ['row' => 3, 'nisn' => '0098765432', 'name' => 'Budi Santoso', 'class_name' => 'XI RPL 1', 'mode' => 'update'],
+            ],
+            'invalidRows' => [],
+            'newClasses' => [],
+            'headerError' => '',
         ];
 
+        Cache::put('import_pending_'.$this->admin->id, $importData, now()->addMinutes(10));
+
         $response = $this->actingAs($this->admin)
-            ->withSession(['import_pending' => $import])
             ->post(route('admin.students.import-confirm'))
             ->assertOk()
             ->assertJson([
@@ -250,20 +255,25 @@ class StudentImportExportTest extends TestCase
 
     public function test_import_confirm_stores_failed_rows_file(): void
     {
-        $import = new StudentsImport;
-        $import->validRows = [
-            ['row' => 2, 'nisn' => '0012345678', 'name' => 'Andi Pratama', 'class_name' => 'XI RPL 1', 'mode' => 'create'],
-        ];
-        $import->invalidRows = [
-            [
-                'row' => 3,
-                'data' => ['nisn' => '123', 'name' => 'Budi Santoso', 'class_name' => 'X RPL 1'],
-                'errors' => ['NISN harus 10 digit angka.'],
+        $importData = [
+            'validRows' => [
+                ['row' => 2, 'nisn' => '0012345678', 'name' => 'Andi Pratama', 'class_name' => 'XI RPL 1', 'mode' => 'create'],
             ],
+            'invalidRows' => [
+                [
+                    'row' => 3,
+                    'data' => ['nisn' => '123', 'name' => 'Budi Santoso', 'class_name' => 'X RPL 1'],
+                    'errors' => ['NISN harus 10 digit angka.'],
+                ],
+            ],
+            'newClasses' => [],
+            'headerError' => '',
         ];
 
+        Cache::put('import_pending_'.$this->admin->id, $importData, now()->addMinutes(10));
+
         $response = $this->actingAs($this->admin)
-            ->withSession(['import_pending' => $import])
+            ->withHeaders(['Cookie' => ''])
             ->post(route('admin.students.import-confirm'))
             ->assertOk()
             ->assertJson(['ok' => true, 'created' => 1, 'failed_count' => 1]);
@@ -279,15 +289,20 @@ class StudentImportExportTest extends TestCase
 
     public function test_import_confirm_autocreates_new_classes_with_students(): void
     {
-        $import = new StudentsImport;
-        $import->validRows = [
-            ['row' => 2, 'nisn' => '0012345678', 'name' => 'Andi Pratama', 'class_name' => 'XI RPL 99', 'mode' => 'create'],
-            ['row' => 3, 'nisn' => '0098765432', 'name' => 'Budi Santoso', 'class_name' => 'XII MM 3', 'mode' => 'create'],
+        $importData = [
+            'validRows' => [
+                ['row' => 2, 'nisn' => '0012345678', 'name' => 'Andi Pratama', 'class_name' => 'XI RPL 99', 'mode' => 'create'],
+                ['row' => 3, 'nisn' => '0098765432', 'name' => 'Budi Santoso', 'class_name' => 'XII MM 3', 'mode' => 'create'],
+            ],
+            'invalidRows' => [],
+            'newClasses' => ['XI RPL 99', 'XII MM 3'],
+            'headerError' => '',
         ];
-        $import->newClasses = ['XI RPL 99', 'XII MM 3'];
+
+        Cache::put('import_pending_'.$this->admin->id, $importData, now()->addMinutes(10));
 
         $response = $this->actingAs($this->admin)
-            ->withSession(['import_pending' => $import])
+            ->withHeaders(['Cookie' => ''])
             ->post(route('admin.students.import-confirm'))
             ->assertOk()
             ->assertJson([
@@ -307,14 +322,19 @@ class StudentImportExportTest extends TestCase
 
     public function test_import_confirm_does_not_recreate_existing_classes(): void
     {
-        $import = new StudentsImport;
-        $import->validRows = [
-            ['row' => 2, 'nisn' => '0012345678', 'name' => 'Andi Pratama', 'class_name' => 'XI RPL 1', 'mode' => 'create'],
+        $importData = [
+            'validRows' => [
+                ['row' => 2, 'nisn' => '0012345678', 'name' => 'Andi Pratama', 'class_name' => 'XI RPL 1', 'mode' => 'create'],
+            ],
+            'invalidRows' => [],
+            'newClasses' => ['XI RPL 1'],
+            'headerError' => '',
         ];
-        $import->newClasses = ['XI RPL 1'];
 
-        $this->actingAs($this->admin)
-            ->withSession(['import_pending' => $import])
+        Cache::put('import_pending_'.$this->admin->id, $importData, now()->addMinutes(10));
+
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['Cookie' => ''])
             ->post(route('admin.students.import-confirm'))
             ->assertOk()
             ->assertJsonPath('new_classes_created', 0);

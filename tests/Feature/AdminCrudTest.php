@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Classroom;
 use App\Models\ExamSchedule;
 use App\Models\Question;
 use App\Models\Room;
@@ -25,6 +26,11 @@ class AdminCrudTest extends TestCase
 
         $this->admin = User::factory()->admin()->create();
         $this->seed(ClassroomSeeder::class);
+    }
+
+    private function classroomId(): int
+    {
+        return Classroom::query()->where('name', 'XI RPL 1')->value('id');
     }
 
     public function test_admin_can_view_students_index_and_create_page(): void
@@ -167,11 +173,10 @@ class AdminCrudTest extends TestCase
         $this->actingAs($this->admin)->post('/admin/subjects', [
             'code' => 'FIS',
             'name' => 'Fisika',
-            'class_label' => 'XI RPL 1',
             'default_duration_minutes' => 90,
         ])->assertRedirect(route('admin.subjects.index'));
 
-        $this->assertDatabaseHas('subjects', ['code' => 'FIS', 'class_label' => 'XI RPL 1']);
+        $this->assertDatabaseHas('subjects', ['code' => 'FIS', 'name' => 'Fisika']);
 
         $this->actingAs($this->admin)->post('/admin/rooms', [
             'room_number' => 10,
@@ -231,6 +236,7 @@ class AdminCrudTest extends TestCase
             'type' => 'single_choice',
             'question_text' => 'Berapa hasil 2 + 2?',
             'score_weight' => 10,
+            'classroom_ids' => [$this->classroomId()],
             'single_options' => ['A' => '2', 'B' => '4', 'C' => '6', 'D' => '8'],
             'single_answer' => 'B',
         ])->assertRedirect(route('admin.questions.index'));
@@ -251,6 +257,7 @@ class AdminCrudTest extends TestCase
             'type' => 'multiple_choice',
             'question_text' => 'Pilih jawaban yang benar?',
             'score_weight' => 10,
+            'classroom_ids' => [$this->classroomId()],
             'multiple_options' => ['A' => 'X', 'B' => 'Y', 'C' => 'Z'],
             'multiple_answer' => ['A', 'C'],
         ])->assertRedirect(route('admin.questions.index'));
@@ -270,6 +277,7 @@ class AdminCrudTest extends TestCase
             'type' => 'matching',
             'question_text' => 'Jodohkan pasangan berikut?',
             'score_weight' => 10,
+            'classroom_ids' => [$this->classroomId()],
             'matching_left' => ['Satu', 'Dua', 'Tiga'],
             'matching_right' => ['1', '2', '3'],
         ])->assertRedirect(route('admin.questions.index'));
@@ -289,6 +297,7 @@ class AdminCrudTest extends TestCase
             'type' => 'true_false',
             'question_text' => 'Bumi itu bulat?',
             'score_weight' => 10,
+            'classroom_ids' => [$this->classroomId()],
             'true_false_answer' => '1',
         ])->assertRedirect(route('admin.questions.index'));
 
@@ -299,6 +308,7 @@ class AdminCrudTest extends TestCase
             'type' => 'essay',
             'question_text' => 'Jelaskan tentang HTML?',
             'score_weight' => 20,
+            'classroom_ids' => [$this->classroomId()],
             'essay_answer' => 'HTML adalah bahasa markup untuk membuat halaman web.',
         ])->assertRedirect(route('admin.questions.index'));
 
@@ -328,6 +338,7 @@ class AdminCrudTest extends TestCase
             'type' => 'essay',
             'question_text' => 'Pertanyaan baru?',
             'score_weight' => 15,
+            'classroom_ids' => [$this->classroomId()],
             'essay_answer' => 'Kunci jawaban baru.',
         ])->assertRedirect(route('admin.questions.index'));
 

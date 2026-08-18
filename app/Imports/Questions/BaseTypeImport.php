@@ -57,6 +57,15 @@ abstract class BaseTypeImport implements ToCollection, WithEvents, WithHeadingRo
 
     public int $toUpdate = 0;
 
+    /**
+     * Kelas target yang dipilih di modal impor (UI). Satu-satunya sumber
+     * target kelas untuk import; berlaku untuk SEMUA baris soal pada sesi
+     * impor ini. Kolom "Kelas Target" di file Excel tidak lagi dibaca.
+     *
+     * @var list<int>
+     */
+    public array $applyClassroomIds = [];
+
     abstract public function type(): string;
 
     /**
@@ -207,7 +216,7 @@ abstract class BaseTypeImport implements ToCollection, WithEvents, WithHeadingRo
 
         foreach ($this->validRows as $validRow) {
             try {
-                Question::create([
+                $question = Question::create([
                     'subject_id' => $validRow['subject_id'],
                     'type' => $validRow['type'],
                     'question_text' => $validRow['question_text'],
@@ -216,6 +225,12 @@ abstract class BaseTypeImport implements ToCollection, WithEvents, WithHeadingRo
                     'score_weight' => $validRow['score_weight'],
                     'is_active' => true,
                 ]);
+
+                $targetIds = array_values(array_unique($this->applyClassroomIds));
+
+                if (! empty($targetIds)) {
+                    $question->classrooms()->sync($targetIds);
+                }
 
                 $result['created']++;
             } catch (Throwable $e) {

@@ -31,7 +31,6 @@ class SubjectFactory extends Factory
                 'Fisika',
                 'Pendidikan Pancasila',
             ]),
-            'class_label' => fake()->randomElement(['X', 'XI', 'XII', 'X RPL 1', 'XI RPL 1', 'XII TKJ 1']),
             'default_duration_minutes' => fake()->randomElement([60, 90, 120]),
         ];
     }

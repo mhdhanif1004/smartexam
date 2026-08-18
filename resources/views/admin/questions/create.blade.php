@@ -54,6 +54,12 @@
                 </div>
             </div>
 
+            {{-- Kelas Target --}}
+            @include('admin.questions.partials.classroom-picker', [
+                'classrooms' => $classrooms,
+                'selected' => old('classroom_ids', []),
+            ])
+
             {{-- Gambar Soal --}}
             <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Gambar Soal</h3>

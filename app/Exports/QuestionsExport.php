@@ -30,7 +30,7 @@ class QuestionsExport implements FromCollection, WithColumnWidths, WithEvents, W
      */
     public function headings(): array
     {
-        return ['Mata Pelajaran', 'Jenis', 'Pertanyaan', 'Opsi A', 'Opsi B', 'Opsi C', 'Opsi D', 'Opsi E', 'Jawaban', 'Bobot', 'Kiri', 'Kanan'];
+        return ['Mata Pelajaran', 'Jenis', 'Pertanyaan', 'Opsi A', 'Opsi B', 'Opsi C', 'Opsi D', 'Opsi E', 'Jawaban', 'Bobot', 'Kiri', 'Kanan', 'Kelas Target'];
     }
 
     /**
@@ -73,6 +73,7 @@ class QuestionsExport implements FromCollection, WithColumnWidths, WithEvents, W
             (float) $question->score_weight,
             $left,
             $right,
+            $question->classrooms->map(fn ($classroom) => $classroom->name)->join(', '),
         ];
     }
 
@@ -94,6 +95,7 @@ class QuestionsExport implements FromCollection, WithColumnWidths, WithEvents, W
             'J' => 8,
             'K' => 20,
             'L' => 20,
+            'M' => 28,
         ];
     }
 }

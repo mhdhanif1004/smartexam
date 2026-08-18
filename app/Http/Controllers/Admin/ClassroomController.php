@@ -59,7 +59,7 @@ class ClassroomController extends Controller
 
     public function destroy(Classroom $classroom): RedirectResponse
     {
-        $studentsCount = Student::query()->where('class_name', $classroom->name)->count();
+        $studentsCount = Student::query()->where('classroom_id', $classroom->id)->count();
 
         if ($studentsCount > 0) {
             return redirect()->route('admin.classrooms.index')
@@ -75,18 +75,16 @@ class ClassroomController extends Controller
 
     /**
      * Ubah nama kelas sekaligus sinkronkan class_name semua siswa yang
-     * terhubung, supaya tidak ada siswa yang menjadi "yatim" (tidak match
-     * dengan master data kelas).
+     * terhubung via classroom_id, supaya tidak ada siswa yang "yatim" (nama
+     * kelasnya tidak match dengan master data kelas).
      */
     private function renameClass(Classroom $classroom, string $newName): void
     {
         DB::transaction(function () use ($classroom, $newName) {
-            $oldName = $classroom->name;
             $classroom->update(['name' => $newName]);
 
-            if ($oldName !== $newName) {
-                Student::query()->where('class_name', $oldName)->update(['class_name' => $newName]);
-            }
+            Student::query()->where('classroom_id', $classroom->id)
+                ->update(['class_name' => $newName]);
         });
     }
 }

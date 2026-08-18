@@ -111,6 +111,9 @@
                     @if (request('subject_id'))
                     params.set('subject_id', @js(request('subject_id')));
                     @endif
+                    @if (request('classroom_id'))
+                    params.set('classroom_id', @js(request('classroom_id')));
+                    @endif
                     @if (request('type'))
                     params.set('type', @js(request('type')));
                     @endif
@@ -127,6 +130,7 @@
                 step: 1,
                 type: '',
                 file: null,
+                classroomIds: [],
                 busy: false,
                 message: '',
                 result: null,
@@ -148,11 +152,13 @@
                 validate() {
                     if (!this.type) { this.message = 'Pilih jenis soal terlebih dahulu.'; return; }
                     if (!this.file) { this.message = 'Pilih file Excel/CSV terlebih dahulu.'; return; }
+                    if (this.classroomIds.length === 0) { this.message = 'Pilih minimal satu kelas target untuk soal yang diimpor.'; return; }
                     this.busy = true;
                     this.message = '';
                     const formData = new FormData();
                     formData.append('type', this.type);
                     formData.append('file', this.file);
+                    this.classroomIds.forEach((id) => formData.append('classroom_ids[]', id));
                     fetch(@js(route('admin.questions.import-validate')), {
                         method: 'POST',
                         body: formData,
@@ -191,10 +197,185 @@
                     this.step = 1;
                     this.type = '';
                     this.file = null;
+                    this.classroomIds = [];
                     this.busy = false;
                     this.message = '';
                     this.result = null;
                     this.finished = null;
+                },
+            },
+            subjectEdit: {
+                id: null,
+                name: '',
+                busy: false,
+                message: '',
+                open(id, name) {
+                    this.id = id;
+                    this.name = name;
+                    this.busy = false;
+                    this.message = '';
+                    window.dispatchEvent(new CustomEvent('open-modal', { detail: 'edit-subject' }));
+                },
+                save() {
+                    if (!this.name.trim()) { this.message = 'Nama mata pelajaran wajib diisi.'; return; }
+                    this.busy = true;
+                    this.message = '';
+                    const formData = new FormData();
+                    formData.append('_method', 'PATCH');
+                    formData.append('name', this.name);
+                    fetch(@js(route('admin.subjects.update-name', '__ID__')).replace('__ID__', this.id), {
+                        method: 'POST',
+                        body: formData,
+                        headers: { 'X-CSRF-TOKEN': @js(csrf_token()), 'Accept': 'application/json' },
+                    })
+                        .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+                        .then(({ ok, data }) => {
+                            if (ok) { window.location.reload(); return; }
+                            this.message = data.message || 'Gagal menyimpan nama mata pelajaran.';
+                        })
+                        .catch(() => { this.message = 'Terjadi kesalahan saat menyimpan.'; })
+                        .finally(() => { this.busy = false; });
+                },
+            },
+            subjectDelete: {
+                id: null,
+                name: '',
+                preview: null,
+                busy: false,
+                message: '',
+                async open(id, name) {
+                    this.id = id;
+                    this.name = name;
+                    this.preview = null;
+                    this.message = '';
+                    this.busy = true;
+                    try {
+                        const response = await fetch(@js(route('admin.subjects.delete-preview', '__ID__')).replace('__ID__', id), {
+                            headers: { 'X-CSRF-TOKEN': @js(csrf_token()), 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                        });
+                        this.preview = await response.json();
+                    } catch {
+                        this.preview = { questions_count: 0, exam_schedules_count: 0, exam_sessions_count: 0 };
+                    }
+                    this.busy = false;
+                    window.dispatchEvent(new CustomEvent('open-modal', { detail: 'delete-subject' }));
+                },
+                get mode() {
+                    if (!this.preview) return 'simple';
+                    if (this.preview.exam_sessions_count > 0) return 'blocked';
+                    if (this.preview.questions_count > 0 || this.preview.exam_schedules_count > 0) return 'warning';
+                    return 'simple';
+                },
+                confirm() {
+                    this.busy = true;
+                    this.message = '';
+                    fetch(@js(route('admin.subjects.destroy', '__ID__')).replace('__ID__', this.id), {
+                        method: 'DELETE',
+                        headers: { 'X-CSRF-TOKEN': @js(csrf_token()), 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    })
+                        .then((response) => {
+                            if (response.ok || response.redirected) { window.location.reload(); return; }
+                            return response.json().then((data) => { this.message = data.message || data.error || 'Gagal menghapus mata pelajaran.'; });
+                        })
+                        .catch(() => { this.message = 'Terjadi kesalahan saat menghapus.'; })
+                        .finally(() => { this.busy = false; });
+                },
+            },
+            expandedGroupIds: [],
+            groupQuestionIds: @js($preloadedQuestionIds),
+            isGroupExpanded(id) { return this.expandedGroupIds.includes(id); },
+            toggleGroup(id) {
+                const index = this.expandedGroupIds.indexOf(id);
+                if (index === -1) {
+                    this.expandedGroupIds.push(id);
+                } else {
+                    this.expandedGroupIds.splice(index, 1);
+                }
+            },
+            groupEdit: {
+                classroomIds: [],
+                questionCount: 0,
+                questionIds: [],
+                busy: false,
+                message: '',
+                open(classroomIds, questionCount, questionIds) {
+                    this.classroomIds = classroomIds.slice();
+                    this.questionCount = questionCount;
+                    this.questionIds = questionIds;
+                    this.busy = false;
+                    this.message = '';
+                    window.dispatchEvent(new CustomEvent('open-modal', { detail: 'edit-group-classrooms' }));
+                },
+                save() {
+                    if (this.classroomIds.length === 0) { this.message = 'Pilih minimal satu kelas target.'; return; }
+                    this.busy = true;
+                    this.message = '';
+                    const formData = new FormData();
+                    formData.append('_method', 'PATCH');
+                    this.questionIds.forEach((id) => formData.append('question_ids[]', id));
+                    this.classroomIds.forEach((id) => formData.append('classroom_ids[]', id));
+                    fetch(@js(route('admin.questions.bulk-classrooms')), {
+                        method: 'POST',
+                        body: formData,
+                        headers: { 'X-CSRF-TOKEN': @js(csrf_token()), 'Accept': 'application/json' },
+                    })
+                        .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+                        .then(({ ok, data }) => {
+                            if (ok) { window.location.reload(); return; }
+                            this.message = data.message || 'Gagal menyimpan kelas target.';
+                        })
+                        .catch(() => { this.message = 'Terjadi kesalahan saat menyimpan.'; })
+                        .finally(() => { this.busy = false; });
+                },
+            },
+            groupDelete: {
+                questionIds: [],
+                groupLabel: '',
+                preview: null,
+                busy: false,
+                message: '',
+                async open(questionIds, groupLabel) {
+                    this.questionIds = questionIds;
+                    this.groupLabel = groupLabel;
+                    this.preview = null;
+                    this.message = '';
+                    this.busy = true;
+                    try {
+                        const formData = new FormData();
+                        questionIds.forEach((id) => formData.append('question_ids[]', id));
+                        const response = await fetch(@js(route('admin.questions.group-delete-preview')), {
+                            method: 'POST',
+                            body: formData,
+                            headers: { 'X-CSRF-TOKEN': @js(csrf_token()), 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                        });
+                        this.preview = await response.json();
+                    } catch {
+                        this.preview = { questions_count: 0, answered_count: 0 };
+                    }
+                    this.busy = false;
+                    window.dispatchEvent(new CustomEvent('open-modal', { detail: 'delete-group' }));
+                },
+                get mode() {
+                    if (!this.preview) return 'simple';
+                    if (this.preview.answered_count > 0) return 'blocked';
+                    return 'warning';
+                },
+                confirm() {
+                    this.busy = true;
+                    this.message = '';
+                    const formData = new FormData();
+                    this.questionIds.forEach((id) => formData.append('ids[]', id));
+                    fetch(@js(route('admin.questions.bulk-delete')), {
+                        method: 'POST',
+                        body: formData,
+                        headers: { 'X-CSRF-TOKEN': @js(csrf_token()), 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    })
+                        .then((response) => {
+                            if (response.ok || response.redirected) { window.location.reload(); return; }
+                            return response.json().then((data) => { this.message = data.message || 'Gagal menghapus soal.'; });
+                        })
+                        .catch(() => { this.message = 'Terjadi kesalahan saat menghapus.'; })
+                        .finally(() => { this.busy = false; });
                 },
             },
         }"
@@ -238,7 +419,15 @@
                 <select name="subject_id" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 lg:w-auto">
                     <option value="">Semua Mata Pelajaran</option>
                     @foreach ($allSubjects as $subject)
-                        <option value="{{ $subject->id }}" @selected(request('subject_id') == $subject->id)>{{ $subject->name }}{{ filled($subject->class_label) ? ' (Kelas '.$subject->class_label.')' : '' }}</option>
+                        <option value="{{ $subject->id }}" @selected(request('subject_id') == $subject->id)>{{ $subject->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <select name="classroom_id" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 lg:w-auto">
+                    <option value="">Semua Kelas Target</option>
+                    @foreach ($classrooms as $classroom)
+                        <option value="{{ $classroom->id }}" @selected(request('classroom_id') == $classroom->id)>{{ $classroom->name }}</option>
                     @endforeach
                 </select>
             </div>
@@ -259,7 +448,7 @@
             </div>
             <div class="flex gap-2">
                 <button type="submit" class="inline-flex items-center rounded-lg bg-gray-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-700">Cari</button>
-                @if (request('search') || request('subject_id') || request('type') || request('status'))
+                @if (request('search') || request('subject_id') || request('classroom_id') || request('type') || request('status'))
                     <a href="{{ route('admin.questions.index') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Reset</a>
                 @endif
             </div>
@@ -303,9 +492,12 @@
         <div class="space-y-3">
             @forelse ($subjects as $subject)
                 <div x-ref="accordion-{{ $subject->id }}" class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <button
-                        type="button"
+                    <div
+                        role="button"
+                        tabindex="0"
                         @click="toggleAccordion({{ $subject->id }})"
+                        @keydown.enter="toggleAccordion({{ $subject->id }})"
+                        @keydown.space.prevent="toggleAccordion({{ $subject->id }})"
                         :aria-expanded="isExpanded({{ $subject->id }})"
                         class="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
                     >
@@ -314,16 +506,27 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                             </svg>
                             <span class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $subject->name }}</span>
-                            @if (filled($subject->class_label))
-                                <span class="shrink-0 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">Kelas {{ $subject->class_label }}</span>
-                            @endif
                             <span class="shrink-0 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $subject->questions_count }} soal</span>
+                            @php
+                                $subjectClasses = $subjectClassrooms[$subject->id] ?? [];
+                            @endphp
+                            @if(count($subjectClasses) > 0)
+                                <span class="hidden shrink-0 text-xs text-gray-400 dark:text-gray-500 sm:inline">· Kelas: {{ implode(', ', array_slice($subjectClasses, 0, 3)) }}{{ count($subjectClasses) > 3 ? ' +' . (count($subjectClasses) - 3) . ' lainnya' : '' }}</span>
+                            @endif
                         </span>
-                        <span x-show="isLoading({{ $subject->id }})" class="flex shrink-0 items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
-                            <span class="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-indigo-600 dark:border-gray-600 dark:border-t-indigo-400"></span>
-                            Memuat...
+                        <span class="flex shrink-0 items-center gap-2">
+                            <span x-show="isLoading({{ $subject->id }})" class="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
+                                <span class="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-indigo-600 dark:border-gray-600 dark:border-t-indigo-400"></span>
+                                Memuat...
+                            </span>
+                            <button type="button" @click.stop="subjectEdit.open({{ $subject->id }}, @js($subject->name))" title="Edit nama mata pelajaran" class="inline-flex items-center rounded-md bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20">
+                                Edit
+                            </button>
+                            <button type="button" @click.stop="subjectDelete.open({{ $subject->id }}, @js($subject->name))" title="Hapus mata pelajaran" class="inline-flex items-center rounded-md bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20">
+                                Hapus
+                            </button>
                         </span>
-                    </button>
+                    </div>
 
                     <div x-show="isExpanded({{ $subject->id }})" x-transition x-cloak>
                         <div x-show="isLoading({{ $subject->id }})" class="flex items-center justify-center gap-2 border-t border-gray-200 px-4 py-8 text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
@@ -335,7 +538,7 @@
                         </div>
                         <div x-show="!isLoading({{ $subject->id }}) && hasList({{ $subject->id }})" class="border-t border-gray-200 dark:border-gray-800">
                             <div x-ref="body-{{ $subject->id }}">
-                                {!! $preloadedLists[$subject->id] ?? '' !!}
+                                {!! $preloadedGroupHtml[$subject->id] ?? '' !!}
                             </div>
                         </div>
                     </div>
@@ -392,7 +595,7 @@
                         <select id="bulk-subject" name="subject_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                             <option value="">-- Biarkan Tidak Berubah --</option>
                             @foreach ($allSubjects as $subject)
-                                <option value="{{ $subject->id }}">{{ $subject->name }}{{ filled($subject->class_label) ? ' (Kelas '.$subject->class_label.')' : '' }}</option>
+                                <option value="{{ $subject->id }}">{{ $subject->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -580,6 +783,15 @@
                             </div>
                         </div>
 
+                        <div>
+                            @include('admin.questions.partials.classroom-picker', [
+                                'classrooms' => $classrooms,
+                                'selected' => [],
+                                'bind' => 'importState.classroomIds',
+                                'description' => 'Berlaku untuk semua soal dalam file ini. Wajib minimal satu kelas — soal tanpa kelas target tidak akan muncul di ujian manapun.',
+                            ])
+                        </div>
+
                         <div class="rounded-lg border-2 border-dashed border-gray-300 p-6 text-center dark:border-gray-600">
                             <input
                                 type="file"
@@ -654,7 +866,7 @@
                 <div class="mt-6 flex justify-end gap-3">
                     <x-secondary-button x-on:click="$dispatch('close')">Batal</x-secondary-button>
                     <template x-if="importState.step === 1">
-                        <button type="button" @click="importState.validate()" :disabled="importState.busy || !importState.file" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">
+                        <button type="button" @click="importState.validate()" :disabled="importState.busy || !importState.file || importState.classroomIds.length === 0" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">
                             <span x-show="importState.busy" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
                             Validasi & Lanjutkan
                         </button>
@@ -678,5 +890,212 @@
                 </div>
             </div>
         </x-modal>
+
+        <x-modal name="edit-subject" maxWidth="lg">
+            <div class="p-6">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Mata Pelajaran</h2>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Perbarui nama mata pelajaran.</p>
+                    </div>
+                    <button type="button" @click="$dispatch('close')" class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <div x-show="subjectEdit.message !== ''" x-transition class="mt-4 flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-500/10 dark:text-rose-300">
+                    <p x-text="subjectEdit.message"></p>
+                </div>
+
+                <div class="mt-5">
+                    <label for="subject-edit-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nama Mata Pelajaran</label>
+                    <input type="text" id="subject-edit-name" x-model="subjectEdit.name" class="mt-1 block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" placeholder="contoh: Matematika Lanjut" required>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-3">
+                    <x-secondary-button x-on:click="$dispatch('close')">Batal</x-secondary-button>
+                    <button type="button" @click="subjectEdit.save()" :disabled="subjectEdit.busy" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">
+                        <span x-show="subjectEdit.busy" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+                        Simpan
+                    </button>
+                </div>
+            </div>
+        </x-modal>
+
+        <x-modal name="delete-subject" maxWidth="lg">
+            <div class="p-6">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Hapus Mata Pelajaran</h2>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Konfirmasi penghapusan <span x-text="subjectDelete.name" class="font-semibold"></span>.</p>
+                    </div>
+                    <button type="button" @click="$dispatch('close')" class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                {{-- Loading state --}}
+                <div x-show="subjectDelete.busy && !subjectDelete.preview" class="mt-6 flex items-center justify-center gap-2 py-6 text-sm text-gray-500 dark:text-gray-400">
+                    <span class="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-indigo-600 dark:border-gray-600 dark:border-t-indigo-400"></span>
+                    Memeriksa data terkait...
+                </div>
+
+                {{-- Mode A: BLOKIR (ada histori ujian) --}}
+                <div x-show="subjectDelete.preview && subjectDelete.mode === 'blocked'" x-transition class="mt-5">
+                    <div class="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-500/10 dark:text-rose-300">
+                        <svg class="h-5 w-5 shrink-0 text-rose-500 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                        <div>
+                            <p class="font-semibold">Mata pelajaran ini tidak dapat dihapus.</p>
+                            <p class="mt-1">Sudah terdapat <strong x-text="subjectDelete.preview?.exam_sessions_count"></strong> sesi ujian terkait. Data histori siswa harus terjaga untuk integritas laporan.</p>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <a :href="route('admin.reports.index') + '?subject_id=' + subjectDelete.id" class="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">
+                            Lihat Sesi Ujian Terkait
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
+                        </a>
+                    </div>
+                </div>
+
+                {{-- Mode B: WARNING (ada data terkait, belum ada histori ujian) --}}
+                <div x-show="subjectDelete.preview && subjectDelete.mode === 'warning'" x-transition class="mt-5">
+                    <div class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                        <svg class="h-5 w-5 shrink-0 text-amber-500 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                        <div>
+                            <p class="font-semibold">Tindakan ini akan menghapus data terkait secara permanen.</p>
+                            <ul class="mt-1 list-inside list-disc text-amber-700 dark:text-amber-400">
+                                <li x-show="subjectDelete.preview?.questions_count > 0"><span x-text="subjectDelete.preview?.questions_count"></span> soal dihapus permanen</li>
+                                <li x-show="subjectDelete.preview?.exam_schedules_count > 0"><span x-text="subjectDelete.preview?.exam_schedules_count"></span> jadwal ujian dihapus permanen</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Mode C: SIMPLE (tidak ada data terkait) --}}
+                <div x-show="subjectDelete.preview && subjectDelete.mode === 'simple'" x-transition class="mt-5">
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Mata pelajaran ini belum memiliki soal atau jadwal ujian. Hapus permanen?</p>
+                </div>
+
+                <div x-show="subjectDelete.message !== ''" x-transition class="mt-4 flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-500/10 dark:text-rose-300">
+                    <p x-text="subjectDelete.message"></p>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-3">
+                    <x-secondary-button x-on:click="$dispatch('close')">Batal</x-secondary-button>
+                    <button
+                        type="button"
+                        x-show="subjectDelete.mode !== 'blocked'"
+                        @click="subjectDelete.confirm()"
+                        :disabled="subjectDelete.busy"
+                        class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50"
+                        :class="subjectDelete.mode === 'warning' ? 'bg-amber-600 hover:bg-amber-500' : 'bg-rose-600 hover:bg-rose-500'"
+                    >
+                        <span x-show="subjectDelete.busy" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+                        Ya, Hapus
+                    </button>
+                    <button type="button" x-show="subjectDelete.mode === 'blocked'" @click="$dispatch('close')" class="inline-flex items-center rounded-lg bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                        Tutup
+                    </button>
+                </div>
+            </div>
+        </x-modal>
+
+        <x-modal name="edit-group-classrooms" maxWidth="lg">
+            <div class="p-6">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Target Kelas Grup</h2>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Ubah kelas target untuk <span x-text="groupEdit.questionCount" class="font-bold"></span> soal dalam grup ini sekaligus.</p>
+                    </div>
+                    <button type="button" @click="$dispatch('close')" class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <div x-show="groupEdit.message !== ''" x-transition class="mt-4 flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-500/10 dark:text-rose-300">
+                    <p x-text="groupEdit.message"></p>
+                </div>
+
+                <div class="mt-5">
+                    @include('admin.questions.partials.classroom-picker', [
+                        'classrooms' => $classrooms,
+                        'selected' => [],
+                        'bind' => 'groupEdit.classroomIds',
+                        'description' => 'Semua soal dalam grup ini akan ditarget ke kombinasi kelas baru yang dipilih.',
+                    ])
+                </div>
+
+                <div class="mt-6 flex justify-end gap-3">
+                    <x-secondary-button x-on:click="$dispatch('close')">Batal</x-secondary-button>
+                    <button type="button" @click="groupEdit.save()" :disabled="groupEdit.busy || groupEdit.classroomIds.length === 0" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">
+                        <span x-show="groupEdit.busy" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+                        Simpan
+                    </button>
+                </div>
+            </div>
+        </x-modal>
+
+        <x-modal name="delete-group" maxWidth="lg">
+            <div class="p-6">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Hapus Grup Soal</h2>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Grup Kelas: <span x-text="groupDelete.groupLabel" class="font-semibold"></span></p>
+                    </div>
+                    <button type="button" @click="$dispatch('close')" class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <div x-show="groupDelete.busy && !groupDelete.preview" class="mt-6 flex items-center justify-center gap-2 py-6 text-sm text-gray-500 dark:text-gray-400">
+                    <span class="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-indigo-600 dark:border-gray-600 dark:border-t-indigo-400"></span>
+                    Memeriksa data terkait...
+                </div>
+
+                {{-- Mode A: BLOKIR --}}
+                <div x-show="groupDelete.preview && groupDelete.mode === 'blocked'" x-transition class="mt-5">
+                    <div class="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-500/10 dark:text-rose-300">
+                        <svg class="h-5 w-5 shrink-0 text-rose-500 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                        <div>
+                            <p class="font-semibold">Penghapusan grup ini diblokir.</p>
+                            <p class="mt-1"><strong x-text="groupDelete.preview?.answered_count"></strong> dari <strong x-text="groupDelete.preview?.questions_count"></strong> soal di grup ini sudah pernah dikerjakan siswa. Penghapusan diblokir untuk melindungi data ujian.</p>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Mode B: WARNING --}}
+                <div x-show="groupDelete.preview && groupDelete.mode === 'warning'" x-transition class="mt-5">
+                    <div class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                        <svg class="h-5 w-5 shrink-0 text-amber-500 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                        <div>
+                            <p class="font-semibold">Konfirmasi penghapusan</p>
+                            <p class="mt-1">Anda akan menghapus <strong x-text="groupDelete.preview?.questions_count"></strong> soal dalam grup ini secara permanen. Tindakan ini tidak dapat dibatalkan.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="groupDelete.message !== ''" x-transition class="mt-4 flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-500/10 dark:text-rose-300">
+                    <p x-text="groupDelete.message"></p>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-3">
+                    <x-secondary-button x-on:click="$dispatch('close')">Batal</x-secondary-button>
+                    <button
+                        type="button"
+                        x-show="groupDelete.mode !== 'blocked'"
+                        @click="groupDelete.confirm()"
+                        :disabled="groupDelete.busy"
+                        class="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <span x-show="groupDelete.busy" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+                        Ya, Hapus
+                    </button>
+                    <button type="button" x-show="groupDelete.mode === 'blocked'" @click="$dispatch('close')" class="inline-flex items-center rounded-lg bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                        Tutup
+                    </button>
+                </div>
+            </div>
+        </x-modal>
+
     </div>
 </x-layouts.admin>

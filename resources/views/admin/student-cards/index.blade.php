@@ -126,14 +126,20 @@
                 @else
                     <div x-data="{ selectAll: false }" class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <div class="flex flex-col gap-3 border-b border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
-<p class="text-sm text-gray-600 dark:text-gray-400">
-                            Menampilkan <strong>{{ $students->count() }}</strong> siswa {{ $selectedClass === 'all' ? 'dari semua kelas' : 'kelas <strong>' . $selectedClass . '</strong>' }}. Centang siswa tertentu, atau biarkan kosong untuk mencetak semua yang tampil.
-                        </p>
-                        <div class="flex flex-wrap items-center gap-3">
-                        <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                            <input type="checkbox" x-model="selectAll" @change="document.querySelectorAll('[data-student-id]').forEach(cb => cb.checked = $event.target.checked)" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
-                            Pilih Semua
-                        </label>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">
+                                @if ($selectedClass === 'all')
+                                    Menampilkan <strong>{{ $students->count() }}</strong> siswa dari semua kelas. Centang siswa satu per satu untuk dipreview/dicetak.
+                                @else
+                                    Menampilkan <strong>{{ $students->count() }}</strong> siswa kelas <strong>{{ $selectedClass }}</strong>. Centang siswa tertentu, atau biarkan kosong untuk mencetak semua yang tampil.
+                                @endif
+                            </p>
+                            <div class="flex flex-wrap items-center gap-3">
+                                @if ($selectedClass !== 'all')
+                                    <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                        <input type="checkbox" x-model="selectAll" @change="document.querySelectorAll('[data-student-id]').forEach(cb => cb.checked = $event.target.checked)" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
+                                        Pilih Semua
+                                    </label>
+                                @endif
                                 <button type="submit" form="card-form" formaction="{{ route('admin.student-cards.preview') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
                                     Pratinjau
                                 </button>

@@ -86,6 +86,18 @@ class PesertaModuleTest extends TestCase
         ]);
     }
 
+    /**
+     * Buat soal untuk mapel ujian yang ditargetkan ke kelas siswa. Tanpa
+     * pivot question_classroom, soal tidak akan pernah muncul di ujian.
+     */
+    private function questionForExam(array $attributes = []): Question
+    {
+        $question = Question::factory()->create(array_merge(['subject_id' => $this->subject->id], $attributes));
+        $question->classrooms()->sync($this->student->classroom_id);
+
+        return $question;
+    }
+
     private function confirmAttendance(): ExamSession
     {
         return ExamSession::create([
@@ -175,7 +187,7 @@ class PesertaModuleTest extends TestCase
     public function test_valid_token_starts_session(): void
     {
         $this->confirmAttendance();
-        Question::factory()->create(['subject_id' => $this->subject->id]);
+        $this->questionForExam();
         $token = $this->validToken($this->schedule);
 
         $this->actingAs($this->user)->post(route('peserta.exams.token.validate', $this->schedule->id), [
@@ -331,15 +343,13 @@ class PesertaModuleTest extends TestCase
     public function test_work_page_does_not_leak_answer_key(): void
     {
         $this->beginSession();
-        Question::factory()->create([
-            'subject_id' => $this->subject->id,
+        $this->questionForExam([
             'type' => Question::TYPE_SINGLE_CHOICE,
             'question_text' => 'Soal rahasia nomor satu?',
             'options' => ['A' => 'Pilihan satu', 'B' => 'Pilihan dua'],
             'answer_key' => 'A',
         ]);
-        Question::factory()->create([
-            'subject_id' => $this->subject->id,
+        $this->questionForExam([
             'type' => Question::TYPE_ESSAY,
             'question_text' => 'Tuliskan jawabanmu?',
             'answer_key' => 'KUNCI-RAHASIA-ESSAY',
@@ -356,8 +366,7 @@ class PesertaModuleTest extends TestCase
     public function test_exam_work_page_hides_portal_header_and_sidebar(): void
     {
         $this->beginSession();
-        Question::factory()->create([
-            'subject_id' => $this->subject->id,
+        $this->questionForExam([
             'type' => Question::TYPE_SINGLE_CHOICE,
             'options' => ['A' => 'Pilihan A', 'B' => 'Pilihan B'],
             'answer_key' => 'A',
@@ -394,8 +403,7 @@ class PesertaModuleTest extends TestCase
     public function test_save_answer_persists_and_ignores_foreign_question(): void
     {
         $session = $this->beginSession();
-        $question = Question::factory()->create([
-            'subject_id' => $this->subject->id,
+        $question = $this->questionForExam([
             'type' => Question::TYPE_SINGLE_CHOICE,
             'options' => ['A' => 'Apa', 'B' => 'Bapa'],
             'answer_key' => 'A',
@@ -448,28 +456,24 @@ class PesertaModuleTest extends TestCase
     {
         $session = $this->beginSession();
 
-        $single = Question::factory()->create([
-            'subject_id' => $this->subject->id,
+        $single = $this->questionForExam([
             'type' => Question::TYPE_SINGLE_CHOICE,
             'options' => ['A' => 'Opsi A', 'B' => 'Opsi B'],
             'answer_key' => 'A',
             'score_weight' => 10,
         ]);
-        $trueFalse = Question::factory()->create([
-            'subject_id' => $this->subject->id,
+        $trueFalse = $this->questionForExam([
             'type' => Question::TYPE_TRUE_FALSE,
             'answer_key' => true,
             'score_weight' => 5,
         ]);
-        $multiple = Question::factory()->create([
-            'subject_id' => $this->subject->id,
+        $multiple = $this->questionForExam([
             'type' => Question::TYPE_MULTIPLE_CHOICE,
             'options' => ['A' => 'Opsi A', 'B' => 'Opsi B', 'C' => 'Opsi C'],
             'answer_key' => ['A', 'C'],
             'score_weight' => 15,
         ]);
-        $essay = Question::factory()->create([
-            'subject_id' => $this->subject->id,
+        $essay = $this->questionForExam([
             'type' => Question::TYPE_ESSAY,
             'answer_key' => 'kunci essay',
             'score_weight' => 20,
@@ -637,8 +641,7 @@ class PesertaModuleTest extends TestCase
     public function test_reset_answer_keeps_row_when_doubtful(): void
     {
         $session = $this->beginSession();
-        $question = Question::factory()->create([
-            'subject_id' => $this->subject->id,
+        $question = $this->questionForExam([
             'type' => Question::TYPE_SINGLE_CHOICE,
             'options' => ['A' => 'Opsi A', 'B' => 'Opsi B'],
             'answer_key' => 'A',
@@ -669,14 +672,12 @@ class PesertaModuleTest extends TestCase
     public function test_reset_answer_deletes_non_doubtful_rows(): void
     {
         $session = $this->beginSession();
-        $single = Question::factory()->create([
-            'subject_id' => $this->subject->id,
+        $single = $this->questionForExam([
             'type' => Question::TYPE_SINGLE_CHOICE,
             'options' => ['A' => 'Opsi A', 'B' => 'Opsi B'],
             'answer_key' => 'A',
         ]);
-        $matching = Question::factory()->create([
-            'subject_id' => $this->subject->id,
+        $matching = $this->questionForExam([
             'type' => Question::TYPE_MATCHING,
             'options' => ['left' => ['Kiri 1', 'Kiri 2'], 'right' => ['Kanan 1', 'Kanan 2']],
             'answer_key' => ['A' => '1', 'B' => '2'],
@@ -705,8 +706,7 @@ class PesertaModuleTest extends TestCase
     public function test_reset_answer_after_completion_is_rejected(): void
     {
         $session = $this->beginSession();
-        $question = Question::factory()->create([
-            'subject_id' => $this->subject->id,
+        $question = $this->questionForExam([
             'type' => Question::TYPE_ESSAY,
             'answer_key' => 'kunci essay',
         ]);

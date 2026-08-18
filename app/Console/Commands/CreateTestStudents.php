@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Classroom;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -53,6 +54,7 @@ class CreateTestStudents extends Command
         }
 
         $newUsernames = array_column($users, 'username');
+        $loadTestClassId = Classroom::idForName('X LT 1');
         $students = DB::table('users')
             ->whereIn('username', $newUsernames)
             ->get(['id', 'username'])
@@ -60,6 +62,7 @@ class CreateTestStudents extends Command
                 'user_id' => $user->id,
                 'nisn' => sprintf('%010d', 2000000000 + $user->id),
                 'class_name' => 'X LT 1',
+                'classroom_id' => $loadTestClassId,
                 'created_at' => $now,
                 'updated_at' => $now,
             ])

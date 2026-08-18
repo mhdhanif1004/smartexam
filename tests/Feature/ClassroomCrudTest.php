@@ -23,8 +23,8 @@ class ClassroomCrudTest extends TestCase
 
     public function test_admin_can_view_classroom_index_with_student_count(): void
     {
-        Classroom::create(['name' => 'XI RPL 1']);
-        Student::factory()->count(2)->create(['class_name' => 'XI RPL 1']);
+        $classroom = Classroom::create(['name' => 'XI RPL 1']);
+        Student::factory()->count(2)->create(['class_name' => 'XI RPL 1', 'classroom_id' => $classroom->id]);
 
         $this->actingAs($this->admin)
             ->get(route('admin.classrooms.index'))
@@ -97,7 +97,7 @@ class ClassroomCrudTest extends TestCase
     public function test_updating_classroom_renames_connected_students(): void
     {
         $classroom = Classroom::create(['name' => 'XI RPL 1']);
-        Student::factory()->create(['class_name' => 'XI RPL 1']);
+        Student::factory()->create(['class_name' => 'XI RPL 1', 'classroom_id' => $classroom->id]);
 
         $this->actingAs($this->admin)
             ->put(route('admin.classrooms.update', $classroom), ['name' => 'XI RPL 1A'])
@@ -133,7 +133,7 @@ class ClassroomCrudTest extends TestCase
     public function test_classroom_with_students_cannot_be_deleted(): void
     {
         $classroom = Classroom::create(['name' => 'XI RPL 1']);
-        Student::factory()->count(3)->create(['class_name' => 'XI RPL 1']);
+        Student::factory()->count(3)->create(['class_name' => 'XI RPL 1', 'classroom_id' => $classroom->id]);
 
         $this->actingAs($this->admin)
             ->from(route('admin.classrooms.index'))

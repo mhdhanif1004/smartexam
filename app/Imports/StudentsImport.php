@@ -7,17 +7,20 @@ use App\Models\Student;
 use App\Models\User;
 use App\Services\CredentialGenerator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithBatchInserts;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
-use Maatwebsite\Excel\Events\BeforeImport;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Throwable;
 
-class StudentsImport implements ToCollection, WithEvents, WithHeadingRow
+class StudentsImport implements ToCollection, WithBatchInserts, WithChunkReading, WithEvents, WithHeadingRow
 {
     public string $headerError = '';
 
@@ -48,6 +51,16 @@ class StudentsImport implements ToCollection, WithEvents, WithHeadingRow
      */
     public array $newClasses = [];
 
+    public function chunkSize(): int
+    {
+        return 500;
+    }
+
+    public function batchSize(): int
+    {
+        return 500;
+    }
+
     private const NISN_ALIASES = ['nisn', 'no_induk', 'nomor_induk', 'student_id', 'no_peserta'];
 
     private const NAME_ALIASES = ['nama', 'nama_lengkap', 'nama_siswa', 'name', 'student_name', 'nama_murid'];
@@ -56,11 +69,7 @@ class StudentsImport implements ToCollection, WithEvents, WithHeadingRow
 
     public function registerEvents(): array
     {
-        return [
-            BeforeImport::class => function (BeforeImport $event) {
-                $this->detectHeaders($event->getReader()->getActiveSheet());
-            },
-        ];
+        return [];
     }
 
     public function collection(Collection $rows): void
@@ -81,12 +90,14 @@ class StudentsImport implements ToCollection, WithEvents, WithHeadingRow
             return;
         }
 
-        $seenNisns = [];
+        // First pass: collect all valid NISNs and class names from this chunk
+        $chunkNisns = [];
+        $chunkClassNames = [];
+        $rowDataList = [];
 
         foreach ($rows as $index => $row) {
             $rowData = is_array($row) ? $row : $row->toArray();
             $rowNumber = $index + 2;
-            $errors = [];
 
             $nisn = $this->normalizeNisn($rowData[$nisnKey] ?? null);
             $name = $this->normalizeText($rowData[$nameKey] ?? null);
@@ -95,6 +106,51 @@ class StudentsImport implements ToCollection, WithEvents, WithHeadingRow
             if ($nisn === '' && $name === '' && $className === '') {
                 continue;
             }
+
+            $rowDataList[] = [
+                'rowNumber' => $rowNumber,
+                'nisn' => $nisn,
+                'name' => $name,
+                'className' => $className,
+                'rawNisn' => $this->displayValue($rowData[$nisnKey] ?? null),
+                'rawName' => $this->displayValue($rowData[$nameKey] ?? null),
+                'rawClassName' => $this->displayValue($rowData[$classKey] ?? null),
+            ];
+
+            if ($nisn !== '') {
+                $chunkNisns[] = $nisn;
+            }
+            if ($className !== '') {
+                $chunkClassNames[] = $className;
+            }
+        }
+
+        if (empty($rowDataList)) {
+            return;
+        }
+
+        // Batch query: get existing NISNs in DB (single query)
+        $existingNisns = Student::query()
+            ->whereIn('nisn', $chunkNisns)
+            ->pluck('nisn')
+            ->flip()
+            ->toArray();
+
+        // Batch query: get existing class names in DB (single query)
+        $existingClasses = Classroom::query()
+            ->whereIn('name', $chunkClassNames)
+            ->pluck('name')
+            ->flip()
+            ->toArray();
+
+        $seenNisns = [];
+
+        foreach ($rowDataList as $data) {
+            $rowNumber = $data['rowNumber'];
+            $nisn = $data['nisn'];
+            $name = $data['name'];
+            $className = $data['className'];
+            $errors = [];
 
             if ($nisn === '') {
                 $errors[] = 'NISN wajib diisi.';
@@ -116,9 +172,9 @@ class StudentsImport implements ToCollection, WithEvents, WithHeadingRow
                 $this->invalidRows[] = [
                     'row' => $rowNumber,
                     'data' => [
-                        'nisn' => $nisn !== '' ? $nisn : $this->displayValue($rowData[$nisnKey] ?? null),
-                        'name' => $name !== '' ? $name : $this->displayValue($rowData[$nameKey] ?? null),
-                        'class_name' => $className !== '' ? $className : $this->displayValue($rowData[$classKey] ?? null),
+                        'nisn' => $nisn !== '' ? $nisn : $data['rawNisn'],
+                        'name' => $name !== '' ? $name : $data['rawName'],
+                        'class_name' => $className !== '' ? $className : $data['rawClassName'],
                     ],
                     'errors' => $errors,
                 ];
@@ -128,7 +184,8 @@ class StudentsImport implements ToCollection, WithEvents, WithHeadingRow
 
             $seenNisns[$nisn] = $rowNumber;
 
-            $mode = $this->estimateMode($nisn);
+            // Check if NISN exists in DB (from batch query result)
+            $mode = isset($existingNisns[$nisn]) ? 'update' : 'create';
             $mode === 'create' ? $this->toCreate++ : $this->toUpdate++;
 
             $this->validRows[] = [
@@ -139,26 +196,198 @@ class StudentsImport implements ToCollection, WithEvents, WithHeadingRow
                 'mode' => $mode,
             ];
 
-            // Baris valid memakai kelas yang belum ada di master data, jadi
-            // nama kelas itu dikumpulkan untuk dibuat otomatis nanti saat
-            // impor dikonfirmasi (dide-duplikasi agar tidak dua kali).
-            if (! Classroom::query()->where('name', $className)->exists()
-                && ! in_array($className, $this->newClasses, true)) {
+            // Collect new class names (not in DB, not already in newClasses)
+            if (! isset($existingClasses[$className]) && ! in_array($className, $this->newClasses, true)) {
                 $this->newClasses[] = $className;
             }
         }
     }
 
     /**
-     * Perkirakan mode untuk sebuah NISN: 'update' jika sudah ada di DB.
+     * Simpan semua baris valid sekaligus menggunakan batch operations.
+     *
+     * @return array{created:int, updated:int, errors:list<string>}
      */
-    public function estimateMode(string $nisn): string
+    public function persistRows(): array
     {
-        return Student::query()->where('nisn', $nisn)->exists() ? 'update' : 'create';
+        $result = ['created' => 0, 'updated' => 0, 'errors' => []];
+
+        if (empty($this->validRows)) {
+            return $result;
+        }
+
+        // Separate create and update rows
+        $createRows = [];
+        $updateRows = [];
+
+        foreach ($this->validRows as $validRow) {
+            if ($validRow['mode'] === 'create') {
+                $createRows[] = $validRow;
+            } else {
+                $updateRows[] = $validRow;
+            }
+        }
+
+        // Batch create: create users first, then students
+        if (! empty($createRows)) {
+            try {
+                $created = $this->batchCreate($createRows);
+                $result['created'] += $created;
+            } catch (Throwable $e) {
+                // Fallback to individual processing for error tracking
+                foreach ($createRows as $validRow) {
+                    try {
+                        if ($this->upsertRow($validRow)) {
+                            $result['created']++;
+                        }
+                    } catch (Throwable $ex) {
+                        $result['errors'][] = "Baris {$validRow['row']}: {$ex->getMessage()}";
+                    }
+                }
+            }
+        }
+
+        // Batch update
+        if (! empty($updateRows)) {
+            try {
+                $updated = $this->batchUpdate($updateRows);
+                $result['updated'] += $updated;
+            } catch (Throwable $e) {
+                // Fallback to individual processing for error tracking
+                foreach ($updateRows as $validRow) {
+                    try {
+                        if (! $this->upsertRow($validRow)) {
+                            $result['updated']++;
+                        }
+                    } catch (Throwable $ex) {
+                        $result['errors'][] = "Baris {$validRow['row']}: {$ex->getMessage()}";
+                    }
+                }
+            }
+        }
+
+        return $result;
     }
 
     /**
-     * Simpan satu baris valid. Return true = create, false = update.
+     * Batch create new students with users.
+     */
+    private function batchCreate(array $createRows): int
+    {
+        return DB::transaction(function () use ($createRows) {
+            $generator = app(CredentialGenerator::class);
+
+            // Create users in batch
+            $usersData = [];
+            foreach ($createRows as $row) {
+                $password = $generator->password();
+                $username = $generator->username();
+                $usersData[] = [
+                    'name' => $row['name'],
+                    'username' => $username,
+                    'password' => Hash::make($password),
+                    'plain_password' => Crypt::encryptString($password),
+                    'role' => User::ROLE_PESERTA,
+                    'is_active' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            // Insert users and get IDs
+            DB::table('users')->insert($usersData);
+
+            // Get the inserted user IDs
+            $usernames = array_column($usersData, 'username');
+            $users = User::query()
+                ->whereIn('username', $usernames)
+                ->orderBy('id')
+                ->get(['id', 'username'])
+                ->keyBy('username');
+
+            // Create students in batch
+            $studentsData = [];
+            foreach ($createRows as $index => $row) {
+                $username = $usersData[$index]['username'];
+                $userId = $users[$username]->id ?? null;
+
+                if ($userId) {
+                    $studentsData[] = [
+                        'user_id' => $userId,
+                        'nisn' => $row['nisn'],
+                        'class_name' => $row['class_name'],
+                        'classroom_id' => Classroom::idForName($row['class_name']),
+                        'room_id' => null,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+            }
+
+            if (! empty($studentsData)) {
+                DB::table('students')->insert($studentsData);
+            }
+
+            return count($studentsData);
+        });
+    }
+
+    /**
+     * Batch update existing students.
+     */
+    private function batchUpdate(array $updateRows): int
+    {
+        return DB::transaction(function () use ($updateRows) {
+            $nisns = array_column($updateRows, 'nisn');
+
+            // Get existing students with user_id
+            $students = Student::query()
+                ->whereIn('nisn', $nisns)
+                ->get(['id', 'nisn', 'user_id'])
+                ->keyBy('nisn');
+
+            // Batch update students
+            $studentsUpdates = [];
+            foreach ($updateRows as $row) {
+                $student = $students[$row['nisn']] ?? null;
+                if ($student) {
+                    $studentsUpdates[] = [
+                        'id' => $student->id,
+                        'class_name' => $row['class_name'],
+                        'classroom_id' => Classroom::idForName($row['class_name']),
+                        'updated_at' => now(),
+                    ];
+                }
+            }
+
+            if (! empty($studentsUpdates)) {
+                Student::upsert($studentsUpdates, ['id'], ['class_name', 'classroom_id', 'updated_at']);
+            }
+
+            // Batch update users
+            $userUpdates = [];
+            foreach ($updateRows as $row) {
+                $student = $students[$row['nisn']] ?? null;
+                if ($student && $student->user_id) {
+                    $userUpdates[] = [
+                        'id' => $student->user_id,
+                        'name' => $row['name'],
+                        'updated_at' => now(),
+                    ];
+                }
+            }
+
+            if (! empty($userUpdates)) {
+                User::upsert($userUpdates, ['id'], ['name', 'updated_at']);
+            }
+
+            return count($studentsUpdates);
+        });
+    }
+
+    /**
+     * Simpan satu baris valid (fallback untuk error handling per baris).
+     * Return true = create, false = update.
      */
     public function upsertRow(array $validRow): bool
     {
@@ -167,7 +396,10 @@ class StudentsImport implements ToCollection, WithEvents, WithHeadingRow
 
             if ($student) {
                 // Mode update: jangan sentuh username/password/room_id.
-                $student->update(['class_name' => $validRow['class_name']]);
+                $student->update([
+                    'class_name' => $validRow['class_name'],
+                    'classroom_id' => Classroom::idForName($validRow['class_name']),
+                ]);
                 $student->user?->update(['name' => $validRow['name']]);
 
                 return false;
@@ -191,6 +423,7 @@ class StudentsImport implements ToCollection, WithEvents, WithHeadingRow
                 'user_id' => $user->id,
                 'nisn' => $validRow['nisn'],
                 'class_name' => $validRow['class_name'],
+                'classroom_id' => Classroom::idForName($validRow['class_name']),
                 'room_id' => null,
             ]);
 
@@ -199,27 +432,12 @@ class StudentsImport implements ToCollection, WithEvents, WithHeadingRow
     }
 
     /**
-     * Simpan semua baris valid sekaligus.
-     *
-     * @return array{created:int, updated:int, errors:list<string>}
+     * Perkirakan mode untuk sebuah NISN: 'update' jika sudah ada di DB.
+     * (Ditahan untuk kompatibilitas, tapi sekarang dipakai batch query di collection())
      */
-    public function persistRows(): array
+    public function estimateMode(string $nisn): string
     {
-        $result = ['created' => 0, 'updated' => 0, 'errors' => []];
-
-        foreach ($this->validRows as $validRow) {
-            try {
-                if ($this->upsertRow($validRow)) {
-                    $result['created']++;
-                } else {
-                    $result['updated']++;
-                }
-            } catch (Throwable $e) {
-                $result['errors'][] = "Baris {$validRow['row']}: {$e->getMessage()}";
-            }
-        }
-
-        return $result;
+        return Student::query()->where('nisn', $nisn)->exists() ? 'update' : 'create';
     }
 
     /**

@@ -12,6 +12,7 @@ use App\Models\Room;
 use App\Models\Supervisor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -79,7 +80,13 @@ class SupervisorImportExportController extends Controller
             ], 422);
         }
 
-        session()->put('import_pending', $import);
+        // Store in cache with 10-minute TTL (avoid session encryption issues)
+        $cacheKey = 'import_pending_'.auth()->id();
+        Cache::put($cacheKey, [
+            'validRows' => $import->validRows,
+            'invalidRows' => $import->invalidRows,
+            'headerError' => $import->headerError,
+        ], now()->addMinutes(10));
 
         return response()->json([
             'ok' => true,
@@ -94,13 +101,19 @@ class SupervisorImportExportController extends Controller
 
     public function importConfirm(Request $request): JsonResponse
     {
-        $import = session()->pull('import_pending');
+        $cacheKey = 'import_pending_'.auth()->id();
+        $data = Cache::pull($cacheKey);
 
-        if (! $import instanceof SupervisorsImport) {
+        if (! is_array($data) || ! isset($data['validRows'])) {
             return response()->json([
                 'message' => 'Sesi import kadaluarsa, silakan upload ulang.',
             ], 422);
         }
+
+        // Reconstruct import object for persistRows()
+        $import = new SupervisorsImport;
+        $import->validRows = $data['validRows'];
+        $import->invalidRows = $data['invalidRows'];
 
         $result = $import->persistRows();
 

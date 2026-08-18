@@ -15,7 +15,6 @@ class Subject extends Model
     protected $fillable = [
         'code',
         'name',
-        'class_label',
         'default_duration_minutes',
     ];
 

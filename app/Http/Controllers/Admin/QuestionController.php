@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreQuestionRequest;
 use App\Http\Requests\Admin\UpdateQuestionRequest;
+use App\Models\Classroom;
 use App\Models\ExamAnswer;
 use App\Models\Question;
 use App\Models\Subject;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -31,6 +33,7 @@ class QuestionController extends Controller
 
         $hasFilter = $request->filled('search')
             || $request->filled('subject_id')
+            || $request->filled('classroom_id')
             || $request->filled('type')
             || $request->filled('status');
 
@@ -42,16 +45,16 @@ class QuestionController extends Controller
             $subjects = $subjects->where('questions_count', '>', 0)->values();
         }
 
-        // Saat filter aktif semua mapel yang tampil langsung di-expand, jadi tabelnya
-        // di-pre-render server agar tidak perlu request tambahan. Tanpa filter, tabel
-        // baru diambil lewat AJAX saat accordion pertama kali dibuka (lazy-load).
-        $preloadedLists = [];
+        // Saat filter aktif, preload grouped data per mapel. Tanpa filter,
+        // data diambil via AJAX saat accordion dibuka (lazy-load).
+        $preloadedGroupHtml = [];
         $preloadedQuestionIds = [];
         if ($hasFilter) {
             foreach ($subjects as $subject) {
                 $questions = $this->questionsForSubject($request, $subject->id);
-                $preloadedLists[$subject->id] = view('admin.questions.partials.question-table', [
-                    'questions' => $questions,
+                $grouped = $this->groupQuestionsByClassroom($questions);
+                $preloadedGroupHtml[$subject->id] = view('admin.questions.partials.question-groups', [
+                    'groups' => $grouped,
                     'subject' => $subject,
                     'search' => (string) $request->string('search')->trim(),
                 ])->render();
@@ -60,12 +63,24 @@ class QuestionController extends Controller
         }
 
         // Diteruskan ke endpoint by-subject agar filter yang sama ikut diterapkan saat lazy-load.
-        $filterQuery = http_build_query($request->only(['search', 'type', 'status']));
+        $filterQuery = http_build_query($request->only(['search', 'type', 'status', 'classroom_id']));
         $types = Question::TYPES;
 
         // Daftar lengkap mapel, tetap dipakai untuk dropdown filter & modal edit massal
         // (terpisah dari $subjects yang mungkin sudah disaring oleh filter aktif).
         $allSubjects = Subject::query()->orderBy('name')->get();
+
+        $classrooms = Classroom::query()->orderBy('name')->get();
+
+        // Distinct kelas target per subject (1 query, tanpa N+1).
+        $subjectClassrooms = DB::table('question_classroom')
+            ->join('questions', 'questions.id', '=', 'question_classroom.question_id')
+            ->join('classes', 'classes.id', '=', 'question_classroom.classroom_id')
+            ->select('questions.subject_id', 'classes.name')
+            ->distinct()
+            ->get()
+            ->groupBy('subject_id')
+            ->map(fn ($rows) => $rows->pluck('name')->sort()->values()->all());
 
         return view('admin.questions.index', compact(
             'subjects',
@@ -73,8 +88,10 @@ class QuestionController extends Controller
             'types',
             'hasFilter',
             'filterQuery',
-            'preloadedLists',
+            'preloadedGroupHtml',
             'preloadedQuestionIds',
+            'classrooms',
+            'subjectClassrooms',
         ));
     }
 
@@ -84,9 +101,10 @@ class QuestionController extends Controller
     public function bySubject(Request $request, Subject $subject): JsonResponse
     {
         $questions = $this->questionsForSubject($request, $subject->id);
+        $grouped = $this->groupQuestionsByClassroom($questions);
 
-        $html = view('admin.questions.partials.question-table', [
-            'questions' => $questions,
+        $html = view('admin.questions.partials.question-groups', [
+            'groups' => $grouped,
             'subject' => $subject,
             'search' => (string) $request->string('search')->trim(),
         ])->render();
@@ -100,13 +118,16 @@ class QuestionController extends Controller
     }
 
     /**
-     * Terapkan filter konten (pencarian pertanyaan, jenis, status) ke query soal.
+     * Terapkan filter konten (pencarian pertanyaan, kelas target, jenis, status) ke query soal.
      */
     private function applyContentFilters(Request $request, Builder $query): Builder
     {
         return $query
             ->when($request->filled('search'), function (Builder $query) use ($request) {
                 $query->where('question_text', 'like', '%'.$request->string('search')->trim().'%');
+            })
+            ->when($request->filled('classroom_id'), function (Builder $query) use ($request) {
+                $query->whereHas('classrooms', fn (Builder $q) => $q->whereKey($request->integer('classroom_id')));
             })
             ->when($request->filled('type'), fn (Builder $query) => $query->where('type', $request->string('type')))
             ->when($request->filled('status'), function (Builder $query) use ($request) {
@@ -121,10 +142,36 @@ class QuestionController extends Controller
      */
     private function questionsForSubject(Request $request, int $subjectId): Collection
     {
-        $query = Question::query()->with('subject')->where('subject_id', $subjectId);
+        $query = Question::query()->with('subject', 'classrooms')->where('subject_id', $subjectId);
         $this->applyContentFilters($request, $query);
 
         return $query->orderByDesc('id')->get();
+    }
+
+    /**
+     * Kelompokkan soal berdasarkan kombinasi kelas target yang persis sama.
+     * Mengembalikan array keyed by classroom_combination_key → ['classroom_ids', 'classroom_names', 'questions'].
+     */
+    private function groupQuestionsByClassroom(Collection $questions): array
+    {
+        $groups = [];
+        foreach ($questions as $question) {
+            $classroomIds = $question->classrooms->pluck('id')->sort()->values()->all();
+            $key = implode('_', $classroomIds) ?: 'no_classroom';
+
+            if (! isset($groups[$key])) {
+                $groups[$key] = [
+                    'classroom_ids' => $classroomIds,
+                    'classroom_names' => $question->classrooms->sortBy('name')->pluck('name')->values()->all(),
+                    'questions' => collect(),
+                ];
+            }
+            $groups[$key]['questions']->push($question);
+        }
+
+        uasort($groups, fn (array $a, array $b) => count($b['questions']) <=> count($a['questions']));
+
+        return $groups;
     }
 
     public function create(): View
@@ -132,8 +179,9 @@ class QuestionController extends Controller
         $subjects = Subject::query()->orderBy('name')->get();
         $types = Question::TYPES;
         $letters = Question::OPTION_LETTERS;
+        $classrooms = Classroom::query()->orderBy('name')->get();
 
-        return view('admin.questions.create', compact('subjects', 'types', 'letters'));
+        return view('admin.questions.create', compact('subjects', 'types', 'letters', 'classrooms'));
     }
 
     public function store(StoreQuestionRequest $request): RedirectResponse
@@ -144,7 +192,8 @@ class QuestionController extends Controller
             $payload['image_path'] = $request->file('image')->store('question-images', 'public');
         }
 
-        Question::create($payload);
+        $question = Question::create($payload);
+        $question->classrooms()->sync($request->validated()['classroom_ids']);
 
         return redirect()->route('admin.questions.index')->with('success', 'Soal berhasil ditambahkan.');
     }
@@ -154,8 +203,9 @@ class QuestionController extends Controller
         $subjects = Subject::query()->orderBy('name')->get();
         $types = Question::TYPES;
         $letters = Question::OPTION_LETTERS;
+        $classrooms = Classroom::query()->orderBy('name')->get();
 
-        return view('admin.questions.edit', compact('question', 'subjects', 'types', 'letters'));
+        return view('admin.questions.edit', compact('question', 'subjects', 'types', 'letters', 'classrooms'));
     }
 
     public function update(UpdateQuestionRequest $request, Question $question): RedirectResponse
@@ -172,6 +222,7 @@ class QuestionController extends Controller
         }
 
         $question->update($payload);
+        $question->classrooms()->sync($data['classroom_ids']);
 
         return redirect()->route('admin.questions.index')->with('success', 'Soal berhasil diperbarui.');
     }
@@ -219,7 +270,9 @@ class QuestionController extends Controller
 
     public function duplicate(Question $question): RedirectResponse
     {
-        Question::create([
+        $question->load('classrooms');
+
+        $copy = Question::create([
             'subject_id' => $question->subject_id,
             'type' => $question->type,
             'question_text' => $question->question_text,
@@ -228,6 +281,8 @@ class QuestionController extends Controller
             'score_weight' => $question->score_weight,
             'is_active' => true,
         ]);
+
+        $copy->classrooms()->sync($question->classrooms->pluck('id'));
 
         return redirect()->route('admin.questions.index')->with('success', 'Soal berhasil diduplikasi.');
     }
@@ -272,6 +327,49 @@ class QuestionController extends Controller
         Question::query()->whereIn('id', $ids)->update($updates);
 
         return back()->with('success', 'Pengaturan '.count($ids).' soal berhasil diperbarui.');
+    }
+
+    /**
+     * Perbarui kelas target untuk sekelompok soal sekaligus (aksi Edit di Level 2).
+     */
+    public function bulkUpdateClassrooms(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'question_ids' => ['required', 'array', 'min:1'],
+            'question_ids.*' => ['integer', Rule::exists('questions', 'id')],
+            'classroom_ids' => ['required', 'array', 'min:1'],
+            'classroom_ids.*' => ['integer', Rule::exists('classes', 'id')],
+        ]);
+
+        $questions = Question::whereIn('id', $data['question_ids'])->get();
+        foreach ($questions as $question) {
+            $question->classrooms()->sync($data['classroom_ids']);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Preview data untuk konfirmasi hapus grup soal (aksi Hapus di Level 2).
+     */
+    public function groupDeletePreview(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'question_ids' => ['required', 'array', 'min:1'],
+            'question_ids.*' => ['integer', Rule::exists('questions', 'id')],
+        ]);
+
+        $questionIds = $data['question_ids'];
+        $questionsCount = count($questionIds);
+        $answeredCount = ExamAnswer::query()
+            ->whereIn('question_id', $questionIds)
+            ->distinct('question_id')
+            ->count('question_id');
+
+        return response()->json([
+            'questions_count' => $questionsCount,
+            'answered_count' => $answeredCount,
+        ]);
     }
 
     /**

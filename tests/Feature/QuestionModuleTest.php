@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Classroom;
 use App\Models\ExamAnswer;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
@@ -27,12 +28,14 @@ class QuestionModuleTest extends TestCase
     public function test_store_persists_each_of_the_five_question_types(): void
     {
         $subject = Subject::factory()->create();
+        $classroom = Classroom::factory()->create();
 
         $this->actingAs($this->admin)->post('/admin/questions', [
             'subject_id' => $subject->id,
             'type' => 'single_choice',
             'question_text' => 'Soal pilihan ganda?',
             'score_weight' => 10,
+            'classroom_ids' => [$classroom->id],
             'single_options' => ['A' => 'Merah', 'B' => 'Biru', 'C' => 'Hijau'],
             'single_answer' => 'B',
         ])->assertRedirect(route('admin.questions.index'));
@@ -46,6 +49,7 @@ class QuestionModuleTest extends TestCase
             'type' => 'multiple_choice',
             'question_text' => 'Soal banyak jawaban?',
             'score_weight' => 10,
+            'classroom_ids' => [$classroom->id],
             'multiple_options' => ['A' => 'X', 'B' => 'Y', 'C' => 'Z'],
             'multiple_answer' => ['A', 'C'],
         ])->assertRedirect(route('admin.questions.index'));
@@ -59,6 +63,7 @@ class QuestionModuleTest extends TestCase
             'type' => 'true_false',
             'question_text' => 'Bumi itu bulat?',
             'score_weight' => 10,
+            'classroom_ids' => [$classroom->id],
             'true_false_answer' => '1',
         ])->assertRedirect(route('admin.questions.index'));
 
@@ -71,6 +76,7 @@ class QuestionModuleTest extends TestCase
             'type' => 'matching',
             'question_text' => 'Jodohkan pasangan berikut?',
             'score_weight' => 10,
+            'classroom_ids' => [$classroom->id],
             'matching_left' => ['Satu', 'Dua', 'Tiga'],
             'matching_right' => ['1', '2', '3'],
         ])->assertRedirect(route('admin.questions.index'));
@@ -84,6 +90,7 @@ class QuestionModuleTest extends TestCase
             'type' => 'essay',
             'question_text' => 'Jelaskan dengan bahasamu sendiri?',
             'score_weight' => 20,
+            'classroom_ids' => [$classroom->id],
             'essay_answer' => 'Kunci jawaban essay untuk koreksi manual.',
         ])->assertRedirect(route('admin.questions.index'));
 
@@ -172,6 +179,7 @@ class QuestionModuleTest extends TestCase
     public function test_admin_can_update_matching_question_and_pairs_are_repopulated(): void
     {
         $subject = Subject::factory()->create();
+        $classroom = Classroom::factory()->create();
         $question = Question::factory()->create([
             'subject_id' => $subject->id,
             'type' => 'matching',
@@ -185,6 +193,7 @@ class QuestionModuleTest extends TestCase
             'type' => 'matching',
             'question_text' => 'Jodohkan ulang?',
             'score_weight' => 15,
+            'classroom_ids' => [$classroom->id],
             'matching_left' => ['Bulan', 'Matahari', 'Bintang'],
             'matching_right' => ['Satelit bumi', 'Pusat tata surya', 'Bersinar sendiri'],
         ])->assertRedirect(route('admin.questions.index'));
@@ -202,6 +211,7 @@ class QuestionModuleTest extends TestCase
     public function test_admin_can_change_question_type_and_old_data_is_overwritten(): void
     {
         $subject = Subject::factory()->create();
+        $classroom = Classroom::factory()->create();
         $question = Question::factory()->create([
             'subject_id' => $subject->id,
             'type' => 'single_choice',
@@ -215,6 +225,7 @@ class QuestionModuleTest extends TestCase
             'type' => 'essay',
             'question_text' => 'Jadi soal essay?',
             'score_weight' => 20,
+            'classroom_ids' => [$classroom->id],
             'essay_answer' => 'Kunci essay baru.',
         ])->assertRedirect(route('admin.questions.index'));
 
@@ -227,12 +238,14 @@ class QuestionModuleTest extends TestCase
     public function test_essay_answer_key_is_optional(): void
     {
         $subject = Subject::factory()->create();
+        $classroom = Classroom::factory()->create();
 
         $this->actingAs($this->admin)->post('/admin/questions', [
             'subject_id' => $subject->id,
             'type' => 'essay',
             'question_text' => 'Jelaskan tanpa kunci jawaban?',
             'score_weight' => 20,
+            'classroom_ids' => [$classroom->id],
         ])->assertRedirect(route('admin.questions.index'));
 
         $this->assertNull(Question::first()->answer_key);
@@ -241,12 +254,14 @@ class QuestionModuleTest extends TestCase
     public function test_option_text_zero_is_not_dropped(): void
     {
         $subject = Subject::factory()->create();
+        $classroom = Classroom::factory()->create();
 
         $this->actingAs($this->admin)->post('/admin/questions', [
             'subject_id' => $subject->id,
             'type' => 'single_choice',
             'question_text' => 'Berapa hasil 2 + 2?',
             'score_weight' => 10,
+            'classroom_ids' => [$classroom->id],
             'single_options' => ['A' => '0', 'B' => '4', 'C' => '8'],
             'single_answer' => 'B',
         ])->assertRedirect(route('admin.questions.index'));
@@ -257,12 +272,14 @@ class QuestionModuleTest extends TestCase
     public function test_fields_of_unselected_question_types_are_ignored(): void
     {
         $subject = Subject::factory()->create();
+        $classroom = Classroom::factory()->create();
 
         $this->actingAs($this->admin)->post('/admin/questions', [
             'subject_id' => $subject->id,
             'type' => 'essay',
             'question_text' => 'Essay saja?',
             'score_weight' => 10,
+            'classroom_ids' => [$classroom->id],
             'single_options' => ['A' => 'A', 'B' => 'B'],
             'single_answer' => 'A',
             'multiple_options' => ['A' => 'X', 'B' => 'Y'],
@@ -399,20 +416,22 @@ class QuestionModuleTest extends TestCase
             ->assertSee('confirm-bulk-delete');
     }
 
-    public function test_questions_index_distinguishes_same_name_subjects_by_class_label(): void
+    public function test_questions_index_filters_by_classroom_target(): void
     {
-        $math10 = Subject::factory()->create(['name' => 'Matematika', 'class_label' => '10']);
-        $math11 = Subject::factory()->create(['name' => 'Matematika', 'class_label' => '11']);
+        $classroomX = Classroom::factory()->create(['name' => 'X RPL 1']);
+        $classroomXi = Classroom::factory()->create(['name' => 'XI RPL 1']);
+        $subject = Subject::factory()->create(['name' => 'Matematika']);
 
-        Question::factory()->count(2)->create(['subject_id' => $math10->id]);
-        Question::factory()->create(['subject_id' => $math11->id]);
+        $questionX = Question::factory()->create(['subject_id' => $subject->id, 'question_text' => 'Soal untuk kelas X?']);
+        $questionX->classrooms()->sync($classroomX->id);
 
-        $response = $this->actingAs($this->admin)->get(route('admin.questions.index'))
-            ->assertOk();
+        $questionXi = Question::factory()->create(['subject_id' => $subject->id, 'question_text' => 'Soal untuk kelas XI?']);
+        $questionXi->classrooms()->sync($classroomXi->id);
 
-        $response->assertSee('Kelas 10');
-        $response->assertSee('Kelas 11');
-        $response->assertSee('Matematika (Kelas 10)');
-        $response->assertSee('Matematika (Kelas 11)');
+        $this->actingAs($this->admin)
+            ->get(route('admin.questions.index', ['classroom_id' => $classroomX->id]))
+            ->assertOk()
+            ->assertSee('Soal untuk kelas X?')
+            ->assertDontSee('Soal untuk kelas XI?');
     }
 }

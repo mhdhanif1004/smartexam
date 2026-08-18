@@ -5,17 +5,20 @@ namespace App\Imports;
 use App\Models\User;
 use App\Services\CredentialGenerator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithBatchInserts;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
-use Maatwebsite\Excel\Events\BeforeImport;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Throwable;
 
-class SupervisorsImport implements ToCollection, WithEvents, WithHeadingRow
+class SupervisorsImport implements ToCollection, WithBatchInserts, WithChunkReading, WithEvents, WithHeadingRow
 {
     public string $headerError = '';
 
@@ -37,17 +40,23 @@ class SupervisorsImport implements ToCollection, WithEvents, WithHeadingRow
 
     public int $toUpdate = 0;
 
+    public function chunkSize(): int
+    {
+        return 500;
+    }
+
+    public function batchSize(): int
+    {
+        return 500;
+    }
+
     private const NAME_ALIASES = ['nama', 'nama_lengkap', 'nama_pengawas', 'name', 'nama_guru', 'nama_pegawai'];
 
     private const EMAIL_ALIASES = ['email', 'email_pengawas', 'email_guru', 'email_pegawai'];
 
     public function registerEvents(): array
     {
-        return [
-            BeforeImport::class => function (BeforeImport $event) {
-                $this->detectHeaders($event->getReader()->getActiveSheet());
-            },
-        ];
+        return [];
     }
 
     public function collection(Collection $rows): void
@@ -67,12 +76,13 @@ class SupervisorsImport implements ToCollection, WithEvents, WithHeadingRow
             return;
         }
 
-        $seenEmails = [];
+        // First pass: collect all valid emails from this chunk
+        $chunkEmails = [];
+        $rowDataList = [];
 
         foreach ($rows as $index => $row) {
             $rowData = is_array($row) ? $row : $row->toArray();
             $rowNumber = $index + 2;
-            $errors = [];
 
             $name = $this->normalizeText($rowData[$nameKey] ?? null);
             $email = $this->normalizeEmail($rowData[$emailKey] ?? null);
@@ -80,6 +90,46 @@ class SupervisorsImport implements ToCollection, WithEvents, WithHeadingRow
             if ($name === '' && $email === '') {
                 continue;
             }
+
+            $rowDataList[] = [
+                'rowNumber' => $rowNumber,
+                'name' => $name,
+                'email' => $email,
+                'rawName' => $this->displayValue($rowData[$nameKey] ?? null),
+                'rawEmail' => $this->displayValue($rowData[$emailKey] ?? null),
+            ];
+
+            if ($email !== '') {
+                $chunkEmails[] = $email;
+            }
+        }
+
+        if (empty($rowDataList)) {
+            return;
+        }
+
+        // Batch query: get existing users with supervisor role (single query)
+        $existingSupervisors = User::query()
+            ->whereIn('email', $chunkEmails)
+            ->whereHas('supervisor')
+            ->pluck('email')
+            ->flip()
+            ->toArray();
+
+        // Batch query: get all existing users (for checking if email used by other role)
+        $existingUsers = User::query()
+            ->whereIn('email', $chunkEmails)
+            ->pluck('email', 'id')
+            ->flip()
+            ->toArray();
+
+        $seenEmails = [];
+
+        foreach ($rowDataList as $data) {
+            $rowNumber = $data['rowNumber'];
+            $name = $data['name'];
+            $email = $data['email'];
+            $errors = [];
 
             if ($name === '') {
                 $errors[] = 'Nama wajib diisi.';
@@ -93,9 +143,11 @@ class SupervisorsImport implements ToCollection, WithEvents, WithHeadingRow
                 $errors[] = "Email {$email} duplikat di dalam file (bentrok dengan baris {$seenEmails[$email]}).";
             }
 
-            $existingUser = $email !== '' ? User::query()->where('email', $email)->first() : null;
+            // Check if email exists in DB but not as supervisor
+            $hasSupervisor = isset($existingSupervisors[$email]);
+            $hasOtherRole = isset($existingUsers[$email]) && ! $hasSupervisor;
 
-            if ($existingUser !== null && ! $existingUser->supervisor) {
+            if ($hasOtherRole) {
                 $errors[] = "Email {$email} sudah terdaftar pada akun lain (bukan pengawas).";
             }
 
@@ -103,8 +155,8 @@ class SupervisorsImport implements ToCollection, WithEvents, WithHeadingRow
                 $this->invalidRows[] = [
                     'row' => $rowNumber,
                     'data' => [
-                        'name' => $name !== '' ? $name : $this->displayValue($rowData[$nameKey] ?? null),
-                        'email' => $email !== '' ? $email : $this->displayValue($rowData[$emailKey] ?? null),
+                        'name' => $name !== '' ? $name : $data['rawName'],
+                        'email' => $email !== '' ? $email : $data['rawEmail'],
                     ],
                     'errors' => $errors,
                 ];
@@ -114,7 +166,8 @@ class SupervisorsImport implements ToCollection, WithEvents, WithHeadingRow
 
             $seenEmails[$email] = $rowNumber;
 
-            $mode = $this->estimateMode($email);
+            // Check if email exists as supervisor (from batch query result)
+            $mode = $hasSupervisor ? 'update' : 'create';
             $mode === 'create' ? $this->toCreate++ : $this->toUpdate++;
 
             $this->validRows[] = [
@@ -127,16 +180,170 @@ class SupervisorsImport implements ToCollection, WithEvents, WithHeadingRow
     }
 
     /**
-     * Perkirakan mode untuk sebuah email: 'update' jika akun pengawasnya
-     * sudah ada di DB.
+     * Simpan semua baris valid sekaligus menggunakan batch operations.
+     *
+     * @return array{created:int, updated:int, errors:list<string>}
      */
-    public function estimateMode(string $email): string
+    public function persistRows(): array
     {
-        return User::query()->where('email', $email)->whereHas('supervisor')->exists() ? 'update' : 'create';
+        $result = ['created' => 0, 'updated' => 0, 'errors' => []];
+
+        if (empty($this->validRows)) {
+            return $result;
+        }
+
+        // Separate create and update rows
+        $createRows = [];
+        $updateRows = [];
+
+        foreach ($this->validRows as $validRow) {
+            if ($validRow['mode'] === 'create') {
+                $createRows[] = $validRow;
+            } else {
+                $updateRows[] = $validRow;
+            }
+        }
+
+        // Batch create
+        if (! empty($createRows)) {
+            try {
+                $created = $this->batchCreate($createRows);
+                $result['created'] += $created;
+            } catch (Throwable $e) {
+                // Fallback to individual processing for error tracking
+                foreach ($createRows as $validRow) {
+                    try {
+                        if ($this->upsertRow($validRow)) {
+                            $result['created']++;
+                        }
+                    } catch (Throwable $ex) {
+                        $result['errors'][] = "Baris {$validRow['row']}: {$ex->getMessage()}";
+                    }
+                }
+            }
+        }
+
+        // Batch update
+        if (! empty($updateRows)) {
+            try {
+                $updated = $this->batchUpdate($updateRows);
+                $result['updated'] += $updated;
+            } catch (Throwable $e) {
+                // Fallback to individual processing for error tracking
+                foreach ($updateRows as $validRow) {
+                    try {
+                        if (! $this->upsertRow($validRow)) {
+                            $result['updated']++;
+                        }
+                    } catch (Throwable $ex) {
+                        $result['errors'][] = "Baris {$validRow['row']}: {$ex->getMessage()}";
+                    }
+                }
+            }
+        }
+
+        return $result;
     }
 
     /**
-     * Simpan satu baris valid. Return true = create, false = update.
+     * Batch create new supervisors with users.
+     */
+    private function batchCreate(array $createRows): int
+    {
+        return DB::transaction(function () use ($createRows) {
+            $generator = app(CredentialGenerator::class);
+
+            // Create users in batch
+            $usersData = [];
+            foreach ($createRows as $row) {
+                $password = $generator->password();
+                $usersData[] = [
+                    'name' => $row['name'],
+                    'email' => $row['email'],
+                    'username' => null,
+                    'password' => Hash::make($password),
+                    'plain_password' => Crypt::encryptString($password),
+                    'role' => User::ROLE_PENGAWAS,
+                    'is_active' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            // Insert users
+            DB::table('users')->insert($usersData);
+
+            // Get the inserted user IDs
+            $emails = array_column($usersData, 'email');
+            $users = User::query()
+                ->whereIn('email', $emails)
+                ->orderBy('id')
+                ->get(['id', 'email'])
+                ->keyBy('email');
+
+            // Create supervisor records in batch
+            $supervisorsData = [];
+            foreach ($createRows as $index => $row) {
+                $email = $usersData[$index]['email'];
+                $userId = $users[$email]->id ?? null;
+
+                if ($userId) {
+                    $supervisorsData[] = [
+                        'user_id' => $userId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+            }
+
+            if (! empty($supervisorsData)) {
+                DB::table('supervisors')->insert($supervisorsData);
+            }
+
+            return count($supervisorsData);
+        });
+    }
+
+    /**
+     * Batch update existing supervisors.
+     */
+    private function batchUpdate(array $updateRows): int
+    {
+        return DB::transaction(function () use ($updateRows) {
+            $emails = array_column($updateRows, 'email');
+
+            // Get existing supervisors with user_id
+            $supervisors = User::query()
+                ->whereIn('email', $emails)
+                ->whereHas('supervisor')
+                ->with('supervisor')
+                ->get(['id', 'email'])
+                ->keyBy('email');
+
+            // Batch update users (name only)
+            $userUpdates = [];
+            foreach ($updateRows as $row) {
+                $user = $supervisors[$row['email']] ?? null;
+                if ($user) {
+                    $userUpdates[] = [
+                        'id' => $user->id,
+                        'name' => $row['name'],
+                        'updated_at' => now(),
+                    ];
+                }
+            }
+
+            if (! empty($userUpdates)) {
+                User::upsert($userUpdates, ['id'], ['name', 'updated_at']);
+            }
+
+            return count($userUpdates);
+        });
+    }
+
+    /**
+     * Simpan satu baris valid (fallback untuk error handling per baris).
+     * Return true = create, false = update.
      */
     public function upsertRow(array $validRow): bool
     {
@@ -172,27 +379,13 @@ class SupervisorsImport implements ToCollection, WithEvents, WithHeadingRow
     }
 
     /**
-     * Simpan semua baris valid sekaligus.
-     *
-     * @return array{created:int, updated:int, errors:list<string>}
+     * Perkirakan mode untuk sebuah email: 'update' jika akun pengawasnya
+     * sudah ada di DB.
+     * (Ditahan untuk kompatibilitas, tapi sekarang dipakai batch query di collection())
      */
-    public function persistRows(): array
+    public function estimateMode(string $email): string
     {
-        $result = ['created' => 0, 'updated' => 0, 'errors' => []];
-
-        foreach ($this->validRows as $validRow) {
-            try {
-                if ($this->upsertRow($validRow)) {
-                    $result['created']++;
-                } else {
-                    $result['updated']++;
-                }
-            } catch (Throwable $e) {
-                $result['errors'][] = "Baris {$validRow['row']}: {$e->getMessage()}";
-            }
-        }
-
-        return $result;
+        return User::query()->where('email', $email)->whereHas('supervisor')->exists() ? 'update' : 'create';
     }
 
     /**
