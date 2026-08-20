@@ -14,8 +14,23 @@
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div class="sm:col-span-2">
                         <x-input-label for="name" :value="__('Nama Sesi')" />
-                        <x-text-input id="name" name="name" type="text" class="mt-1 block w-full" value="{{ old('name') }}" placeholder="contoh: Sesi 1" required />
+                        <x-text-input id="name" name="name" type="text" class="mt-1 block w-full" value="{{ old('name') }}" placeholder="contoh: UAS Ganjil" required />
                         <x-input-error :messages="$errors->get('name')" class="mt-2" />
+                    </div>
+                    <div>
+                        <x-input-label for="grade_level" :value="__('Tingkat')" />
+                        <select id="grade_level" name="grade_level" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" required>
+                            <option value="" @selected(old('grade_level') === '')>Pilih Tingkat</option>
+                            <option value="X" @selected(old('grade_level') === 'X')">X</option>
+                            <option value="XI" @selected(old('grade_level') === 'XI')">XI</option>
+                            <option value="XII" @selected(old('grade_level') === 'XII')">XII</option>
+                        </select>
+                        <x-input-error :messages="$errors->get('grade_level')" class="mt-2" />
+                    </div>
+                    <div>
+                        <x-input-label for="session_number_display" :value="__('Nomor Sesi')" />
+                        <x-text-input id="session_number_display" type="text" class="mt-1 block w-full bg-gray-100 dark:bg-gray-800" value="{{ $nextSessionNumber }}" readonly />
+                        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Ditentukan otomatis berdasarkan sesi yang sudah ada.</p>
                     </div>
                     <div>
                         <x-input-label for="exam_date" :value="__('Tanggal')" />

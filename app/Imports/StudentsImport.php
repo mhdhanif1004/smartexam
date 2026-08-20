@@ -9,7 +9,6 @@ use App\Services\CredentialGenerator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithBatchInserts;
@@ -216,6 +215,9 @@ class StudentsImport implements ToCollection, WithBatchInserts, WithChunkReading
             return $result;
         }
 
+        // Preload classroom map once (single query + bulk insert, zero N+1)
+        $classroomMap = $this->buildClassroomMap(array_unique(array_column($this->validRows, 'class_name')));
+
         // Separate create and update rows
         $createRows = [];
         $updateRows = [];
@@ -231,7 +233,7 @@ class StudentsImport implements ToCollection, WithBatchInserts, WithChunkReading
         // Batch create: create users first, then students
         if (! empty($createRows)) {
             try {
-                $created = $this->batchCreate($createRows);
+                $created = $this->batchCreate($createRows, $classroomMap);
                 $result['created'] += $created;
             } catch (Throwable $e) {
                 // Fallback to individual processing for error tracking
@@ -250,7 +252,7 @@ class StudentsImport implements ToCollection, WithBatchInserts, WithChunkReading
         // Batch update
         if (! empty($updateRows)) {
             try {
-                $updated = $this->batchUpdate($updateRows);
+                $updated = $this->batchUpdate($updateRows, $classroomMap);
                 $result['updated'] += $updated;
             } catch (Throwable $e) {
                 // Fallback to individual processing for error tracking
@@ -270,119 +272,160 @@ class StudentsImport implements ToCollection, WithBatchInserts, WithChunkReading
     }
 
     /**
-     * Batch create new students with users.
+     * Build name→id map for all classrooms referenced in validRows.
+     * Single whereIn query + one bulk insert for missing names = 2 queries total.
+     *
+     * @param  list<string>  $classNames
+     * @return array<string, int>
      */
-    private function batchCreate(array $createRows): int
+    private function buildClassroomMap(array $classNames): array
     {
-        return DB::transaction(function () use ($createRows) {
-            $generator = app(CredentialGenerator::class);
+        // 1) Load existing classrooms
+        $map = Classroom::query()
+            ->whereIn('name', $classNames)
+            ->pluck('id', 'name')
+            ->toArray();
 
-            // Create users in batch
-            $usersData = [];
-            foreach ($createRows as $row) {
-                $password = $generator->password();
-                $username = $generator->username();
-                $usersData[] = [
-                    'name' => $row['name'],
-                    'username' => $username,
-                    'password' => Hash::make($password),
-                    'plain_password' => Crypt::encryptString($password),
-                    'role' => User::ROLE_PESERTA,
-                    'is_active' => true,
+        // 2) Bulk-insert any missing class names
+        $missing = array_diff($classNames, array_keys($map));
+
+        if ($missing !== []) {
+            $now = now();
+            $rows = array_map(fn (string $name) => ['name' => $name, 'created_at' => $now, 'updated_at' => $now], array_values($missing));
+            DB::table('classes')->insertOrIgnore($rows);
+
+            // 3) Re-fetch the newly inserted ones
+            $newMap = Classroom::query()
+                ->whereIn('name', $missing)
+                ->pluck('id', 'name')
+                ->toArray();
+
+            $map = array_merge($map, $newMap);
+        }
+
+        return $map;
+    }
+
+    /**
+     * Batch create new students with users.
+     * Chunks inserts to stay under max_allowed_packet (default 1MB on XAMPP).
+     *
+     * @param  array<string, int>  $classroomMap
+     */
+    private function batchCreate(array $createRows, array $classroomMap): int
+    {
+        $generator = app(CredentialGenerator::class);
+
+        // Build all user data in memory first (bcrypt cost 8 for speed).
+        $usersData = [];
+        foreach ($createRows as $row) {
+            $password = $generator->password();
+            $username = $generator->username();
+            $usersData[] = [
+                'name' => $row['name'],
+                'username' => $username,
+                'password' => password_hash($password, PASSWORD_BCRYPT, ['cost' => 8]),
+                'plain_password' => Crypt::encryptString($password),
+                'role' => User::ROLE_PESERTA,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        // Insert users in chunks to avoid exceeding max_allowed_packet
+        $chunkSize = 500;
+        foreach (array_chunk($usersData, $chunkSize) as $chunk) {
+            DB::table('users')->insert($chunk);
+        }
+
+        // Get the inserted user IDs
+        $usernames = array_column($usersData, 'username');
+        $users = User::query()
+            ->whereIn('username', $usernames)
+            ->orderBy('id')
+            ->get(['id', 'username'])
+            ->keyBy('username');
+
+        // Build student data (lookup classroom_id from preloaded map)
+        $studentsData = [];
+        foreach ($createRows as $index => $row) {
+            $username = $usersData[$index]['username'];
+            $userId = $users[$username]->id ?? null;
+
+            if ($userId) {
+                $studentsData[] = [
+                    'user_id' => $userId,
+                    'nisn' => $row['nisn'],
+                    'class_name' => $row['class_name'],
+                    'classroom_id' => $classroomMap[$row['class_name']] ?? 0,
+                    'room_id' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];
             }
+        }
 
-            // Insert users and get IDs
-            DB::table('users')->insert($usersData);
+        // Insert students in chunks
+        foreach (array_chunk($studentsData, $chunkSize) as $chunk) {
+            DB::table('students')->insert($chunk);
+        }
 
-            // Get the inserted user IDs
-            $usernames = array_column($usersData, 'username');
-            $users = User::query()
-                ->whereIn('username', $usernames)
-                ->orderBy('id')
-                ->get(['id', 'username'])
-                ->keyBy('username');
-
-            // Create students in batch
-            $studentsData = [];
-            foreach ($createRows as $index => $row) {
-                $username = $usersData[$index]['username'];
-                $userId = $users[$username]->id ?? null;
-
-                if ($userId) {
-                    $studentsData[] = [
-                        'user_id' => $userId,
-                        'nisn' => $row['nisn'],
-                        'class_name' => $row['class_name'],
-                        'classroom_id' => Classroom::idForName($row['class_name']),
-                        'room_id' => null,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
-                }
-            }
-
-            if (! empty($studentsData)) {
-                DB::table('students')->insert($studentsData);
-            }
-
-            return count($studentsData);
-        });
+        return count($studentsData);
     }
 
     /**
      * Batch update existing students.
      */
-    private function batchUpdate(array $updateRows): int
+    /**
+     * @param  array<string, int>  $classroomMap
+     */
+    private function batchUpdate(array $updateRows, array $classroomMap): int
     {
-        return DB::transaction(function () use ($updateRows) {
-            $nisns = array_column($updateRows, 'nisn');
+        $nisns = array_column($updateRows, 'nisn');
 
-            // Get existing students with user_id
-            $students = Student::query()
-                ->whereIn('nisn', $nisns)
-                ->get(['id', 'nisn', 'user_id'])
-                ->keyBy('nisn');
+        // Get existing students with user_id
+        $students = Student::query()
+            ->whereIn('nisn', $nisns)
+            ->get(['id', 'nisn', 'user_id'])
+            ->keyBy('nisn');
 
-            // Batch update students
-            $studentsUpdates = [];
-            foreach ($updateRows as $row) {
-                $student = $students[$row['nisn']] ?? null;
-                if ($student) {
-                    $studentsUpdates[] = [
-                        'id' => $student->id,
-                        'class_name' => $row['class_name'],
-                        'classroom_id' => Classroom::idForName($row['class_name']),
-                        'updated_at' => now(),
-                    ];
-                }
+        // Batch update students (lookup classroom_id from preloaded map)
+        $studentsUpdates = [];
+        foreach ($updateRows as $row) {
+            $student = $students[$row['nisn']] ?? null;
+            if ($student) {
+                $studentsUpdates[] = [
+                    'id' => $student->id,
+                    'class_name' => $row['class_name'],
+                    'classroom_id' => $classroomMap[$row['class_name']] ?? 0,
+                    'updated_at' => now(),
+                ];
             }
+        }
 
-            if (! empty($studentsUpdates)) {
-                Student::upsert($studentsUpdates, ['id'], ['class_name', 'classroom_id', 'updated_at']);
+        if (! empty($studentsUpdates)) {
+            Student::upsert($studentsUpdates, ['id'], ['class_name', 'classroom_id', 'updated_at']);
+        }
+
+        // Batch update users
+        $userUpdates = [];
+        foreach ($updateRows as $row) {
+            $student = $students[$row['nisn']] ?? null;
+            if ($student && $student->user_id) {
+                $userUpdates[] = [
+                    'id' => $student->user_id,
+                    'name' => $row['name'],
+                    'updated_at' => now(),
+                ];
             }
+        }
 
-            // Batch update users
-            $userUpdates = [];
-            foreach ($updateRows as $row) {
-                $student = $students[$row['nisn']] ?? null;
-                if ($student && $student->user_id) {
-                    $userUpdates[] = [
-                        'id' => $student->user_id,
-                        'name' => $row['name'],
-                        'updated_at' => now(),
-                    ];
-                }
-            }
+        if (! empty($userUpdates)) {
+            User::upsert($userUpdates, ['id'], ['name', 'updated_at']);
+        }
 
-            if (! empty($userUpdates)) {
-                User::upsert($userUpdates, ['id'], ['name', 'updated_at']);
-            }
-
-            return count($studentsUpdates);
-        });
+        return count($studentsUpdates);
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\ClassroomController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ExamPeriodController;
 use App\Http\Controllers\Admin\ExamScheduleController;
+use App\Http\Controllers\Admin\ExamSettingsController;
 use App\Http\Controllers\Admin\LoginCardController;
 use App\Http\Controllers\Admin\PlainPasswordController;
 use App\Http\Controllers\Admin\QuestionController;
@@ -75,6 +76,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::get('rooms/{room}/detail', [RoomController::class, 'detail'])->name('rooms.detail');
         Route::resource('classrooms', ClassroomController::class)->except(['show']);
         Route::get('exam-schedules/by-date', [ExamScheduleController::class, 'byDate'])->name('exam-schedules.by-date');
+        Route::get('exam-schedules/{examSchedule}/detail', [ExamScheduleController::class, 'detail'])->name('exam-schedules.detail');
         Route::resource('exam-schedules', ExamScheduleController::class)->except(['show']);
         Route::post('exam-schedules/bulk-delete', [ExamScheduleController::class, 'bulkDelete'])->name('exam-schedules.bulk-delete');
 
@@ -85,6 +87,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::post('exam-periods/{examPeriod}/groups', [ExamPeriodController::class, 'groupsStore'])->name('exam-periods.groups.store');
         Route::post('exam-periods/{examPeriod}/supervisor-rotation', [ExamPeriodController::class, 'supervisorRotation'])->name('exam-periods.supervisor-rotation');
         Route::get('exam-periods/{examPeriod}/rooms/{room}/roster', [ExamPeriodController::class, 'roomRoster'])->name('exam-periods.room-roster');
+        Route::put('exam-periods/{examPeriod}/room-overrides', [ExamPeriodController::class, 'updateRoomOverrides'])->name('exam-periods.room-overrides.update');
 
         Route::get('questions/by-subject/{subject}', [QuestionController::class, 'bySubject'])->name('questions.by-subject');
         Route::post('questions/bulk-delete', [QuestionController::class, 'bulkDelete'])->name('questions.bulk-delete');
@@ -112,6 +115,11 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         });
 
         Route::controller(CardSettingsController::class)->prefix('card-settings')->name('card-settings.')->group(function () {
+            Route::get('/', 'edit')->name('edit');
+            Route::put('/', 'update')->name('update');
+        });
+
+        Route::controller(ExamSettingsController::class)->prefix('exam-settings')->name('exam-settings.')->group(function () {
             Route::get('/', 'edit')->name('edit');
             Route::put('/', 'update')->name('update');
         });

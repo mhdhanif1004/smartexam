@@ -107,6 +107,8 @@ class StudentImportExportController extends Controller
 
     public function importConfirm(Request $request): JsonResponse
     {
+        set_time_limit(300);
+
         $cacheKey = 'import_pending_'.auth()->id();
         $data = Cache::pull($cacheKey);
 
@@ -123,17 +125,16 @@ class StudentImportExportController extends Controller
         $import->newClasses = $data['newClasses'] ?? [];
 
         $result = DB::transaction(function () use ($import): array {
-            // Buat kelas baru (yang belum terdaftar di master data) di dalam
-            // transaksi yang sama dengan import siswa, supaya kelas baru
-            // tidak terlanjur kebuat padahal impornya gagal.
+            // Bulk insert kelas baru (1 query, bukan N×firstOrCreate)
             $newClassesCreated = 0;
 
-            foreach ($import->newClasses as $className) {
-                $classroom = Classroom::firstOrCreate(['name' => $className]);
-
-                if ($classroom->wasRecentlyCreated) {
-                    $newClassesCreated++;
-                }
+            if ($import->newClasses !== []) {
+                $now = now();
+                $rows = array_map(fn (string $name) => ['name' => $name, 'created_at' => $now, 'updated_at' => $now], $import->newClasses);
+                $beforeCount = Classroom::whereIn('name', $import->newClasses)->count();
+                DB::table('classes')->insertOrIgnore($rows);
+                $afterCount = Classroom::whereIn('name', $import->newClasses)->count();
+                $newClassesCreated = $afterCount - $beforeCount;
             }
 
             return array_merge($import->persistRows(), ['new_classes_created' => $newClassesCreated]);

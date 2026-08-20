@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\ExamPeriod;
 use App\Models\ExamSchedule;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Supervisor;
+use App\Models\SupervisorRoomAssignment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -35,17 +37,13 @@ class RoomPlacementModuleTest extends TestCase
             ->assertSee('3 siswa tetap');
     }
 
-    public function test_admin_can_create_room_with_capacity_and_supervisors(): void
+    public function test_admin_can_create_room_with_capacity(): void
     {
-        $supervisorA = Supervisor::factory()->create(['room_id' => null]);
-        $supervisorB = Supervisor::factory()->create(['room_id' => null]);
-
         $this->actingAs($this->admin)
             ->post(route('admin.rooms.store'), [
                 'room_number' => 2,
                 'capacity' => 30,
                 'supervisor_count' => 1,
-                'supervisor_ids' => [$supervisorA->id, $supervisorB->id],
             ])
             ->assertRedirect()
             ->assertSessionHas('success');
@@ -53,9 +51,6 @@ class RoomPlacementModuleTest extends TestCase
         $room = Room::where('room_number', 2)->first();
         $this->assertNotNull($room);
         $this->assertSame(30, $room->capacity);
-
-        $this->assertSame($room->id, $supervisorA->refresh()->room_id);
-        $this->assertSame($room->id, $supervisorB->refresh()->room_id);
     }
 
     public function test_update_saves_capacity_from_form(): void
@@ -85,7 +80,6 @@ class RoomPlacementModuleTest extends TestCase
                 'room_number' => $roomB->room_number,
                 'capacity' => $roomB->capacity,
                 'supervisor_count' => 1,
-                'student_ids' => [$student->id],
             ])
             ->assertRedirect()
             ->assertSessionHas('success');
@@ -93,108 +87,67 @@ class RoomPlacementModuleTest extends TestCase
         $this->assertSame($roomA->id, $student->refresh()->room_id);
     }
 
-    public function test_update_moves_supervisor_and_releases_previous(): void
-    {
-        $roomA = Room::factory()->create();
-        $roomB = Room::factory()->create();
-        $supervisorA = Supervisor::factory()->create(['room_id' => $roomA->id]);
-        $supervisorB = Supervisor::factory()->create(['room_id' => $roomB->id]);
-
-        $this->actingAs($this->admin)
-            ->put(route('admin.rooms.update', $roomB), [
-                'room_number' => $roomB->room_number,
-                'capacity' => $roomB->capacity,
-                'supervisor_count' => 1,
-                'supervisor_ids' => [$supervisorA->id],
-            ])
-            ->assertRedirect()
-            ->assertSessionHas('success');
-
-        $this->assertSame($roomB->id, $supervisorA->refresh()->room_id);
-        $this->assertNull($supervisorB->refresh()->room_id);
-    }
-
-    public function test_clearing_supervisor_releases_the_room_supervisor(): void
-    {
-        $room = Room::factory()->create();
-        $supervisor = Supervisor::factory()->create(['room_id' => $room->id]);
-
-        $this->actingAs($this->admin)
-            ->put(route('admin.rooms.update', $room), [
-                'room_number' => $room->room_number,
-                'capacity' => $room->capacity,
-                'supervisor_count' => 1,
-                'supervisor_ids' => [],
-            ])
-            ->assertRedirect()
-            ->assertSessionHas('success');
-
-        $this->assertNull($supervisor->refresh()->room_id);
-    }
-
-    public function test_update_assigns_multiple_supervisors_to_one_room(): void
+    public function test_index_shows_rotation_based_supervisor_count(): void
     {
         $room = Room::factory()->create(['room_number' => 1]);
-        $supervisors = Supervisor::factory()->count(3)->create(['room_id' => null]);
+        $supervisor = Supervisor::factory()->create();
 
-        $this->actingAs($this->admin)
-            ->put(route('admin.rooms.update', $room), [
-                'room_number' => $room->room_number,
-                'capacity' => $room->capacity,
-                'supervisor_count' => 1,
-                'supervisor_ids' => $supervisors->pluck('id')->all(),
-            ])
-            ->assertRedirect()
-            ->assertSessionHas('success');
+        $period = ExamPeriod::factory()->create([
+            'exam_date' => now()->toDateString(),
+        ]);
 
-        foreach ($supervisors as $supervisor) {
-            $this->assertSame($room->id, $supervisor->refresh()->room_id);
-        }
-
-        $this->assertSame(3, $room->refresh()->supervisors()->count());
-    }
-
-    public function test_index_shows_supervisor_count_for_multiple_supervisors(): void
-    {
-        $room = Room::factory()->create(['room_number' => 1]);
-        Supervisor::factory()->count(3)->create(['room_id' => $room->id]);
+        SupervisorRoomAssignment::factory()->create([
+            'exam_period_id' => $period->id,
+            'exam_date' => now()->toDateString(),
+            'supervisor_id' => $supervisor->id,
+            'room_id' => $room->id,
+        ]);
 
         $this->actingAs($this->admin)
             ->get(route('admin.rooms.index'))
             ->assertOk()
-            ->assertSee('3 pengawas');
+            ->assertSee('1 pengawas');
     }
 
-    public function test_update_releases_supervisors_removed_from_selection(): void
+    public function test_index_shows_zero_when_no_rotation_today(): void
     {
-        $room = Room::factory()->create();
-        $supervisors = Supervisor::factory()->count(3)->create(['room_id' => $room->id]);
-        $stay = $supervisors->take(2);
-        $released = $supervisors->last();
+        $room = Room::factory()->create(['room_number' => 1]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.rooms.index'))
+            ->assertOk()
+            ->assertSee('0 pengawas');
+    }
+
+    public function test_update_warns_when_supervisor_count_changed_with_future_rotation(): void
+    {
+        $room = Room::factory()->create(['room_number' => 1, 'supervisor_count' => 1]);
+        $period = ExamPeriod::factory()->create([
+            'exam_date' => now()->addDays(3)->toDateString(),
+        ]);
+
+        SupervisorRoomAssignment::factory()->create([
+            'exam_period_id' => $period->id,
+            'exam_date' => now()->addDays(3)->toDateString(),
+            'room_id' => $room->id,
+        ]);
 
         $this->actingAs($this->admin)
             ->put(route('admin.rooms.update', $room), [
                 'room_number' => $room->room_number,
                 'capacity' => $room->capacity,
-                'supervisor_count' => 1,
-                'supervisor_ids' => $stay->pluck('id')->all(),
+                'supervisor_count' => 2,
             ])
             ->assertRedirect()
-            ->assertSessionHas('success');
+            ->assertSessionHas('warning');
 
-        foreach ($stay as $supervisor) {
-            $this->assertSame($room->id, $supervisor->refresh()->room_id);
-        }
-
-        $this->assertNull($released->refresh()->room_id);
-        $this->assertSame(2, $room->refresh()->supervisors()->count());
+        $this->assertSame(2, $room->refresh()->supervisor_count);
     }
 
-    public function test_destroy_releases_students_and_supervisor(): void
+    public function test_destroy_releases_students(): void
     {
         $room = Room::factory()->create(['room_number' => 1]);
         $student = Student::factory()->create(['room_id' => $room->id]);
-        $supervisor = Supervisor::factory()->create(['room_id' => $room->id]);
 
         $this->actingAs($this->admin)
             ->delete(route('admin.rooms.destroy', $room))
@@ -203,7 +156,6 @@ class RoomPlacementModuleTest extends TestCase
 
         $this->assertDatabaseMissing('rooms', ['id' => $room->id]);
         $this->assertNull($student->refresh()->room_id);
-        $this->assertNull($supervisor->refresh()->room_id);
     }
 
     public function test_non_admin_cannot_manage_rooms(): void

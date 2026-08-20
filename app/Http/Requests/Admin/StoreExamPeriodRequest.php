@@ -20,6 +20,7 @@ class StoreExamPeriodRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:100'],
+            'grade_level' => ['required', 'string', 'in:X,XI,XII'],
             'exam_date' => ['required', 'date'],
             'start_time' => ['required', 'date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i'],
@@ -47,6 +48,7 @@ class StoreExamPeriodRequest extends FormRequest
     {
         return [
             'name' => 'nama sesi',
+            'grade_level' => 'tingkat',
             'exam_date' => 'tanggal',
             'start_time' => 'jam mulai',
             'end_time' => 'jam selesai',

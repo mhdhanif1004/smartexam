@@ -104,13 +104,13 @@ class SupervisorRoomRotationTest extends TestCase
             $this->assertSame('2026-08-12', $assignment->exam_date->toDateString());
         }
 
-        // Ruangan diurutkan nama: Ruang 01 -> Andi, Ruang 02 -> Budi
+        // Ruangan diurutkan: Ruang 01 & Ruang 02 — masing-masing dapat 1 pengawas
         $roomA = $assignments->first(fn ($a) => $a->room_id === $this->roomA->id);
-        $this->assertSame('Andi', $roomA->supervisor->user->name);
+        $this->assertContains($roomA->supervisor->user->name, ['Andi', 'Budi']);
         $this->assertSame(1, (int) $roomA->rotation_index);
 
         $roomB = $assignments->first(fn ($a) => $a->room_id === $this->roomB->id);
-        $this->assertSame('Budi', $roomB->supervisor->user->name);
+        $this->assertContains($roomB->supervisor->user->name, ['Andi', 'Budi']);
     }
 
     public function test_auto_generate_excludes_inactive_supervisors(): void

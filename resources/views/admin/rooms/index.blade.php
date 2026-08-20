@@ -62,7 +62,7 @@
                             <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Nomor Ruangan</th>
                             <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Kapasitas Murid</th>
                             <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Total Peserta Ter-assign</th>
-                            <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Pengawas Terpasang</th>
+                            <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Pengawas Hari Ini</th>
                             <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Maksimal Pengawas</th>
                             <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Jumlah Jadwal</th>
                             <th scope="col" class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Aksi</th>
@@ -84,7 +84,7 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3.5 text-sm">
-                                    <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">{{ $room->supervisors_count }} pengawas</span>
+                                    <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">{{ $room->today_supervisors_count }} pengawas</span>
                                 </td>
                                 <td class="px-4 py-3.5 text-sm">
                                     <span class="inline-flex items-center rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-semibold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">{{ $room->supervisor_count }}</span>

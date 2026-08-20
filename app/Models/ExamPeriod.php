@@ -14,6 +14,8 @@ class ExamPeriod extends Model
 
     protected $fillable = [
         'name',
+        'grade_level',
+        'session_number',
         'exam_date',
         'start_time',
         'end_time',
@@ -39,5 +41,20 @@ class ExamPeriod extends Model
     public function supervisorRoomAssignments(): HasMany
     {
         return $this->hasMany(SupervisorRoomAssignment::class);
+    }
+
+    public function roomOverrides(): HasMany
+    {
+        return $this->hasMany(ExamPeriodRoomOverride::class);
+    }
+
+    /**
+     * Extract grade level (X, XI, XII) from a class name like "X RPL 1".
+     */
+    public static function extractGradeLevel(string $className): ?string
+    {
+        $grade = strtoupper(trim(explode(' ', $className)[0]));
+
+        return in_array($grade, ['X', 'XI', 'XII'], true) ? $grade : null;
     }
 }

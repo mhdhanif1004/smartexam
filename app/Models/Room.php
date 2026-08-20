@@ -55,4 +55,9 @@ class Room extends Model
     {
         return $this->hasMany(SupervisorRoomAssignment::class);
     }
+
+    public function roomOverrides(): HasMany
+    {
+        return $this->hasMany(ExamPeriodRoomOverride::class);
+    }
 }

@@ -98,7 +98,7 @@ class ExamSessionBulkCreateTest extends TestCase
                     'room_id' => $room->id,
                     'subject_id' => $subjectId,
                     'exam_period_id' => $this->period->id,
-                    'class_name' => 'XI RPL 1',
+                    'class_name' => 'X',
                     'exam_date' => '2026-08-10',
                     'start_time' => $start,
                     'end_time' => $end,

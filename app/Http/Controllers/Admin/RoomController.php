@@ -7,9 +7,10 @@ use App\Http\Requests\Admin\StoreRoomRequest;
 use App\Http\Requests\Admin\UpdateRoomRequest;
 use App\Models\ExamRoomAssignment;
 use App\Models\Room;
-use App\Models\Supervisor;
+use App\Models\SupervisorRoomAssignment;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
@@ -18,12 +19,16 @@ class RoomController extends Controller
 {
     public function index(Request $request): View
     {
+        $today = Carbon::today()->toDateString();
+
         $rooms = Room::query()
             ->withCount([
-                'supervisors',
                 'students',
                 'examSchedules',
                 'roomAssignments as assigned_students_count' => fn ($query) => $query->selectRaw('COUNT(DISTINCT student_id)'),
+            ])
+            ->withCount([
+                'supervisorRoomAssignments as today_supervisors_count' => fn ($query) => $query->where('exam_date', $today),
             ])
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->string('search')->trim();
@@ -65,48 +70,57 @@ class RoomController extends Controller
 
     public function create(): View
     {
-        return view('admin.rooms.create', $this->formData());
+        $nextRoomNumber = (int) (Room::max('room_number') ?? 0) + 1;
+
+        return view('admin.rooms.create', compact('nextRoomNumber'));
     }
 
     public function store(StoreRoomRequest $request): RedirectResponse
     {
         $validated = $request->validated();
-        $supervisorIds = $this->supervisorIds($request->input('supervisor_ids'));
 
-        $room = DB::transaction(function () use ($validated, $supervisorIds) {
-            $room = Room::create([
-                'room_number' => (int) $validated['room_number'],
-                'capacity' => (int) $validated['capacity'],
-                'supervisor_count' => (int) $validated['supervisor_count'],
-            ]);
-
-            $this->assignSupervisors($supervisorIds, $room);
-
-            return $room;
-        });
+        $room = Room::create([
+            'room_number' => (int) $validated['room_number'],
+            'capacity' => (int) $validated['capacity'],
+            'supervisor_count' => (int) $validated['supervisor_count'],
+        ]);
 
         return redirect()->route('admin.rooms.index')->with('success', "Ruangan {$room->display_name} berhasil ditambahkan.");
     }
 
     public function edit(Room $room): View
     {
-        return view('admin.rooms.edit', $this->formData($room));
+        return view('admin.rooms.edit', compact('room'));
     }
 
     public function update(UpdateRoomRequest $request, Room $room): RedirectResponse
     {
         $validated = $request->validated();
-        $supervisorIds = $this->supervisorIds($request->input('supervisor_ids'));
+        $oldSupervisorCount = $room->supervisor_count;
+        $newSupervisorCount = (int) $validated['supervisor_count'];
 
-        DB::transaction(function () use ($validated, $supervisorIds, $room) {
-            $room->update([
-                'room_number' => (int) $validated['room_number'],
-                'capacity' => (int) $validated['capacity'],
-                'supervisor_count' => (int) $validated['supervisor_count'],
-            ]);
+        $room->update([
+            'room_number' => (int) $validated['room_number'],
+            'capacity' => (int) $validated['capacity'],
+            'supervisor_count' => $newSupervisorCount,
+        ]);
 
-            $this->assignSupervisors($supervisorIds, $room);
-        });
+        $warning = null;
+
+        if ($oldSupervisorCount !== $newSupervisorCount) {
+            $hasFutureRotation = SupervisorRoomAssignment::query()
+                ->where('room_id', $room->id)
+                ->whereHas('examPeriod', fn ($q) => $q->where('exam_date', '>=', Carbon::today()->toDateString()))
+                ->exists();
+
+            if ($hasFutureRotation) {
+                $warning = "Ruangan {$room->display_name} sudah punya rotasi pengawas untuk periode yang akan datang. Mengubah jumlah maksimal pengawas TIDAK otomatis memperbarui rotasi yang sudah ada — silakan generate ulang rotasi secara manual dari halaman Periode Ujian jika diperlukan.";
+            }
+        }
+
+        if ($warning !== null) {
+            return redirect()->route('admin.rooms.index')->with('warning', $warning);
+        }
 
         return redirect()->route('admin.rooms.index')->with('success', "Ruangan {$room->display_name} berhasil diperbarui.");
     }
@@ -168,55 +182,5 @@ class RoomController extends Controller
         }
 
         return back()->with($flash);
-    }
-
-    /**
-     * @param  array<mixed>|null  $input
-     * @return list<int>
-     */
-    private function supervisorIds(mixed $input): array
-    {
-        return array_values(array_unique(array_map('intval', (array) $input)));
-    }
-
-    /**
-     * Terapkan daftar pengawas untuk satu ruangan (bisa lebih dari satu).
-     * Pengawas ruangan ini yang tidak ada lagi di daftar dilepas (room_id
-     * null). Pengawas yang ada di daftar diarahkan ke ruangan ini; karena
-     * supervisors.room_id hanya satu kolom, pengawas yang bertugas di ruangan
-     * lain otomatis pindah ke ruangan yang terakhir disubmit.
-     *
-     * @param  list<int>  $supervisorIds
-     */
-    private function assignSupervisors(array $supervisorIds, Room $room): void
-    {
-        if ($supervisorIds === []) {
-            Supervisor::query()->where('room_id', $room->id)->update(['room_id' => null]);
-
-            return;
-        }
-
-        Supervisor::query()
-            ->where('room_id', $room->id)
-            ->whereNotIn('id', $supervisorIds)
-            ->update(['room_id' => null]);
-
-        Supervisor::query()
-            ->whereIn('id', $supervisorIds)
-            ->update(['room_id' => $room->id]);
-    }
-
-    /**
-     * Data bersama untuk halaman Tambah/Edit Ruangan.
-     *
-     * @return array<string, mixed>
-     */
-    private function formData(?Room $room = null): array
-    {
-        $supervisors = Supervisor::query()->with(['user', 'room'])->orderBy('user_id')->get();
-
-        $currentSupervisorIds = $room !== null ? $room->supervisors()->pluck('id')->all() : [];
-
-        return compact('room', 'supervisors', 'currentSupervisorIds');
     }
 }

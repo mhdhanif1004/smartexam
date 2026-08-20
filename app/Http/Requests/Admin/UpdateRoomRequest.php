@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Models\ExamSetting;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -20,9 +21,7 @@ class UpdateRoomRequest extends FormRequest
         return [
             'room_number' => ['required', 'integer', 'min:1', 'max:99999', Rule::unique('rooms', 'room_number')->ignore($this->room->id)],
             'capacity' => ['required', 'integer', 'min:1', 'max:1000'],
-            'supervisor_count' => ['required', 'integer', 'min:1', 'max:'.config('exam.max_supervisors_per_room')],
-            'supervisor_ids' => ['nullable', 'array'],
-            'supervisor_ids.*' => ['integer', 'exists:supervisors,id'],
+            'supervisor_count' => ['required', 'integer', 'min:1', 'max:'.ExamSetting::maxSupervisorsPerRoom()],
         ];
     }
 }

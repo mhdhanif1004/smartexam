@@ -5,14 +5,18 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreExamScheduleRequest;
 use App\Http\Requests\Admin\UpdateExamScheduleRequest;
+use App\Models\ExamPeriod;
+use App\Models\ExamRoomAssignment;
 use App\Models\ExamSchedule;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class ExamScheduleController extends Controller
@@ -38,16 +42,169 @@ class ExamScheduleController extends Controller
             'date' => ['required', 'date'],
         ]);
 
-        $schedules = $this->schedulesForDate($request, $validated['date'])
-            ->with(['subject', 'room'])
-            ->orderBy('start_time')
+        $date = $validated['date'];
+
+        // Grouped query: exactly 1 row per (subject + date)
+        $query = ExamSchedule::query()
+            ->whereDate('exam_date', $date)
+            ->select(
+                'subject_id',
+                'exam_date',
+                DB::raw('MIN(start_time) as earliest_start'),
+                DB::raw('MAX(end_time) as latest_end'),
+                DB::raw('MIN(duration_minutes) as duration_minutes'),
+                DB::raw('COUNT(DISTINCT room_id) as room_count'),
+                DB::raw('GROUP_CONCAT(DISTINCT id ORDER BY id SEPARATOR ",") as schedule_ids'),
+                DB::raw('MIN(id) as representative_id'),
+                DB::raw("CASE
+                    WHEN SUM(CASE WHEN status = 'scheduled' THEN 1 ELSE 0 END) > 0 THEN 'scheduled'
+                    WHEN SUM(CASE WHEN status = 'ongoing' THEN 1 ELSE 0 END) > 0 THEN 'ongoing'
+                    ELSE 'finished'
+                END as dominant_status"),
+            )
+            ->groupBy('subject_id', 'exam_date');
+
+        if ($request->filled('search')) {
+            $search = $request->string('search')->trim();
+            $query->whereHas('subject', fn (Builder $s) => $s->where('name', 'like', "%{$search}%"));
+        }
+
+        if ($request->filled('status')) {
+            $query->having('dominant_status', '=', $request->string('status'));
+        }
+
+        $groups = $query->orderBy('earliest_start')
             ->paginate(10)
             ->withQueryString();
 
+        $subjectIds = $groups->pluck('subject_id')->unique()->values()->all();
+        $subjects = Subject::query()->whereIn('id', $subjectIds)->get()->keyBy('id');
+
         return view('admin.exam-schedules.by-date', [
-            'schedules' => $schedules,
+            'groups' => $groups,
+            'subjects' => $subjects,
             'statuses' => ExamSchedule::STATUSES,
-            'examDate' => $validated['date'],
+            'examDate' => $date,
+        ]);
+    }
+
+    public function detail(ExamSchedule $examSchedule): JsonResponse
+    {
+        $subjectId = $examSchedule->subject_id;
+        $examDate = $examSchedule->exam_date->toDateString();
+
+        // All schedules for this subject on this day
+        $allSchedules = ExamSchedule::query()
+            ->where('subject_id', $subjectId)
+            ->whereDate('exam_date', $examDate)
+            ->get();
+
+        // Group by (exam_period_id, start_time, end_time) = 1 session
+        $sessionGroups = $allSchedules->groupBy(
+            fn ($s) => ($s->exam_period_id ?? 'manual').'|'.$s->start_time.'|'.$s->end_time
+        );
+
+        $periodIds = $sessionGroups->keys()
+            ->filter(fn ($k) => ! str_starts_with($k, 'manual'))
+            ->map(fn ($k) => (int) explode('|', $k)[0])
+            ->values()
+            ->all();
+        $periods = ExamPeriod::query()->whereIn('id', $periodIds)->get()->keyBy('id');
+
+        $sessions = [];
+        $totalStudents = 0;
+
+        foreach ($sessionGroups as $key => $group) {
+            [$periodKey, $startTime, $endTime] = explode('|', $key);
+            $periodId = $periodKey === 'manual' ? null : (int) $periodKey;
+            $period = $periodId !== null ? ($periods[$periodId] ?? null) : null;
+
+            $roomIds = $group->pluck('room_id')->unique()->values()->all();
+            $scheduleIds = $group->pluck('id')->values()->all();
+
+            $roomDetails = [];
+
+            if ($period !== null) {
+                $assignments = ExamRoomAssignment::query()
+                    ->with(['student', 'room'])
+                    ->where('exam_period_id', $period->id)
+                    ->whereIn('room_id', $roomIds)
+                    ->get();
+
+                $byRoom = $assignments->groupBy('room_id');
+
+                foreach ($roomIds as $roomId) {
+                    $roomAssignments = $byRoom->get($roomId, collect());
+                    $room = $roomAssignments->first()?->room ?? Room::find($roomId);
+
+                    $classes = $roomAssignments
+                        ->groupBy(fn ($a) => $a->student?->class_name ?? 'Tanpa Kelas')
+                        ->map(fn ($students, $className) => [
+                            'name' => $className,
+                            'count' => $students->count(),
+                        ])
+                        ->values()
+                        ->sortBy('name')
+                        ->all();
+
+                    $roomDetails[] = [
+                        'room_id' => $roomId,
+                        'room_name' => $room?->display_name ?? "Ruang #{$roomId}",
+                        'student_count' => $roomAssignments->count(),
+                        'classes' => $classes,
+                    ];
+                }
+            } else {
+                $rooms = Room::query()->whereIn('id', $roomIds)->get()->keyBy('id');
+
+                foreach ($roomIds as $roomId) {
+                    $roomSchedule = $group->firstWhere('room_id', $roomId);
+                    $roomDetails[] = [
+                        'room_id' => $roomId,
+                        'room_name' => $rooms->get($roomId)?->display_name ?? "Ruang #{$roomId}",
+                        'student_count' => 0,
+                        'classes' => [
+                            ['name' => $roomSchedule?->class_name ?? '-', 'count' => 0],
+                        ],
+                    ];
+                }
+            }
+
+            usort($roomDetails, fn ($a, $b) => $a['room_id'] <=> $b['room_id']);
+
+            $sessionStudents = collect($roomDetails)->sum('student_count');
+            $totalStudents += $sessionStudents;
+
+            $label = match (true) {
+                $period !== null => $period->name
+                    .($period->grade_level ? ' — Grade '.$period->grade_level : '')
+                    .' — '.Carbon::parse($startTime)->format('H:i').'-'.Carbon::parse($endTime)->format('H:i'),
+                default => 'Jadwal Manual',
+            };
+
+            $sessions[] = [
+                'label' => $label,
+                'period_name' => $period?->name ?? null,
+                'grade_level' => $period?->grade_level ?? null,
+                'start_time' => Carbon::parse($startTime)->format('H:i'),
+                'end_time' => Carbon::parse($endTime)->format('H:i'),
+                'rooms' => $roomDetails,
+                'room_count' => count($roomDetails),
+                'student_count' => $sessionStudents,
+            ];
+        }
+
+        // Sort sessions by start_time
+        usort($sessions, fn ($a, $b) => $a['start_time'] <=> $b['start_time']);
+
+        $subject = $allSchedules->first()?->subject;
+
+        return response()->json([
+            'subject_name' => $subject?->name ?? '-',
+            'date' => $examDate,
+            'total_rooms' => $allSchedules->pluck('room_id')->unique()->count(),
+            'total_students' => $totalStudents,
+            'sessions' => $sessions,
         ]);
     }
 
@@ -121,19 +278,29 @@ class ExamScheduleController extends Controller
             return back()->with('error', 'Pilih minimal satu jadwal untuk dihapus.');
         }
 
-        $deleted = ExamSchedule::query()->whereIn('id', $ids)->delete();
+        // IDs are representative schedule_ids from grouped view;
+        // expand: delete ALL schedules for the same subject + date
+        $expandedIds = [];
+        foreach ($ids as $id) {
+            $schedule = ExamSchedule::find($id);
+            if ($schedule) {
+                $siblings = ExamSchedule::query()
+                    ->where('subject_id', $schedule->subject_id)
+                    ->whereDate('exam_date', $schedule->exam_date)
+                    ->pluck('id')
+                    ->all();
+                $expandedIds = array_merge($expandedIds, $siblings);
+            }
+        }
+
+        $deleted = ExamSchedule::query()->whereIn('id', array_unique($expandedIds))->delete();
 
         return back()->with('success', "{$deleted} jadwal ujian berhasil dihapus.");
     }
 
-    private function schedulesForDate(Request $request, string $date): Builder
-    {
-        return $this->applySearchFilters(
-            ExamSchedule::query()->whereDate('exam_date', $date),
-            $request,
-        );
-    }
-
+    /**
+     * Apply search/status filters for the date-index (ungrouped) query.
+     */
     private function applySearchFilters(Builder $query, Request $request): Builder
     {
         return $query

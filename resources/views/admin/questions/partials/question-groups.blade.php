@@ -27,7 +27,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                     </svg>
                     <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                        Kelas: {{ implode(', ', $group['classroom_names']) }}
+                        Kelas: {{ \App\Models\Classroom::summarizeTargets($group['classroom_ids']) }}
                     </span>
                     <span class="shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
                         {{ count($group['questions']) }} soal

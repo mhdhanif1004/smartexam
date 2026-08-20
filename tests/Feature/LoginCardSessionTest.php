@@ -35,6 +35,7 @@ class LoginCardSessionTest extends TestCase
 
         $period = ExamPeriod::factory()->create([
             'name' => 'Sesi 1',
+            'session_number' => 1,
             'exam_date' => '2026-08-10',
             'start_time' => '07:30:00',
             'end_time' => '11:00:00',
@@ -75,8 +76,8 @@ class LoginCardSessionTest extends TestCase
         Question::factory()->create(['subject_id' => $subjectA->id]);
         Question::factory()->create(['subject_id' => $subjectB->id]);
 
-        $period1 = ExamPeriod::factory()->create(['name' => 'Sesi 1', 'exam_date' => '2026-08-10', 'start_time' => '07:30:00']);
-        $period2 = ExamPeriod::factory()->create(['name' => 'Sesi 2', 'exam_date' => '2026-08-10', 'start_time' => '11:05:00']);
+        $period1 = ExamPeriod::factory()->create(['name' => 'Sesi 1', 'session_number' => 1, 'exam_date' => '2026-08-10', 'start_time' => '07:30:00']);
+        $period2 = ExamPeriod::factory()->create(['name' => 'Sesi 2', 'session_number' => 2, 'exam_date' => '2026-08-10', 'start_time' => '11:05:00']);
 
         ExamSchedule::factory()->create([
             'room_id' => $room->id,
@@ -116,7 +117,7 @@ class LoginCardSessionTest extends TestCase
         $this->actingAs($this->admin)
             ->post(route('admin.student-cards.preview'), ['student_ids' => [$student->id]])
             ->assertOk()
-            ->assertSee('Sesi 1, Sesi 2');
+            ->assertSee('Sesi 1/R101, Sesi 2/R101');
     }
 
     public function test_card_preview_falls_back_to_dash_when_schedule_has_no_session(): void

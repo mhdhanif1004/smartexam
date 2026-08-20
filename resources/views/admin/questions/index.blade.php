@@ -511,7 +511,7 @@
                                 $subjectClasses = $subjectClassrooms[$subject->id] ?? [];
                             @endphp
                             @if(count($subjectClasses) > 0)
-                                <span class="hidden shrink-0 text-xs text-gray-400 dark:text-gray-500 sm:inline">· Kelas: {{ implode(', ', array_slice($subjectClasses, 0, 3)) }}{{ count($subjectClasses) > 3 ? ' +' . (count($subjectClasses) - 3) . ' lainnya' : '' }}</span>
+                                <span class="hidden shrink-0 text-xs text-gray-400 dark:text-gray-500 sm:inline">· Kelas: {{ \App\Models\Classroom::summarizeTargets($subjectClasses) }}</span>
                             @endif
                         </span>
                         <span class="flex shrink-0 items-center gap-2">

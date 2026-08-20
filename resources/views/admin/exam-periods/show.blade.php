@@ -40,6 +40,57 @@
 
         @include('admin.partials.flash')
 
+        @if ($roomGroups->isNotEmpty())
+            <div class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div class="flex items-center justify-between border-b border-gray-200 px-5 py-3 dark:border-gray-800">
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">Override Pengawas per Ruangan</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Atur jumlah pengawas khusus per ruangan untuk sesi ini. Kosongkan atau isi 0 untuk memakai default dari pengaturan ruangan.</p>
+                    </div>
+                </div>
+                <form method="POST" action="{{ route('admin.exam-periods.room-overrides.update', $examPeriod) }}">
+                    @csrf
+                    @method('PUT')
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+                            <thead class="bg-gray-50 dark:bg-gray-800">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Ruangan</th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Default</th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Override (0 = pakai default)</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900">
+                                @foreach ($roomGroups as $group)
+                                    @php
+                                        $room = $group['room'];
+                                        $override = $examPeriod->roomOverrides->firstWhere('room_id', $room?->id);
+                                    @endphp
+                                    @if ($room)
+                                        <tr class="transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                            <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{{ $room->display_name }}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $room->supervisor_count }} pengawas</td>
+                                            <td class="px-4 py-3">
+                                                <input type="hidden" name="overrides[{{ $loop->index }}][room_id]" value="{{ $room->id }}">
+                                                <input type="number" name="overrides[{{ $loop->index }}][supervisor_count]"
+                                                    min="0" max="10"
+                                                    value="{{ $override?->supervisor_count ?? 0 }}"
+                                                    class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                                                    placeholder="0">
+                                            </td>
+                                        </tr>
+                                    @endif
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="flex justify-end border-t border-gray-200 px-5 py-3 dark:border-gray-800">
+                        <x-primary-button>Simpan Override</x-primary-button>
+                    </div>
+                </form>
+            </div>
+        @endif
+
         @forelse ($roomGroups as $group)
             <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-5 py-3 dark:border-gray-800">

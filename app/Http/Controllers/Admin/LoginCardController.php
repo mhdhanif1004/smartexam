@@ -10,11 +10,11 @@ use App\Models\Room;
 use App\Models\Student;
 use App\Models\Supervisor;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class LoginCardController extends Controller
@@ -56,15 +56,6 @@ class LoginCardController extends Controller
                     ->get();
 
                 $selectedClass = $request->string('class')->toString();
-            } else {
-                // Default: show all students from all classes
-                $students = Student::query()
-                    ->with(['user', 'room'])
-                    ->orderBy('class_name')
-                    ->orderBy('nisn')
-                    ->get();
-
-                $selectedClass = 'all';
             }
         }
 
@@ -249,9 +240,9 @@ class LoginCardController extends Controller
      * kolom students.room_id (asumsi lama).
      *
      * @param  Collection<int, Student>  $students
-     * @return \Illuminate\Support\Collection<int, \Illuminate\Support\Collection<int, ExamRoomAssignment>>
+     * @return Collection<int, Collection<int, ExamRoomAssignment>>
      */
-    private function roomAssignmentsByStudent(Collection $students): \Illuminate\Support\Collection
+    private function roomAssignmentsByStudent(Collection $students): Collection
     {
         $studentIds = $students->pluck('id')->all();
 

@@ -23,13 +23,13 @@
     $roomAssignments = $roomAssignments ?? collect();
     $assignments = $roomAssignments[$student->id] ?? collect();
 
-    $sessionNames = $assignments
-        ->map(fn ($assignment) => $assignment->examPeriod?->name)
-        ->filter()
-        ->unique()
-        ->values();
+    $sessionLabels = $assignments->map(function ($assignment) {
+        $num = $assignment->examPeriod?->session_number ?? '-';
+        $roomNum = $assignment->room?->room_number ?? '?';
+        return "Sesi {$num}/R{$roomNum}";
+    })->filter()->unique()->values();
 
-    $sessions = $sessionNames->isNotEmpty() ? $sessionNames->implode(', ') : '-';
+    $sessions = $sessionLabels->isNotEmpty() ? $sessionLabels->implode(', ') : '-';
 
     $assignmentRooms = $assignments->map(fn ($assignment) => $assignment->room?->display_name ?? '-');
 
