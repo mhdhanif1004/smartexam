@@ -62,7 +62,7 @@ export function examApp(config) {
                 }
             }, 1000);
 
-            if (!this.requestFullscreen()) {
+            if (!this.isWebViewApp() && !this.requestFullscreen()) {
                 this.showToast('Browser/perangkat ini tidak mendukung mode layar penuh. Ujian tetap dapat dikerjakan.');
             }
         },
@@ -172,17 +172,23 @@ export function examApp(config) {
                 console.warn('[SmartExam] Mode layar penuh gagal diaktifkan oleh browser; ujian tetap berjalan.');
             };
 
+            const isWebView = this.isWebViewApp();
+
             this.violationListeners = [
                 [document, 'visibilitychange', onVisibilityChange],
                 [window, 'blur', onWindowBlur],
                 [window, 'resize', onResize],
             ];
-            FULLSCREEN_CHANGE_EVENTS.forEach((type) => {
-                this.violationListeners.push([document, type, onFullscreenChange]);
-            });
-            FULLSCREEN_ERROR_EVENTS.forEach((type) => {
-                this.violationListeners.push([document, type, onFullscreenError]);
-            });
+
+            if (!isWebView) {
+                FULLSCREEN_CHANGE_EVENTS.forEach((type) => {
+                    this.violationListeners.push([document, type, onFullscreenChange]);
+                });
+                FULLSCREEN_ERROR_EVENTS.forEach((type) => {
+                    this.violationListeners.push([document, type, onFullscreenError]);
+                });
+            }
+
             this.violationListeners.forEach(([target, type, handler]) => target.addEventListener(type, handler));
 
             this.statusTimer = setInterval(() => this.checkStatus(), 20000);
@@ -199,6 +205,10 @@ export function examApp(config) {
                 || document.webkitFullscreenElement
                 || document.msFullscreenElement
                 || null;
+        },
+
+        isWebViewApp() {
+            return navigator.userAgent && navigator.userAgent.includes('SmartExamApp');
         },
 
         async checkStatus() {
