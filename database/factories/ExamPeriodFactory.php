@@ -19,6 +19,7 @@ class ExamPeriodFactory extends Factory
     {
         return [
             'name' => 'Sesi '.fake()->numberBetween(1, 4),
+            'name_prefix' => null,
             'grade_level' => 'X',
             'exam_date' => fake()->dateTimeBetween('-1 week', '+2 weeks')->format('Y-m-d'),
             'start_time' => '07:30:00',

@@ -245,4 +245,154 @@ class ExamPeriodAutoGenerateTest extends TestCase
         $this->assertDatabaseCount('exam_schedules', 0);
         $this->assertDatabaseCount('exam_room_assignments', 0);
     }
+
+    /**
+     * Skenario campuran: 12 ruangan × kapasitas 30 = 360 kursi/sesi.
+     * X=250, XI=200, XII=150 → total 600 siswa → ceil(600/360) = 2 sesi.
+     *
+     * Sesi 1 (360 kursi):
+     *   R1–R8  : 240 siswa X (isi penuh)
+     *   R9     : 10 siswa X (sisa, ditutup → 20 kosong)
+     *   R10–R12: 90 siswa XI (isi penuh)
+     *   Subtotal: 250 X + 90 XI = 340 terisi, 20 kosong
+     *
+     * Sesi 2 (360 kursi):
+     *   R1–R3  : 90 siswa XI (sisa 200-90=110 → R1-R3 isi penuh 90)
+     *   R4     : 20 siswa XI (sisa 20, ditutup → 10 kosong)
+     *   R5–R9  : 150 siswa XII (isi penuh)
+     *   Subtotal: 110 XI + 150 XII = 260 terisi, 100 kosong
+     *
+     * Paling penting: TIDAK ada ruangan yang campur 2+ grade.
+     */
+    public function test_mixed_grade_rooms_maintain_grade_exclusivity(): void
+    {
+        // Create 12 rooms with capacity 30 each (start at 100 to avoid conflict with setUp's rooms)
+        $rooms = [];
+        foreach (range(1, 12) as $i) {
+            $rooms[] = Room::factory()->create(['room_number' => 100 + $i, 'capacity' => 30]);
+        }
+        $roomIds = array_map(fn ($r) => $r->id, $rooms);
+
+        // Create 250 students grade X
+        foreach (range(1, 250) as $i) {
+            $this->student('Xsiswa'.str_pad((string) $i, 4, '0', STR_PAD_LEFT), 'X RPL '.($i % 5 + 1));
+        }
+        // Create 200 students grade XI
+        foreach (range(1, 200) as $i) {
+            $this->student('XIsiswa'.str_pad((string) $i, 4, '0', STR_PAD_LEFT), 'XI RPL '.($i % 5 + 1));
+        }
+        // Create 150 students grade XII
+        foreach (range(1, 150) as $i) {
+            $this->student('XIIsiswa'.str_pad((string) $i, 4, '0', STR_PAD_LEFT), 'XII RPL '.($i % 5 + 1));
+        }
+
+        $payload = [
+            'name' => 'UAS Campuran',
+            'exam_date' => '2026-08-20',
+            'class_names' => [
+                'X RPL 1', 'X RPL 2', 'X RPL 3', 'X RPL 4', 'X RPL 5',
+                'XI RPL 1', 'XI RPL 2', 'XI RPL 3', 'XI RPL 4', 'XI RPL 5',
+                'XII RPL 1', 'XII RPL 2', 'XII RPL 3', 'XII RPL 4', 'XII RPL 5',
+            ],
+            'rooms' => $roomIds,
+            'subjects' => [
+                ['subject_id' => $this->mtk->id, 'duration_minutes' => 60],
+                ['subject_id' => $this->bindo->id, 'duration_minutes' => 60],
+                ['subject_id' => $this->bing->id, 'duration_minutes' => 90],
+            ],
+            'start_time' => '07:30',
+            'gap_minutes' => 15,
+        ];
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.exam-periods.auto-generate.store'), $payload)
+            ->assertRedirect(route('admin.exam-periods.index'))
+            ->assertSessionHas('success');
+
+        // ── Assertion 1: Exactly 2 sessions ──
+        $periods = ExamPeriod::query()->orderBy('session_number')->get();
+        $this->assertCount(2, $periods, 'Expected exactly 2 sessions for 600 students across 360 capacity.');
+        $this->assertSame(1, $periods[0]->session_number);
+        $this->assertSame(2, $periods[1]->session_number);
+
+        // ── Assertion 2: total 600 assignments, no duplicate students ──
+        $this->assertSame(600, ExamRoomAssignment::query()->count());
+        $this->assertSame(600, ExamRoomAssignment::query()->distinct('student_id')->count('student_id'));
+
+        // ── Assertion 3: CRITICAL — no room has students from 2+ different grades ──
+        $allAssignments = ExamRoomAssignment::query()
+            ->with('student')
+            ->get();
+
+        $roomGrades = $allAssignments->groupBy(fn ($a) => $a->exam_period_id.'|'.$a->room_id)
+            ->map(fn ($assignments, $key) => [
+                'period_room' => $key,
+                'grades' => $assignments
+                    ->map(fn ($a) => ExamPeriod::extractGradeLevel($a->student?->class_name ?? ''))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all(),
+            ])
+            ->filter(fn ($g) => count($g['grades']) > 1);
+
+        $this->assertTrue(
+            $roomGrades->isEmpty(),
+            'CRITICAL FAILURE: '.($roomGrades->count()).' room(s) have mixed grades: '
+            .$roomGrades->map(fn ($g) => $g['period_room'].' → '.implode('+', $g['grades']))->implode(', ')
+        );
+
+        // ── Assertion 4: per-session assignment counts ──
+        // Sesi 1: 340 students (250 X + 90 XI), 20 seats empty
+        // Sesi 2: 260 students (110 XI + 150 XII), 100 seats empty
+        $session1Count = ExamRoomAssignment::query()->where('exam_period_id', $periods[0]->id)->count();
+        $session2Count = ExamRoomAssignment::query()->where('exam_period_id', $periods[1]->id)->count();
+        $this->assertSame(340, $session1Count, 'Sesi 1 should have 340 students (250 X + 90 XI).');
+        $this->assertSame(260, $session2Count, 'Sesi 2 should have 260 students (110 XI + 150 XII).');
+
+        // ── Assertion 5: per-room detail (simplified spot checks) ──
+        // Sesi 1, Room 9: exactly 10 X students (partial fill, then closed)
+        $s1r9Count = ExamRoomAssignment::query()
+            ->where('exam_period_id', $periods[0]->id)
+            ->where('room_id', $rooms[8]->id) // rooms[8] = R9 (0-indexed)
+            ->count();
+        $this->assertSame(10, $s1r9Count, 'Sesi 1 Room 9 should have exactly 10 students (partial X).');
+
+        // Sesi 2, Room 4: exactly 20 XI students (partial fill, then closed)
+        $s2r4Count = ExamRoomAssignment::query()
+            ->where('exam_period_id', $periods[1]->id)
+            ->where('room_id', $rooms[3]->id) // rooms[3] = R4 (0-indexed)
+            ->count();
+        $this->assertSame(20, $s2r4Count, 'Sesi 2 Room 4 should have exactly 20 students (partial XI).');
+
+        // ── Assertion 6: grade_level on ExamPeriod is null (mixed-grade sessions) ──
+        foreach ($periods as $period) {
+            $this->assertNull($period->grade_level, 'Auto-generated mixed-grade sessions should have null grade_level.');
+        }
+
+        // ── Assertion 7: verify specific grades in specific rooms ──
+        // Sesi 1 R1: all students should be X
+        $s1r1Grades = ExamRoomAssignment::query()
+            ->where('exam_room_assignments.exam_period_id', $periods[0]->id)
+            ->where('exam_room_assignments.room_id', $rooms[0]->id)
+            ->join('students', 'students.id', '=', 'exam_room_assignments.student_id')
+            ->pluck('students.class_name')
+            ->map(fn ($cn) => ExamPeriod::extractGradeLevel($cn))
+            ->unique()
+            ->values();
+        $this->assertCount(1, $s1r1Grades, 'Sesi 1 Room 1 should have only 1 grade level.');
+        $this->assertSame('X', $s1r1Grades[0], 'Sesi 1 Room 1 should contain only grade X students.');
+
+        // Sesi 2 R1: all students should be XI
+        $s2r1Grades = ExamRoomAssignment::query()
+            ->where('exam_room_assignments.exam_period_id', $periods[1]->id)
+            ->where('exam_room_assignments.room_id', $rooms[0]->id)
+            ->join('students', 'students.id', '=', 'exam_room_assignments.student_id')
+            ->pluck('students.class_name')
+            ->map(fn ($cn) => ExamPeriod::extractGradeLevel($cn))
+            ->unique()
+            ->values();
+        $this->assertCount(1, $s2r1Grades, 'Sesi 2 Room 1 should have only 1 grade level.');
+        $this->assertSame('XI', $s2r1Grades[0], 'Sesi 2 Room 1 should contain only grade XI students.');
+    }
 }

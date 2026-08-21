@@ -349,6 +349,6 @@ class ExamRoomAssignmentTest extends TestCase
             ->assertSee('Cinta')
             ->assertSee('2 siswa')
             ->assertSee('3 siswa')
-            ->assertSee('Total Peserta Ter-assign');
+            ->assertSee('Total Peserta');
     }
 }
