@@ -34,6 +34,7 @@
                 }
             },
             deleteUrl: '',
+            deleteDescription: '',
         }"
         class="space-y-6"
     >
@@ -121,7 +122,13 @@
                                             Detail
                                         </button>
                                         <a href="{{ route('admin.exam-schedules.edit', $group->representative_id) }}" class="rounded-md bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:bg-gray-500/10 dark:text-gray-300 dark:hover:bg-gray-500/20">Edit</a>
-                                        <button type="button" @click="deleteUrl = '{{ route('admin.exam-schedules.destroy', $group->representative_id) }}'; $dispatch('open-modal', 'confirm-delete')" class="rounded-md bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20">Hapus</button>
+                                        <button type="button"
+                                                @click="
+                                                    deleteUrl = '{{ route('admin.exam-schedules.destroy', $group->representative_id) }}';
+                                                    deleteDescription = 'Ini akan menghapus {{ $group->room_count }} jadwal untuk {{ $subject?->name ?? '-' }} pada {{ \Carbon\Carbon::parse($examDate)->locale("id")->translatedFormat("d F Y") }}.';
+                                                    $dispatch('open-modal', 'confirm-delete');
+                                                "
+                                                class="rounded-md bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20">Hapus</button>
                                     </div>
                                 </td>
                             </tr>
@@ -150,16 +157,26 @@
                 </template>
                 <template x-if="!detailLoading && detail">
                     <div>
-                        <div class="mb-4">
+                        <div class="mb-1">
                             <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100" x-text="detail.subject_name"></h2>
                             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                                 <span x-text="detail.total_rooms + ' ruangan total'"></span>
-                                <span class="text-gray-400"> · </span>
-                                <span x-text="detail.total_students + ' siswa total'"></span>
+                                <template x-if="detail.total_students > 0">
+                                    <span><span class="text-gray-400"> · </span><span x-text="detail.total_students + ' siswa total'"></span></span>
+                                </template>
+                                <template x-if="detail.total_students === 0">
+                                    <span><span class="text-gray-400"> · </span>Belum ada siswa ditempatkan</span>
+                                </template>
                             </p>
+                            <template x-if="detail.name_prefixes && detail.name_prefixes.length > 0">
+                                <div>
+                                    <div class="my-2 border-t border-gray-100 dark:border-gray-700"></div>
+                                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400" x-text="detail.name_prefixes.join(', ') + ' · ' + detail.sessions.length + ' sesi'"></p>
+                                </div>
+                            </template>
                         </div>
 
-                        <div class="space-y-3">
+                        <div class="mt-4 space-y-4">
                             <template x-for="(session, si) in detail.sessions" :key="si">
                                 <div class="rounded-lg border border-gray-200 dark:border-gray-700">
                                     {{-- Level 1: Sesi --}}
@@ -169,17 +186,25 @@
                                         @click="toggleSession(si)"
                                         @keydown.enter="toggleSession(si)"
                                         @keydown.space.prevent="toggleSession(si)"
-                                        class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                                        class="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
                                     >
-                                        <span class="flex items-center gap-2.5">
+                                        <span class="flex min-w-0 flex-1 items-center gap-2">
                                             <svg class="h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform duration-200 dark:text-gray-500"
                                                  :class="isSessionOpen(si) ? 'rotate-180' : ''"
                                                  fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                                             </svg>
-                                            <span class="text-sm font-semibold text-gray-700 dark:text-gray-300" x-text="session.label"></span>
+                                            <span class="truncate text-sm font-semibold text-gray-700 dark:text-gray-300" x-text="session.label"></span>
                                         </span>
-                                        <span class="shrink-0 text-xs text-gray-400 dark:text-gray-500" x-text="session.room_count + ' ruangan · ' + session.student_count + ' siswa'"></span>
+                                        <span class="flex shrink-0 items-center gap-1.5">
+                                            <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300" x-text="session.room_count + ' ruang'"></span>
+                                            <template x-if="session.is_manual">
+                                                <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">0 siswa</span>
+                                            </template>
+                                            <template x-if="!session.is_manual">
+                                                <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300" x-text="session.student_count + ' siswa'"></span>
+                                            </template>
+                                        </span>
                                     </div>
 
                                     {{-- Level 2 + 3: Ruangan → Kelas --}}
@@ -204,8 +229,17 @@
                                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                                                             </svg>
                                                             <span class="text-xs font-medium text-gray-600 dark:text-gray-400" x-text="room.room_name"></span>
-                                                            <span class="shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300" x-text="room.student_count + ' siswa'"></span>
+                                                            <template x-if="room.grade_level">
+                                                                <span class="shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset"
+                                                                      :class="{
+                                                                          'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-400/30': room.grade_level === 'X',
+                                                                          'bg-sky-50 text-sky-700 ring-sky-600/20 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-400/30': room.grade_level === 'XI',
+                                                                          'bg-violet-50 text-violet-700 ring-violet-600/20 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-400/30': room.grade_level === 'XII'
+                                                                      }"
+                                                                      x-text="room.grade_level"></span>
+                                                            </template>
                                                         </span>
+                                                        <span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300" x-text="room.student_count !== null ? room.student_count + ' siswa' : 'Belum ada siswa'"></span>
                                                     </div>
 
                                                     {{-- Level 3: Kelas --}}

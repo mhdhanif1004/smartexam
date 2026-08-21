@@ -61,11 +61,66 @@ class RoomController extends Controller
             ->sortBy(fn (Collection $group) => $group->first()?->examPeriod?->exam_date.'|'.$group->first()?->examPeriod?->start_time)
             ->values();
 
+        $supervisorAssignments = SupervisorRoomAssignment::query()
+            ->with(['examPeriod', 'supervisor.user'])
+            ->where('room_id', $room->id)
+            ->orderBy('exam_date')
+            ->orderBy('exam_period_id')
+            ->get();
+
+        $supervisorAssignmentsByDate = $supervisorAssignments
+            ->groupBy(fn (SupervisorRoomAssignment $a) => $a->exam_date->toDateString())
+            ->map(function (Collection $dateGroup, string $date) {
+                $sessions = $dateGroup
+                    ->groupBy('exam_period_id')
+                    ->map(function (Collection $periodGroup) {
+                        $period = $periodGroup->first()?->examPeriod;
+                        $supervisorNames = $periodGroup
+                            ->map(fn (SupervisorRoomAssignment $a) => $a->supervisor?->user?->name)
+                            ->filter()
+                            ->unique()
+                            ->values()
+                            ->all();
+
+                        return [
+                            'period' => $period,
+                            'supervisor_names' => $supervisorNames,
+                        ];
+                    })
+                    ->sortBy(fn ($s) => $s['period']?->start_time ?? '')
+                    ->values();
+
+                $uniqueSupervisors = $dateGroup
+                    ->map(fn (SupervisorRoomAssignment $a) => $a->supervisor_id)
+                    ->unique()
+                    ->count();
+
+                return [
+                    'date' => Carbon::parse($date),
+                    'sessions' => $sessions,
+                    'session_count' => $sessions->count(),
+                    'supervisor_count' => $uniqueSupervisors,
+                ];
+            })
+            ->values();
+
+        $totalSupervisors = $supervisorAssignments
+            ->pluck('supervisor_id')
+            ->unique()
+            ->count();
+
+        $studentDates = $assignments->pluck('examPeriod.exam_date')->filter()->unique()->pluck('value');
+        $supervisorDates = $supervisorAssignments->pluck('exam_date')->filter()->unique()->pluck('value');
+        $totalDays = $studentDates->concat($supervisorDates)->unique()->count();
+
         return view('admin.rooms.detail', [
             'room' => $room,
             'assignmentsByPeriod' => $assignmentsByPeriod,
             'totalSessions' => $assignmentsByPeriod->count(),
             'totalStudents' => $assignments->unique('student_id')->count(),
+            'supervisorAssignmentsByDate' => $supervisorAssignmentsByDate,
+            'totalSupervisors' => $totalSupervisors,
+            'totalDays' => $totalDays,
         ]);
     }
 

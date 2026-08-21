@@ -147,11 +147,16 @@ class ExamScheduleController extends Controller
                         ->sortBy('name')
                         ->all();
 
+                    $roomGradeLevel = $classes !== []
+                        ? ExamPeriod::extractGradeLevel($classes[0]['name'])
+                        : null;
+
                     $roomDetails[] = [
                         'room_id' => $roomId,
                         'room_name' => $room?->display_name ?? "Ruang #{$roomId}",
                         'student_count' => $roomAssignments->count(),
                         'classes' => $classes,
+                        'grade_level' => $roomGradeLevel,
                     ];
                 }
             } else {
@@ -162,10 +167,11 @@ class ExamScheduleController extends Controller
                     $roomDetails[] = [
                         'room_id' => $roomId,
                         'room_name' => $rooms->get($roomId)?->display_name ?? "Ruang #{$roomId}",
-                        'student_count' => 0,
+                        'student_count' => null,
                         'classes' => [
                             ['name' => $roomSchedule?->class_name ?? '-', 'count' => 0],
                         ],
+                        'grade_level' => ExamPeriod::extractGradeLevel($roomSchedule?->class_name ?? ''),
                     ];
                 }
             }
@@ -173,24 +179,28 @@ class ExamScheduleController extends Controller
             usort($roomDetails, fn ($a, $b) => $a['room_id'] <=> $b['room_id']);
 
             $sessionStudents = collect($roomDetails)->sum('student_count');
-            $totalStudents += $sessionStudents;
+            $isManual = $period === null;
+            if (! $isManual) {
+                $totalStudents += $sessionStudents;
+            }
 
             $label = match (true) {
-                $period !== null => $period->name
-                    .($period->grade_level ? ' — Grade '.$period->grade_level : '')
-                    .' — '.Carbon::parse($startTime)->format('H:i').'-'.Carbon::parse($endTime)->format('H:i'),
+                $period !== null => 'Sesi '.$period->session_number
+                    .' · '.Carbon::parse($startTime)->format('H:i').'-'.Carbon::parse($endTime)->format('H:i'),
                 default => 'Jadwal Manual',
             };
 
             $sessions[] = [
                 'label' => $label,
                 'period_name' => $period?->name ?? null,
+                'name_prefix' => $period?->name_prefix ?? null,
                 'grade_level' => $period?->grade_level ?? null,
                 'start_time' => Carbon::parse($startTime)->format('H:i'),
                 'end_time' => Carbon::parse($endTime)->format('H:i'),
                 'rooms' => $roomDetails,
                 'room_count' => count($roomDetails),
                 'student_count' => $sessionStudents,
+                'is_manual' => $isManual,
             ];
         }
 
@@ -199,11 +209,19 @@ class ExamScheduleController extends Controller
 
         $subject = $allSchedules->first()?->subject;
 
+        $namePrefixes = collect($sessions)
+            ->pluck('name_prefix')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
         return response()->json([
             'subject_name' => $subject?->name ?? '-',
             'date' => $examDate,
             'total_rooms' => $allSchedules->pluck('room_id')->unique()->count(),
             'total_students' => $totalStudents,
+            'name_prefixes' => $namePrefixes,
             'sessions' => $sessions,
         ]);
     }
@@ -261,9 +279,9 @@ class ExamScheduleController extends Controller
 
     public function destroy(ExamSchedule $examSchedule): RedirectResponse
     {
-        $examSchedule->delete();
+        $deleted = $this->deleteScheduleGroup($examSchedule->subject_id, $examSchedule->exam_date);
 
-        return redirect()->route('admin.exam-schedules.index')->with('success', 'Jadwal ujian berhasil dihapus.');
+        return redirect()->route('admin.exam-schedules.index')->with('success', "{$deleted} jadwal ujian berhasil dihapus.");
     }
 
     public function bulkDelete(Request $request): RedirectResponse
@@ -278,24 +296,35 @@ class ExamScheduleController extends Controller
             return back()->with('error', 'Pilih minimal satu jadwal untuk dihapus.');
         }
 
-        // IDs are representative schedule_ids from grouped view;
-        // expand: delete ALL schedules for the same subject + date
-        $expandedIds = [];
+        $totalDeleted = 0;
+        $seenGroups = [];
         foreach ($ids as $id) {
             $schedule = ExamSchedule::find($id);
-            if ($schedule) {
-                $siblings = ExamSchedule::query()
-                    ->where('subject_id', $schedule->subject_id)
-                    ->whereDate('exam_date', $schedule->exam_date)
-                    ->pluck('id')
-                    ->all();
-                $expandedIds = array_merge($expandedIds, $siblings);
+            if (! $schedule) {
+                continue;
             }
+            $groupKey = $schedule->subject_id.'|'.$schedule->exam_date;
+            if (in_array($groupKey, $seenGroups, true)) {
+                continue;
+            }
+            $seenGroups[] = $groupKey;
+            $totalDeleted += $this->deleteScheduleGroup($schedule->subject_id, $schedule->exam_date);
         }
 
-        $deleted = ExamSchedule::query()->whereIn('id', array_unique($expandedIds))->delete();
+        return back()->with('success', "{$totalDeleted} jadwal ujian berhasil dihapus.");
+    }
 
-        return back()->with('success', "{$deleted} jadwal ujian berhasil dihapus.");
+    /**
+     * Delete ALL exam schedules for a given subject + date (all rooms, all sessions).
+     *
+     * @return int Number of deleted rows
+     */
+    private function deleteScheduleGroup(string|int $subjectId, string $examDate): int
+    {
+        return ExamSchedule::query()
+            ->where('subject_id', $subjectId)
+            ->whereDate('exam_date', $examDate)
+            ->delete();
     }
 
     /**

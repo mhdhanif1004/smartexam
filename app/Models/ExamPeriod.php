@@ -14,6 +14,7 @@ class ExamPeriod extends Model
 
     protected $fillable = [
         'name',
+        'name_prefix',
         'grade_level',
         'session_number',
         'exam_date',

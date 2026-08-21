@@ -48,6 +48,7 @@ class ExamPeriodController extends Controller
 
         ExamPeriod::create([
             'name' => $request->name,
+            'name_prefix' => $request->name,
             'grade_level' => $request->grade_level,
             'session_number' => $nextSessionNumber,
             'exam_date' => $request->exam_date,
@@ -68,10 +69,14 @@ class ExamPeriodController extends Controller
     }
 
     /**
-     * Generate otomatis: hitung jumlah sesi (gelombang) yang dibutuhkan sampai
-     * semua siswa terpilih habis ditempatkan, lalu buat semua ExamPeriod,
-     * ExamSchedule (ruangan × mapel, back-to-back) dan exam_room_assignments
+     * Generate otomatis: buat ExamPeriod + ExamSchedule + ExamRoomAssignment
      * dalam satu transaksi all-or-nothing.
+     *
+     * Aturan penempatan: 1 ruangan HANYA berisi siswa dari 1 tingkat.
+     * Siswa diproses berurutan X → XI → XII dalam satu queue gabungan.
+     * Begitu queue berpindah tingkat dan ruangan aktif masih berisi tingkat
+     * sebelumnya, ruangan "ditutup" (sisa kursi kosong terbuang) dan
+     * lanjut ke ruangan berikutnya yang masih kosong utuh.
      */
     public function autoGenerateStore(StoreExamPeriodAutoGenerateRequest $request): RedirectResponse
     {
@@ -94,15 +99,16 @@ class ExamPeriodController extends Controller
 
         $result = DB::transaction(function () use ($roomIds, $subjectRows, $classNames, $name, $examDate, $firstStart, $gapMinutes): array {
             $rooms = Room::query()->whereIn('id', $roomIds)->get()->keyBy('id');
+            $sortedRooms = $rooms->sortBy('room_number')->values();
             $subjects = Subject::query()->whereIn('id', collect($subjectRows)->pluck('subject_id'))->get()->keyBy('id');
-
-            $totalCapacity = (int) $rooms->sum('capacity');
 
             if ($rooms->isEmpty()) {
                 throw ValidationException::withMessages([
                     'rooms' => 'Pilih minimal satu ruangan.',
                 ]);
             }
+
+            $totalCapacity = (int) $rooms->sum('capacity');
 
             if ($totalCapacity <= 0) {
                 throw ValidationException::withMessages([
@@ -116,7 +122,6 @@ class ExamPeriodController extends Controller
                 ]);
             }
 
-            // Group classNames by grade level
             $grouped = collect($classNames)
                 ->groupBy(fn ($cn) => ExamPeriod::extractGradeLevel($cn) ?? '_unknown')
                 ->except('_unknown');
@@ -127,17 +132,26 @@ class ExamPeriodController extends Controller
                 ]);
             }
 
-            // Sort by grade: X → XI → XII
             $gradeOrder = ['X' => 1, 'XI' => 2, 'XII' => 3];
             $sortedGrades = $grouped->sortKeysUsing(fn ($a, $b) => ($gradeOrder[$a] ?? 99) <=> ($gradeOrder[$b] ?? 99));
 
-            // Calculate total sessions across all grades
-            $gradeSessions = $sortedGrades->map(fn ($classes) => (int) ceil(count($this->orderedStudentIds($classes)) / $totalCapacity));
-            $totalSessions = $gradeSessions->sum();
-
-            // Validate time does not exceed midnight
             $sessionDuration = collect($subjectRows)->sum('duration_minutes');
             $sessionStart = Carbon::createFromFormat('H:i', $firstStart);
+
+            // Build single queue: X students first, then XI, then XII.
+            // Each entry carries its Student model for grade extraction later.
+            $queue = [];
+            foreach ($sortedGrades as $gradeLevel => $classes) {
+                $studentIds = $this->orderedStudentIds($classes);
+                $students = Student::query()->whereIn('id', $studentIds)->get()->keyBy('id');
+                foreach ($studentIds as $sid) {
+                    $queue[] = $students[$sid];
+                }
+            }
+
+            $totalStudents = count($queue);
+            $totalSessions = (int) ceil($totalStudents / $totalCapacity);
+
             $sessionEndMinutes = (int) $sessionStart->format('H') * 60 + (int) $sessionStart->format('i') + $sessionDuration;
             $lastEndMinutes = $sessionEndMinutes + ($totalSessions - 1) * ($sessionDuration + $gapMinutes);
 
@@ -148,79 +162,101 @@ class ExamPeriodController extends Controller
             }
 
             $createdPeriods = [];
-            $placed = 0;
             $unfilledSlots = 0;
             $sessionCounter = 1;
+            $queueIndex = 0;
 
-            // Process each grade level sequentially
-            foreach ($sortedGrades as $gradeLevel => $classes) {
-                $studentIds = $this->orderedStudentIds($classes);
-                $totalStudents = count($studentIds);
+            while ($queueIndex < $totalStudents) {
+                $sessionEnd = $sessionStart->copy()->addMinutes($sessionDuration);
 
-                if ($totalStudents === 0) {
-                    continue;
+                $period = ExamPeriod::create([
+                    'name' => "{$name} - Sesi {$sessionCounter}",
+                    'name_prefix' => $name,
+                    'grade_level' => null,
+                    'session_number' => $sessionCounter,
+                    'exam_date' => $examDate,
+                    'start_time' => $sessionStart->format('H:i:s'),
+                    'end_time' => $sessionEnd->format('H:i:s'),
+                ]);
+
+                $conflicts = $this->scheduleConflicts($roomIds, $rooms, $subjects, $subjectRows, $examDate, $sessionStart);
+                if ($conflicts !== []) {
+                    throw ValidationException::withMessages(['subjects' => $conflicts]);
                 }
 
-                $numberOfSessionsForGrade = (int) ceil($totalStudents / $totalCapacity);
+                foreach ($roomIds as $roomId) {
+                    $subjectStart = $sessionStart->copy();
+                    foreach ($subjectRows as $row) {
+                        ExamSchedule::create([
+                            'subject_id' => $row['subject_id'],
+                            'room_id' => $roomId,
+                            'exam_period_id' => $period->id,
+                            'class_name' => '',
+                            'exam_date' => $examDate,
+                            'start_time' => $subjectStart->format('H:i:s'),
+                            'end_time' => $subjectStart->copy()->addMinutes($row['duration_minutes'])->format('H:i:s'),
+                            'duration_minutes' => $row['duration_minutes'],
+                            'status' => ExamSchedule::STATUS_SCHEDULED,
+                        ]);
+                        $subjectStart->addMinutes($row['duration_minutes']);
+                    }
+                }
 
-                for ($n = 0; $n < $numberOfSessionsForGrade; $n++) {
-                    $sessionEnd = $sessionStart->copy()->addMinutes($sessionDuration);
+                // Place students: fill rooms sequentially, closing a room
+                // when the grade changes mid-room (constraint: 1 room = 1 grade).
+                $roomIndex = 0;
+                $seat = 0;
+                $currentRoomGrade = null;
 
-                    $period = ExamPeriod::create([
-                        'name' => "{$name} - Sesi {$sessionCounter}",
-                        'grade_level' => $gradeLevel,
-                        'session_number' => $sessionCounter,
-                        'exam_date' => $examDate,
-                        'start_time' => $sessionStart->format('H:i:s'),
-                        'end_time' => $sessionEnd->format('H:i:s'),
+                while ($roomIndex < $sortedRooms->count() && $queueIndex < $totalStudents) {
+                    /** @var Student $nextStudent */
+                    $nextStudent = $queue[$queueIndex];
+                    $nextGrade = ExamPeriod::extractGradeLevel($nextStudent->class_name) ?? '_unknown';
+
+                    if ($currentRoomGrade !== null && $nextGrade !== $currentRoomGrade) {
+                        // Grade changed → close this room (leave remaining seats empty),
+                        // advance to the next room which is still completely empty.
+                        $roomIndex++;
+                        $seat = 0;
+                        $currentRoomGrade = null;
+
+                        continue;
+                    }
+
+                    if ($roomIndex >= $sortedRooms->count()) {
+                        break;
+                    }
+
+                    $queueIndex++;
+                    $currentRoomGrade = $nextGrade;
+                    $seat++;
+
+                    ExamRoomAssignment::create([
+                        'exam_period_id' => $period->id,
+                        'student_id' => $nextStudent->id,
+                        'room_id' => $sortedRooms[$roomIndex]->id,
+                        'seat_number' => $seat,
                     ]);
 
-                    $conflicts = $this->scheduleConflicts($roomIds, $rooms, $subjects, $subjectRows, $examDate, $sessionStart);
-
-                    if ($conflicts !== []) {
-                        throw ValidationException::withMessages(['subjects' => $conflicts]);
+                    if ($seat >= $sortedRooms[$roomIndex]->capacity) {
+                        $roomIndex++;
+                        $seat = 0;
+                        $currentRoomGrade = null;
                     }
-
-                    foreach ($roomIds as $roomId) {
-                        $subjectStart = $sessionStart->copy();
-
-                        foreach ($subjectRows as $row) {
-                            ExamSchedule::create([
-                                'subject_id' => $row['subject_id'],
-                                'room_id' => $roomId,
-                                'exam_period_id' => $period->id,
-                                'class_name' => $gradeLevel,
-                                'exam_date' => $examDate,
-                                'start_time' => $subjectStart->format('H:i:s'),
-                                'end_time' => $subjectStart->copy()->addMinutes($row['duration_minutes'])->format('H:i:s'),
-                                'duration_minutes' => $row['duration_minutes'],
-                                'status' => ExamSchedule::STATUS_SCHEDULED,
-                            ]);
-
-                            $subjectStart->addMinutes($row['duration_minutes']);
-                        }
-                    }
-
-                    $slice = array_slice($studentIds, $placed, $totalCapacity);
-                    $this->placeStudentsIntoRooms($period, $roomIds, $slice);
-                    $placed += count($slice);
-
-                    $rotation = $this->assignRoomSupervisors($period, $roomIds);
-                    $unfilledSlots += $rotation['total_slots'] - $rotation['filled_slots'];
-
-                    $createdPeriods[] = $period;
-                    $sessionStart = $sessionEnd->copy()->addMinutes($gapMinutes);
-                    $sessionCounter++;
                 }
 
-                // Reset placed counter for next grade level
-                $placed = 0;
+                $rotation = $this->assignRoomSupervisors($period, $roomIds);
+                $unfilledSlots += $rotation['total_slots'] - $rotation['filled_slots'];
+
+                $createdPeriods[] = $period;
+                $sessionStart = $sessionEnd->copy()->addMinutes($gapMinutes);
+                $sessionCounter++;
             }
 
             return [
                 'periods' => $createdPeriods,
                 'numberOfSessions' => $totalSessions,
-                'totalStudents' => $gradeSessions->keys()->flatMap(fn ($g) => $this->orderedStudentIds($sortedGrades[$g]))->count(),
+                'totalStudents' => $totalStudents,
                 'unfilledSlots' => $unfilledSlots,
             ];
         });
