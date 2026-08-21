@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\StoreRoomRequest;
 use App\Http\Requests\Admin\UpdateRoomRequest;
 use App\Models\ExamRoomAssignment;
 use App\Models\Room;
+use App\Models\Supervisor;
 use App\Models\SupervisorRoomAssignment;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -85,6 +86,12 @@ class RoomController extends Controller
             'supervisor_count' => (int) $validated['supervisor_count'],
         ]);
 
+        if ($request->has('assign_supervisor_ids')) {
+            Supervisor::whereIn('id', $request->input('assign_supervisor_ids'))
+                ->whereNull('room_id')
+                ->update(['room_id' => $room->id]);
+        }
+
         return redirect()->route('admin.rooms.index')->with('success', "Ruangan {$room->display_name} berhasil ditambahkan.");
     }
 
@@ -104,6 +111,17 @@ class RoomController extends Controller
             'capacity' => (int) $validated['capacity'],
             'supervisor_count' => $newSupervisorCount,
         ]);
+
+        $assignedIds = $request->input('assign_supervisor_ids', []);
+        Supervisor::where('room_id', $room->id)
+            ->whereNotIn('id', $assignedIds)
+            ->update(['room_id' => null]);
+
+        if ($request->has('assign_supervisor_ids')) {
+            Supervisor::whereIn('id', $request->input('assign_supervisor_ids'))
+                ->whereNull('room_id')
+                ->update(['room_id' => $room->id]);
+        }
 
         $warning = null;
 

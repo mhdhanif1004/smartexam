@@ -36,10 +36,10 @@ class LoginCardController extends Controller
             $rooms = Room::query()->orderBy('room_number')->get();
 
             $supervisors = Supervisor::query()
-                ->with(['user', 'room'])
+                ->with(['user', 'rooms'])
                 ->when($request->filled('room'), fn ($query) => $query->where('room_id', $request->integer('room')))
                 ->orderBy('user_id')
-                ->get();
+                ->paginate(300);
 
             if ($request->filled('room')) {
                 $selectedRoom = $request->integer('room');

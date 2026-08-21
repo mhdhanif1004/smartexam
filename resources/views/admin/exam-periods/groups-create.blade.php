@@ -125,8 +125,10 @@
                     @foreach ($rooms as $room)
                         <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-gray-700 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10">
                             <input type="checkbox" name="rooms[]" :value="{{ $room->id }}" :checked="rooms.includes({{ $room->id }})" @change="toggleRoom({{ $room->id }})" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
-                            <span class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ $room->display_name }}</span>
-                            <span class="ml-auto text-xs text-gray-400 dark:text-gray-500">kap. {{ $room->capacity }}</span>
+                            <div class="min-w-0 flex-1">
+                                <span class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ $room->display_name }}</span>
+                                <p class="text-xs text-gray-400 dark:text-gray-500">kap. {{ $room->capacity }} &middot; Maks. {{ $room->supervisor_count }} pengawas</p>
+                            </div>
                         </label>
                     @endforeach
                 </div>

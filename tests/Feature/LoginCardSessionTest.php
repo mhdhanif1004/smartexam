@@ -63,8 +63,8 @@ class LoginCardSessionTest extends TestCase
         $this->actingAs($this->admin)
             ->post(route('admin.student-cards.preview'), ['student_ids' => [$student->id]])
             ->assertOk()
-            ->assertSee('<td class="lbl">Sesi</td>', false)
-            ->assertSee('Sesi 1');
+            ->assertSee('Sesi/Ruangan')
+            ->assertSee('1/101');
     }
 
     public function test_card_preview_merges_multiple_sessions_separated_by_comma(): void
@@ -117,7 +117,7 @@ class LoginCardSessionTest extends TestCase
         $this->actingAs($this->admin)
             ->post(route('admin.student-cards.preview'), ['student_ids' => [$student->id]])
             ->assertOk()
-            ->assertSee('Sesi 1/R101, Sesi 2/R101');
+            ->assertSee('1/101, 2/101');
     }
 
     public function test_card_preview_falls_back_to_dash_when_schedule_has_no_session(): void
@@ -142,7 +142,7 @@ class LoginCardSessionTest extends TestCase
         $this->actingAs($this->admin)
             ->post(route('admin.student-cards.preview'), ['student_ids' => [$student->id]])
             ->assertOk()
-            ->assertSee('<td class="lbl">Sesi</td>', false)
+            ->assertSee('Sesi/Ruangan')
             ->assertSee('<td class="val">-</td>', false);
     }
 

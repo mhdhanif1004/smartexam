@@ -190,8 +190,8 @@ class ExamRoomAssignmentTest extends TestCase
         $this->actingAs($this->admin)
             ->post(route('admin.student-cards.preview'), ['student_ids' => [$student->id]])
             ->assertOk()
-            ->assertSee('<td class="lbl">Ruangan</td>', false)
-            ->assertSee('Ruang 101');
+            ->assertSee('Sesi/Ruangan')
+            ->assertSee('-/101');
     }
 
     public function test_duplicate_student_placement_in_same_period_is_rejected(): void

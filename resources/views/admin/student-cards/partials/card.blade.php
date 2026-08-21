@@ -26,12 +26,10 @@
     $sessionLabels = $assignments->map(function ($assignment) {
         $num = $assignment->examPeriod?->session_number ?? '-';
         $roomNum = $assignment->room?->room_number ?? '?';
-        return "Sesi {$num}/R{$roomNum}";
+        return "{$num}/{$roomNum}";
     })->filter()->unique()->values();
 
     $sessions = $sessionLabels->isNotEmpty() ? $sessionLabels->implode(', ') : '-';
-
-    $assignmentRooms = $assignments->map(fn ($assignment) => $assignment->room?->display_name ?? '-');
 
     // Gelar (token berakhiran titik) dilem dengan non-breaking space agar tidak
     // turun ke baris berikutnya; nama tetap bisa wrap di antara kata biasa.
@@ -88,18 +86,7 @@
             <td class="val">{{ $student->class_name }}</td>
         </tr>
         <tr>
-            <td class="lbl">Ruangan</td>
-            <td class="val">
-                @forelse ($assignmentRooms as $assignmentRoom)
-                    @unless ($loop->first)<br>@endunless
-                    {{ $assignmentRoom }}
-                @empty
-                    -
-                @endforelse
-            </td>
-        </tr>
-        <tr>
-            <td class="lbl">Sesi</td>
+            <td class="lbl">Sesi/Ruangan</td>
             <td class="val">{{ $sessions }}</td>
         </tr>
         <tr>

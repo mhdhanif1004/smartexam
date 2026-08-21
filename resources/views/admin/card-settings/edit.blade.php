@@ -4,8 +4,7 @@
             'nama' => 'Budi Santoso',
             'nisn' => '0123456789',
             'kelas' => 'XI RPL 1',
-            'ruangan' => 'Ruang 1',
-            'sesi' => 'Sesi 1',
+            'sesi_ruangan' => '1/1',
             'username' => 'budi0123456789',
             'password' => 'rahasia123',
         ];
@@ -157,13 +156,12 @@
                                 </div>
 
                                 <div class="mt-2 space-y-1.5 border-t border-dashed border-blue-200 px-3 py-2 text-[11px]">
-                                    <p><span class="inline-block w-16 text-gray-500">Nama</span> <span class="font-bold" x-text="sample.nama"></span></p>
-                                    <p><span class="inline-block w-16 text-gray-500">NISN</span> <span class="font-bold" x-text="sample.nisn"></span></p>
-                                    <p><span class="inline-block w-16 text-gray-500">Kelas</span> <span class="font-bold" x-text="sample.kelas"></span></p>
-                                    <p><span class="inline-block w-16 text-gray-500">Ruangan</span> <span class="font-bold" x-text="sample.ruangan"></span></p>
-                                    <p><span class="inline-block w-16 text-gray-500">Sesi</span> <span class="font-bold" x-text="sample.sesi"></span></p>
-                                    <p><span class="inline-block w-16 text-gray-500">Username</span> <span class="font-bold" x-text="sample.username"></span></p>
-                                    <p><span class="inline-block w-16 text-gray-500">Password</span>
+                                    <p><span class="inline-block w-32 text-gray-500">Nama</span> <span class="font-bold" x-text="sample.nama"></span></p>
+                                    <p><span class="inline-block w-32 text-gray-500">NISN</span> <span class="font-bold" x-text="sample.nisn"></span></p>
+                                    <p><span class="inline-block w-32 text-gray-500">Kelas</span> <span class="font-bold" x-text="sample.kelas"></span></p>
+                                    <p><span class="inline-block w-32 text-gray-500">Sesi/Ruangan</span> <span class="font-bold" x-text="sample.sesi_ruangan"></span></p>
+                                    <p><span class="inline-block w-32 text-gray-500">Username</span> <span class="font-bold" x-text="sample.username"></span></p>
+                                    <p><span class="inline-block w-32 text-gray-500">Password</span>
                                         <span class="rounded bg-indigo-50 px-1 font-mono font-bold" x-text="sample.password"></span>
                                     </p>
                                 </div>

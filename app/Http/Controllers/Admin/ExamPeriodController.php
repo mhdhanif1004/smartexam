@@ -7,10 +7,8 @@ use App\Http\Requests\Admin\StoreExamPeriodAutoGenerateRequest;
 use App\Http\Requests\Admin\StoreExamPeriodGroupsRequest;
 use App\Http\Requests\Admin\StoreExamPeriodRequest;
 use App\Models\ExamPeriod;
-use App\Models\ExamPeriodRoomOverride;
 use App\Models\ExamRoomAssignment;
 use App\Models\ExamSchedule;
-use App\Models\ExamSetting;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
@@ -250,7 +248,6 @@ class ExamPeriodController extends Controller
             'roomAssignments.room',
             'supervisorRoomAssignments.supervisor.user',
             'supervisorRoomAssignments.room',
-            'roomOverrides.room',
         ]);
         $examPeriod->loadCount('schedules');
 
@@ -659,13 +656,8 @@ class ExamPeriodController extends Controller
             ->orderBy('user_id')
             ->get();
 
-        $maxPerRoom = ExamSetting::maxSupervisorsPerRoom();
-
-        $overrides = ExamPeriodRoomOverride::where('exam_period_id', $examPeriod->id)
-            ->pluck('supervisor_count', 'room_id');
-
         $needs = $rooms->mapWithKeys(fn (Room $room) => [
-            $room->id => max(1, min($maxPerRoom, (int) ($overrides->get($room->id) ?? $room->supervisor_count))),
+            $room->id => max(1, (int) $room->supervisor_count),
         ]);
 
         $totalSlots = $needs->sum();
@@ -766,36 +758,5 @@ class ExamPeriodController extends Controller
             'total_slots' => $totalSlots,
             'filled_slots' => $filledSlots,
         ];
-    }
-
-    public function updateRoomOverrides(Request $request, ExamPeriod $examPeriod): RedirectResponse
-    {
-        $validated = $request->validate([
-            'overrides' => ['nullable', 'array'],
-            'overrides.*.room_id' => ['required', 'integer', 'exists:rooms,id'],
-            'overrides.*.supervisor_count' => ['required', 'integer', 'min:0', 'max:10'],
-        ]);
-
-        $maxPerRoom = ExamSetting::maxSupervisorsPerRoom();
-
-        DB::transaction(function () use ($examPeriod, $validated, $maxPerRoom) {
-            ExamPeriodRoomOverride::where('exam_period_id', $examPeriod->id)->delete();
-
-            foreach ($validated['overrides'] ?? [] as $row) {
-                $count = (int) $row['supervisor_count'];
-
-                if ($count > 0) {
-                    ExamPeriodRoomOverride::create([
-                        'exam_period_id' => $examPeriod->id,
-                        'room_id' => $row['room_id'],
-                        'supervisor_count' => min($count, $maxPerRoom),
-                    ]);
-                }
-            }
-        });
-
-        return redirect()
-            ->route('admin.exam-periods.show', $examPeriod)
-            ->with('success', 'Override pengawas per ruangan berhasil disimpan.');
     }
 }
