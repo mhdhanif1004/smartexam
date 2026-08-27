@@ -21,7 +21,12 @@
             <main class="flex-1 p-4 sm:p-6 lg:p-8">
                 {{ $slot }}
             </main>
+            @include('layouts.partials.violation-panel', [
+                'pollingEndpoint' => route('pengawas.violations.polling'),
+                'handleEndpoint'  => route('pengawas.violations.handle', '__ID__'),
+            ])
         </div>
     </div>
+    @stack('scripts')
 </body>
 </html>

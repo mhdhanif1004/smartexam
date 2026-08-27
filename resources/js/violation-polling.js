@@ -1,11 +1,15 @@
 const POLL_INTERVAL = 10000;
 
+// UNTUK GANTI SUARA NOTIFIKASI: ganti path di bawah ini dengan file
+// audio baru yang ditaruh di public/audios/
+const NOTIFICATION_SOUND_PATH = '/audios/mixkit-software-interface-back-2575.wav';
+
 export function violationPolling(config) {
     return {
         violations: config.initialViolations || [],
         lastSeenId: 0,
         loading: false,
-        timer: null,
+        worker: null,
         permissionStatus: 'default',
         badgeCount: 0,
 
@@ -18,45 +22,83 @@ export function violationPolling(config) {
                 this.permissionStatus = Notification.permission;
             }
 
-            this.timer = setInterval(() => this.poll(), POLL_INTERVAL);
+            this.startWorker();
+
+            // Sinkronkan CSRF token dari meta tag secara berkala
+            // (mengatasi token expired / refresh dari tab lain)
+            setInterval(() => {
+                const meta = document.querySelector('meta[name="csrf-token"]');
+                if (meta && meta.content !== config.csrf) {
+                    config.csrf = meta.content;
+                    if (this.worker) {
+                        this.worker.postMessage({ type: 'updateCsrf', csrf: meta.content });
+                    }
+                }
+            }, 5 * 60 * 1000);
         },
 
-        async poll() {
-            this.loading = true;
+        startWorker() {
             try {
-                const res = await fetch(`${config.endpoint}?since=${this.lastSeenId}`, {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                this.worker = new Worker('/js/violation-worker.js');
+
+                this.worker.onmessage = (event) => {
+                    const msg = event.data;
+
+                    switch (msg.type) {
+                        case 'started':
+                            this.loading = false;
+                            break;
+
+                        case 'newViolations':
+                            this.loading = true;
+                            try {
+                                const fresh = msg.violations || [];
+                                if (fresh.length === 0) return;
+
+                                this.violations = [...fresh, ...this.violations].slice(0, 25);
+                                this.lastSeenId = Math.max(...fresh.map((v) => v.id));
+                                this.badgeCount += fresh.length;
+
+                                this.playNotificationSound();
+                                this.showBrowserNotification(fresh);
+                            } finally {
+                                this.loading = false;
+                            }
+                            break;
+
+                        case 'csrfRefreshed':
+                            config.csrf = msg.csrf;
+                            break;
+                    }
+                };
+
+                this.worker.onerror = () => {
+                    // Worker error — fallback: polling tidak aktif.
+                    // Dalam produksi bisa ditambahkan retry logic di sini.
+                };
+
+                // Kirim konfigurasi awal ke Worker
+                this.worker.postMessage({
+                    type: 'init',
+                    endpoint: config.endpoint,
+                    csrf: config.csrf,
+                    csrfUrl: config.csrfUrl || '/csrf-token',
+                    lastSeenId: this.lastSeenId,
+                    pollInterval: POLL_INTERVAL,
                 });
-                if (!res.ok) return;
-                const data = await res.json();
-                const fresh = data.violations || [];
-                if (fresh.length === 0) return;
-
-                this.violations = [...fresh, ...this.violations].slice(0, 25);
-                this.lastSeenId = Math.max(...fresh.map((v) => v.id));
-                this.badgeCount += fresh.length;
-
-                this.playBeep();
-                this.showBrowserNotification(fresh);
-            } finally {
-                this.loading = false;
+            } catch (e) {
+                // Web Worker tidak didukung — polling tidak aktif
             }
         },
 
-        playBeep() {
+        playNotificationSound() {
             try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.type = 'sine';
-                osc.frequency.value = 880;
-                gain.gain.setValueAtTime(0.3, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-                osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 0.5);
-            } catch (e) { /* Web Audio tidak didukung; lewati. */ }
+                const audio = new Audio(NOTIFICATION_SOUND_PATH);
+                audio.volume = 0.7;
+                audio.play().catch(() => {});
+            } catch (e) {
+                // Audio tidak didukung; lewati.
+            }
         },
 
         showBrowserNotification(newViolations) {
@@ -67,7 +109,7 @@ export function violationPolling(config) {
             let body;
             if (count === 1) {
                 const v = newViolations[0];
-                body = `${v.student_name} — ${v.violation_label} (${v.room_name})`;
+                body = `${v.student_name} \u2014 ${v.violation_label} (${v.room_name})`;
             } else {
                 const names = newViolations.slice(0, 3).map((v) => v.student_name).join(', ');
                 const extra = count > 3 ? ` dan ${count - 3} lainnya` : '';
@@ -89,6 +131,14 @@ export function violationPolling(config) {
             this.badgeCount = 0;
         },
 
+        refreshPoll() {
+            if (this.worker) {
+                this.loading = true;
+                this.worker.postMessage({ type: 'poll' });
+                setTimeout(() => { this.loading = false; }, 1000);
+            }
+        },
+
         markHandled(id) {
             if (!config.handleUrl) return;
             fetch(config.handleUrl.replace('__ID__', id), {
@@ -102,12 +152,19 @@ export function violationPolling(config) {
                 if (res.ok) {
                     const item = this.violations.find((v) => v.id === id);
                     if (item) item.handled = true;
+                } else if (res.status === 419) {
+                    // CSRF expired — reload halaman
+                    window.location.reload();
                 }
             });
         },
 
         destroy() {
-            if (this.timer) clearInterval(this.timer);
+            if (this.worker) {
+                this.worker.postMessage({ type: 'stop' });
+                this.worker.terminate();
+                this.worker = null;
+            }
         },
     };
 }

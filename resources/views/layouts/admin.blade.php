@@ -21,6 +21,10 @@
             <main class="flex-1 p-4 sm:p-6 lg:p-8">
                 {{ $slot }}
             </main>
+            @include('layouts.partials.violation-panel', [
+                'pollingEndpoint' => route('admin.violations.polling'),
+                'handleEndpoint'  => null,
+            ])
         </div>
     </div>
     @stack('scripts')
