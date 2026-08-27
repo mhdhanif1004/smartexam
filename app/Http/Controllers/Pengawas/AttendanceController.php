@@ -23,6 +23,20 @@ class AttendanceController extends Controller
     public function index(Request $request): View
     {
         $room = $this->supervisorRoom();
+
+        // Pengawas sah tapi belum ditugaskan ke ruangan mana pun hari ini —
+        // bukan pelanggaran akses, render empty state.
+        if ($room === null) {
+            return view('pengawas.attendance.index', [
+                'room' => null,
+                'schedules' => collect(),
+                'allSchedules' => collect(),
+                'anchorSchedule' => null,
+                'students' => collect(),
+                'upcomingSchedules' => collect(),
+            ]);
+        }
+
         $tolerance = ExamSchedule::attendanceToleranceMinutes();
         $periodIds = $this->assignedPeriodIds($room);
 
@@ -64,6 +78,11 @@ class AttendanceController extends Controller
         $schedule->syncStatusIfNeeded();
 
         $room = $this->supervisorRoom();
+
+        if ($room === null) {
+            return response()->json(['error' => 'Anda belum ditugaskan ke ruangan ujian mana pun.'], 403);
+        }
+
         $periodIds = $this->assignedPeriodIds($room);
 
         if ($schedule->exam_period_id !== null && ! $periodIds->contains($schedule->exam_period_id)) {
@@ -115,6 +134,11 @@ class AttendanceController extends Controller
     public function update(Request $request): RedirectResponse
     {
         $room = $this->supervisorRoom();
+
+        if ($room === null) {
+            return back()->with('warning', 'Anda belum ditugaskan ke ruangan ujian mana pun.');
+        }
+
         $periodIds = $this->assignedPeriodIds($room);
 
         $allSchedules = $this->allAssignedSchedules($room, $periodIds);

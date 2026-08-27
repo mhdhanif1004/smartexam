@@ -56,6 +56,8 @@ class ExamScheduleController extends Controller
                 DB::raw('COUNT(DISTINCT room_id) as room_count'),
                 DB::raw('GROUP_CONCAT(DISTINCT id ORDER BY id SEPARATOR ",") as schedule_ids'),
                 DB::raw('MIN(id) as representative_id'),
+                DB::raw('SUM(CASE WHEN exam_period_id IS NULL THEN 1 ELSE 0 END) as orphan_count'),
+                DB::raw('COUNT(*) as total_count'),
                 DB::raw("CASE
                     WHEN SUM(CASE WHEN status = 'scheduled' THEN 1 ELSE 0 END) > 0 THEN 'scheduled'
                     WHEN SUM(CASE WHEN status = 'ongoing' THEN 1 ELSE 0 END) > 0 THEN 'ongoing'
@@ -73,9 +75,18 @@ class ExamScheduleController extends Controller
             $query->having('dominant_status', '=', $request->string('status'));
         }
 
+        if ($request->boolean('hide_archived')) {
+            $query->havingRaw('orphan_count < total_count');
+        }
+
         $groups = $query->orderBy('earliest_start')
             ->paginate(10)
             ->withQueryString();
+
+        $groups->getCollection()->each(function ($group) {
+            $total = (int) $group->total_count;
+            $group->is_orphan = $total > 0 && (int) $group->orphan_count === $total;
+        });
 
         $subjectIds = $groups->pluck('subject_id')->unique()->values()->all();
         $subjects = Subject::query()->whereIn('id', $subjectIds)->get()->keyBy('id');

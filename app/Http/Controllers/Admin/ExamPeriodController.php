@@ -10,12 +10,14 @@ use App\Models\Classroom;
 use App\Models\ExamPeriod;
 use App\Models\ExamRoomAssignment;
 use App\Models\ExamSchedule;
+use App\Models\ExamSession;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Supervisor;
 use App\Models\SupervisorRoomAssignment;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -509,9 +511,78 @@ class ExamPeriodController extends Controller
         return back()->with('success', $message);
     }
 
+    /**
+     * Preview data terkait periode ujian untuk modal konfirmasi hapus (per-baris).
+     *
+     * Return JSON:
+     *  - schedules_count
+     *  - room_assignments_count
+     *  - tokens_count
+     *  - started_sessions_count (pernah mulai mengerjakan)
+     *  - active_sessions_count  (MASIH aktif mengerjakan atau belum lewat deadline+grace)
+     */
+    public function deletePreview(ExamPeriod $examPeriod): JsonResponse
+    {
+        $scheduleIds = $examPeriod->schedules()->pluck('id');
+
+        $schedulesCount = $scheduleIds->count();
+        $roomAssignmentsCount = $examPeriod->roomAssignments()->count();
+        $tokensCount = $examPeriod->tokens()->count();
+
+        $startedSessionsCount = 0;
+        $activeSessionsCount = 0;
+
+        if ($scheduleIds->isNotEmpty()) {
+            $startedSessions = ExamSession::whereIn('exam_schedule_id', $scheduleIds)
+                ->whereNotNull('started_at')
+                ->get();
+
+            $startedSessionsCount = $startedSessions->count();
+
+            $activeSessionsCount = $startedSessions
+                ->filter(function (ExamSession $session) {
+                    $schedule = $session->examSchedule;
+                    $stillActive = $session->finished_at === null
+                        && ! $schedule->isExpiredAfterGrace($session);
+
+                    return $stillActive;
+                })
+                ->count();
+        }
+
+        return response()->json([
+            'schedules_count' => $schedulesCount,
+            'room_assignments_count' => $roomAssignmentsCount,
+            'tokens_count' => $tokensCount,
+            'started_sessions_count' => $startedSessionsCount,
+            'active_sessions_count' => $activeSessionsCount,
+        ]);
+    }
+
     public function destroy(ExamPeriod $examPeriod): RedirectResponse
     {
-        $examPeriod->delete();
+        $scheduleIds = $examPeriod->schedules()->pluck('id');
+
+        $startedSessionsCount = $scheduleIds->isNotEmpty()
+            ? ExamSession::whereIn('exam_schedule_id', $scheduleIds)
+                ->whereNotNull('started_at')
+                ->count()
+            : 0;
+
+        DB::transaction(function () use ($examPeriod, $startedSessionsCount): void {
+            if ($startedSessionsCount > 0) {
+                // Mode A: siswa SUDAH mengerjakan. JANGAN hapus exam_schedules
+                // secara eksplisit — biarkan nullOnDelete menjadikannya orphan
+                // (exam_period_id -> NULL) supaya exam_sessions/exam_answers/
+                // exam_results (histori & nilai siswa) TETAP UTUH untuk laporan.
+                $examPeriod->delete();
+            } else {
+                // Mode B/C: belum ada siswa mengerjakan — jadwal konfigurasi
+                // boleh dihapus permanen bersama periode.
+                $examPeriod->schedules()->delete();
+                $examPeriod->delete();
+            }
+        });
 
         return redirect()->route('admin.exam-periods.index')->with('success', 'Sesi ujian berhasil dihapus.');
     }

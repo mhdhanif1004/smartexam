@@ -3,13 +3,21 @@
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Selamat datang, {{ auth()->user()->name }}!</h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Ruangan Anda: <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $room->display_name }}</span> (kapasitas {{ $room->capacity }} peserta).
+                @if ($room !== null)
+                    Ruangan Anda: <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $room->display_name }}</span> (kapasitas {{ $room->capacity }} peserta).
+                @else
+                    Anda belum ditugaskan ke ruangan mana pun hari ini.
+                @endif
             </p>
         </div>
 
         @if ($schedules->isEmpty())
             <div class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada jadwal ujian di ruangan Anda hari ini.</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {!! $room !== null
+                        ? 'Tidak ada jadwal ujian di ruangan Anda hari ini.'
+                        : 'Belum ada jadwal ujian untuk Anda saat ini.' !!}
+                </p>
             </div>
         @else
             <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">

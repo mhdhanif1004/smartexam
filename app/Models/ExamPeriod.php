@@ -44,6 +44,11 @@ class ExamPeriod extends Model
         return $this->hasMany(SupervisorRoomAssignment::class);
     }
 
+    public function tokens(): HasMany
+    {
+        return $this->hasMany(ExamToken::class);
+    }
+
     /**
      * Extract grade level (X, XI, XII) from a class name like "X RPL 1".
      */

@@ -486,13 +486,30 @@ class PengawasModuleTest extends TestCase
             ->assertSee('Sudah memasukkan token');
     }
 
-    public function test_pengawas_without_room_assignment_is_forbidden(): void
+    public function test_pengawas_without_room_assignment_gets_empty_state_not_forbidden(): void
     {
-        $unassigned = User::factory()->pengawas()->create();
+        // Pengawas SAH (punya record Supervisor) tapi tidak ditugaskan ke
+        // ruangan mana pun — tanpa rotasi hari ini DAN tanpa ruangan statis.
+        $supervisor = Supervisor::factory()->create(['room_id' => null]);
+        $user = $supervisor->user;
 
-        $this->actingAs($unassigned)->get(route('pengawas.dashboard'))->assertForbidden();
-        $this->actingAs($unassigned)->get(route('pengawas.attendance.index'))->assertForbidden();
-        $this->actingAs($unassigned)->get(route('pengawas.tokens.index'))->assertForbidden();
+        $this->actingAs($user)->get(route('pengawas.dashboard'))
+            ->assertOk()
+            ->assertSee('Belum ada jadwal ujian untuk Anda saat ini.');
+        $this->actingAs($user)->get(route('pengawas.attendance.index'))
+            ->assertOk()
+            ->assertSee('Belum ada jadwal ujian untuk Anda saat ini.');
+        $this->actingAs($user)->get(route('pengawas.tokens.index'))
+            ->assertOk()
+            ->assertSee('Belum ada jadwal ujian untuk Anda saat ini.');
+
+        // JSON endpoints tidak crash, kembalikan data kosong
+        $this->actingAs($user)->getJson(route('pengawas.violations.recent'))
+            ->assertOk()
+            ->assertJson(['violations' => []]);
+        $this->actingAs($user)->getJson(route('pengawas.tokens.current'))
+            ->assertOk()
+            ->assertJson(['active' => false]);
     }
 
     public function test_non_pengawas_cannot_access_pengawas_modules(): void
