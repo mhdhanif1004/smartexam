@@ -32,7 +32,7 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
                     <div>
@@ -62,37 +62,6 @@
                         </li>
                     @empty
                         <li class="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada jadwal ujian.</li>
-                    @endforelse
-                </ul>
-            </div>
-
-            <div class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
-                    <div>
-                        <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Pelanggaran Terbaru</h3>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">5 pelanggaran terakhir yang dilaporkan.</p>
-                    </div>
-                    <a href="{{ route('admin.violations.index') }}" class="text-xs font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400">Lihat semua</a>
-                </div>
-                <ul class="divide-y divide-gray-100 dark:divide-gray-800">
-                    @forelse ($recentViolations as $violation)
-                        <li class="flex items-center gap-4 px-5 py-3">
-                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">
-                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                                </svg>
-                            </div>
-                            <div class="min-w-0 flex-1">
-                                <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $violation->examSession?->student?->user?->name ?? '-' }}</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $violation->examSession?->examSchedule?->subject?->name ?? '-' }} &middot; {{ $violation->examSession?->student?->class_name ?? '' }}</p>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-xs font-semibold text-rose-600 dark:text-rose-400">{{ \App\Models\Violation::typeLabel($violation->violation_type) }}</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $violation->occurred_at->format('d M H:i') }}</p>
-                            </div>
-                        </li>
-                    @empty
-                        <li class="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada pelanggaran.</li>
                     @endforelse
                 </ul>
             </div>

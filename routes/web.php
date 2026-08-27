@@ -127,6 +127,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         });
 
         Route::get('/violations', [ViolationController::class, 'index'])->name('violations.index');
+        Route::get('/violations/polling', [ViolationController::class, 'polling'])->name('violations.polling');
         Route::patch('/violations/{examSession}/lock', [ViolationController::class, 'toggleLock'])->name('violations.lock');
     });
 
@@ -136,6 +137,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::controller(PengawasViolationController::class)->prefix('violations')->name('violations.')->group(function () {
             Route::get('/latest', 'recent')->name('latest');
             Route::get('/recent', 'recent')->name('recent');
+            Route::get('/polling', 'polling')->name('polling');
             Route::patch('/{violation}/handle', 'handle')->name('handle');
         });
 

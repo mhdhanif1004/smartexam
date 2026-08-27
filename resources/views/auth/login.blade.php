@@ -2,16 +2,14 @@
     <main class="min-h-screen flex flex-col md:flex-row">
         <!-- Panel Kiri: Gambar Ilustrasi (~48%) -->
         <section class="hidden md:block md:w-[48%] h-screen relative overflow-hidden" aria-hidden="true">
-            <img
-                src="{{ asset('images/login-illustration-baru.jpg') }}"
-                alt="Ilustrasi siswa menuju sekolah SmartExam"
-                class="w-full h-full object-cover object-center-top"
-                loading="eager"
-            >
+            <img src="{{ asset('images/login-illustration-baru.jpg') }}" alt="Ilustrasi siswa menuju sekolah SmartExam"
+                class="w-full h-full object-cover object-center-top" loading="eager">
             <!-- Overlay transisi halus ke panel kanan (background surface) -->
-            <div class="absolute inset-y-0 right-0 w-32 pointer-events-none bg-gradient-to-r from-transparent to-[rgb(var(--color-surface))]" aria-hidden="true"></div>
+            <div class="absolute inset-y-0 right-0 w-32 pointer-events-none bg-gradient-to-r from-transparent to-[rgb(var(--color-surface))]"
+                aria-hidden="true"></div>
             <!-- Subtle separator line -->
-            <div class="absolute right-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-outline/30 to-transparent" aria-hidden="true"></div>
+            <div class="absolute right-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-outline/30 to-transparent"
+                aria-hidden="true"></div>
         </section>
 
         <!-- Panel Kanan: Form Login (~52%) -->
@@ -25,7 +23,8 @@
                         Berbasis Website</p>
                 </div>
 
-                <div class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm p-lg md:p-xl">
+                <div
+                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm p-lg md:p-xl">
                     <!-- Session Status -->
                     <x-auth-session-status class="mb-4" :status="session('status')" />
 
@@ -100,17 +99,11 @@
                             </button>
                         </div>
                     </form>
-
-                    <div class="mt-lg text-center">
-                        <a href="#"
-                            class="font-label-md text-label-md text-primary hover:text-primary-container transition-colors flex items-center justify-center gap-xs">
-                            <span class="material-symbols-outlined text-[16px]">help_outline</span>
-                            Lupa password? Hubungi Administrator
-                        </a>
-                    </div>
+                    <br>
                 </div>
 
-                <p class="mt-xl md:hidden font-label-sm text-label-sm text-on-surface-variant">SMK Negeri 3 Pariaman</p>
+                <p class="mt-xl md:hidden font-label-sm text-label-sm text-on-surface-variant">SmartExam Development
+                    Team</p>
             </div>
         </section>
     </main>

@@ -342,4 +342,51 @@ class AntiCheatModuleTest extends TestCase
             ->patch(route('pengawas.violations.handle', $violation->id))
             ->assertForbidden();
     }
+
+    public function test_flutter_native_violation_types_are_recorded_and_disable_attendance(): void
+    {
+        $session = $this->workingSession();
+
+        $flutterTypes = [
+            Violation::TYPE_NATIVE_BACK => 'keluar_tombol_back',
+            Violation::TYPE_EMERGENCY_EXIT => 'keluar_gesture_darurat',
+            Violation::TYPE_UNPIN_SYSTEM => 'keluar_unpin_sistem',
+        ];
+
+        foreach ($flutterTypes as $constant => $string) {
+            $this->actingAs($this->user)->postJson(route('peserta.exams.violation', $this->schedule->id), [
+                'violation_type' => $string,
+            ])->assertOk()
+                ->assertJson([
+                    'redirect' => true,
+                    'url' => route('peserta.dashboard'),
+                ]);
+
+            $this->assertDatabaseHas('violations', [
+                'exam_session_id' => $session->id,
+                'violation_type' => $string,
+            ]);
+        }
+
+        $session->refresh();
+        $this->assertTrue($session->violation_flag_1);
+        $this->assertTrue($session->violation_flag_2);
+        $this->assertTrue($session->violation_flag_3);
+        $this->assertFalse($session->attendance_confirmed);
+        $this->assertSame(3, $session->violations()->count());
+    }
+
+    public function test_unknown_violation_type_falls_back_to_tab_switch(): void
+    {
+        $session = $this->workingSession();
+
+        $this->actingAs($this->user)->postJson(route('peserta.exams.violation', $this->schedule->id), [
+            'violation_type' => 'jenis_tidak_dikenal',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('violations', [
+            'exam_session_id' => $session->id,
+            'violation_type' => Violation::TYPE_TAB_SWITCH,
+        ]);
+    }
 }
