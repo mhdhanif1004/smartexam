@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Classroom;
 use App\Models\ExamPeriod;
 use App\Models\ExamRoomAssignment;
 use App\Models\ExamSchedule;
@@ -50,11 +51,13 @@ class ExamPeriodAutoGenerateTest extends TestCase
 
     /**
      * Buat siswa dengan nama tertentu agar urutan alfabetis deterministik.
+     * Memastikan Classroom record sesuai class_name juga dibuat.
      */
     private function student(string $name, string $class): Student
     {
         return Student::factory()->create([
             'class_name' => $class,
+            'classroom_id' => Classroom::idForName($class),
             'user_id' => User::factory()->peserta()->create(['name' => $name])->id,
         ]);
     }
@@ -394,5 +397,76 @@ class ExamPeriodAutoGenerateTest extends TestCase
             ->values();
         $this->assertCount(1, $s2r1Grades, 'Sesi 2 Room 1 should have only 1 grade level.');
         $this->assertSame('XI', $s2r1Grades[0], 'Sesi 2 Room 1 should contain only grade XI students.');
+    }
+
+    public function test_generate_warns_when_classroom_lacks_questions_for_subject(): void
+    {
+        $this->student('Siswa 001', 'XII RPL 1');
+
+        // Questions exist for all 3 subjects but NOT linked to XII RPL 1
+        // → all 3 (classroom × subject) pairs are missing
+        $this->postGenerate()
+            ->assertRedirect(route('admin.exam-periods.index'))
+            ->assertSessionHas('success')
+            ->assertSessionHas('warning');
+
+        $warning = session('warning');
+        $this->assertStringContainsString('3 kombinasi', $warning);
+        $this->assertStringContainsString('XII RPL 1 × Matematika', $warning);
+        $this->assertStringContainsString('XII RPL 1 × Bahasa Indonesia', $warning);
+        $this->assertStringContainsString('XII RPL 1 × Bahasa Inggris', $warning);
+    }
+
+    public function test_generate_no_warning_when_all_classrooms_have_questions(): void
+    {
+        $student = $this->student('Siswa 001', 'XII RPL 1');
+
+        // Sync all questions to XII RPL 1 → all pairs covered
+        $classroomId = $student->classroom_id;
+        foreach ([$this->mtk, $this->bindo, $this->bing] as $subject) {
+            $question = Question::query()->where('subject_id', $subject->id)->first();
+            $question->classrooms()->sync($classroomId);
+        }
+
+        $this->postGenerate()
+            ->assertRedirect(route('admin.exam-periods.index'))
+            ->assertSessionHas('success')
+            ->assertSessionMissing('warning');
+    }
+
+    public function test_generate_warns_only_for_missing_pairs_in_multi_classroom(): void
+    {
+        $studentA = $this->student('Alpha', 'XII RPL 1');
+        $studentB = $this->student('Beta', 'XII RPL 2');
+
+        // Link questions only to XII RPL 1 for all subjects
+        $classroomId = $studentA->classroom_id;
+        foreach ([$this->mtk, $this->bindo, $this->bing] as $subject) {
+            $question = Question::query()->where('subject_id', $subject->id)->first();
+            $question->classrooms()->sync($classroomId);
+        }
+
+        // Verify: questions ARE linked to XII RPL 1 only
+        $pivotCount = \DB::table('question_classroom')
+            ->where('classroom_id', $classroomId)
+            ->count();
+        $this->assertSame(3, $pivotCount, 'Expected 3 question_classroom rows for XII RPL 1');
+
+        $response = $this->postGenerate([
+            'class_names' => ['XII RPL 1', 'XII RPL 2'],
+        ]);
+
+        $response->assertRedirect(route('admin.exam-periods.index'))
+            ->assertSessionHas('success');
+
+        $allSession = $response->getSession()->all();
+        $this->assertArrayHasKey('warning', $allSession, 'Session keys: '.implode(', ', array_keys($allSession)));
+
+        $warning = session('warning');
+        // XII RPL 1 is covered → no warning for it
+        $this->assertStringNotContainsString('XII RPL 1 ×', $warning);
+        // XII RPL 2 is missing all 3 subjects → 3 missing pairs
+        $this->assertStringContainsString('3 kombinasi', $warning);
+        $this->assertStringContainsString('XII RPL 2 × Matematika', $warning);
     }
 }

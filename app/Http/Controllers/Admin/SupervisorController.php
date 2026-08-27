@@ -27,7 +27,7 @@ class SupervisorController extends Controller
                         $user->where('name', 'like', "%{$search}%")
                             ->orWhere('email', 'like', "%{$search}%");
                     })->orWhereHas('room', function ($room) use ($search) {
-                        $room->where('name', 'like', "%{$search}%");
+                        $room->where('room_number', 'like', "%{$search}%");
                     });
                 });
             })

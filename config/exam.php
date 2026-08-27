@@ -13,9 +13,15 @@ return [
     | jeda antar sesi. Setelah lewat toleransi ini, jendela ditutup total dan
     | pengawas tidak bisa lagi konfirmasi absensi untuk sesi tersebut.
     |
+    | grace_period_minutes: toleransi waktu tambahan setelah Timer Sesi
+    | (period->end_time) habis. Selama masa ini siswa masih bisa melanjutkan
+    | mengerjakan. Setelah grace habis, auto-submit paksa terjadi.
+    |
     */
 
     'attendance_tolerance_minutes' => (int) env('EXAM_ATTENDANCE_TOLERANCE_MINUTES', 10),
+
+    'grace_period_minutes' => (int) env('EXAM_GRACE_PERIOD_MINUTES', 10),
 
     /*
     |--------------------------------------------------------------------------

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ExamPeriod;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\ExamToken;
@@ -9,9 +10,11 @@ use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Supervisor;
+use App\Models\SupervisorRoomAssignment;
 use App\Models\User;
 use App\Models\Violation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class PengawasModuleTest extends TestCase
@@ -40,10 +43,21 @@ class PengawasModuleTest extends TestCase
         $subjectA = Subject::factory()->create(['name' => 'Matematika']);
         $subjectB = Subject::factory()->create(['name' => 'Fisika']);
 
+        $this->periodA = ExamPeriod::create([
+            'name' => 'Sesi Ruang A',
+            'name_prefix' => 'S1',
+            'grade_level' => null,
+            'session_number' => 1,
+            'exam_date' => now()->toDateString(),
+            'start_time' => now()->subMinutes(30)->format('H:i:s'),
+            'end_time' => now()->addMinutes(30)->format('H:i:s'),
+        ]);
+
         $this->scheduleA = ExamSchedule::factory()->create([
             'room_id' => $this->roomA->id,
             'subject_id' => $subjectA->id,
             'class_name' => 'XI RPL 1',
+            'exam_period_id' => $this->periodA->id,
             'exam_date' => now()->toDateString(),
             'start_time' => now()->subMinutes(30)->format('H:i:s'),
             'end_time' => now()->addMinutes(30)->format('H:i:s'),
@@ -57,6 +71,13 @@ class PengawasModuleTest extends TestCase
             'exam_date' => now()->toDateString(),
             'status' => 'ongoing',
         ]);
+
+        SupervisorRoomAssignment::factory()->create([
+            'supervisor_id' => $this->pengawasA->supervisor->id,
+            'room_id' => $this->roomA->id,
+            'exam_period_id' => $this->periodA->id,
+            'exam_date' => now()->toDateString(),
+        ]);
     }
 
     /**
@@ -64,10 +85,19 @@ class PengawasModuleTest extends TestCase
      */
     private function participant(): Student
     {
-        return Student::factory()->create([
+        $student = Student::factory()->create([
             'class_name' => 'XI RPL 1',
             'room_id' => $this->roomA->id,
         ]);
+
+        DB::table('exam_room_assignments')->insert([
+            'exam_period_id' => $this->periodA->id,
+            'student_id' => $student->id,
+            'room_id' => $this->roomA->id,
+            'seat_number' => $student->id,
+        ]);
+
+        return $student;
     }
 
     public function test_pengawas_dashboard_shows_only_own_room_data(): void
@@ -96,6 +126,26 @@ class PengawasModuleTest extends TestCase
         $subjectPast = Subject::factory()->create(['name' => 'Sejarah']);
         $subjectTomorrow = Subject::factory()->create(['name' => 'Kimia']);
 
+        $periodFuture = ExamPeriod::create([
+            'name' => 'Sesi Future',
+            'name_prefix' => 'S2',
+            'grade_level' => null,
+            'session_number' => 2,
+            'exam_date' => now()->toDateString(),
+            'start_time' => now()->addHour()->format('H:i:s'),
+            'end_time' => now()->addHours(2)->format('H:i:s'),
+        ]);
+
+        $periodPast = ExamPeriod::create([
+            'name' => 'Sesi Past',
+            'name_prefix' => 'S3',
+            'grade_level' => null,
+            'session_number' => 3,
+            'exam_date' => now()->toDateString(),
+            'start_time' => now()->subHours(2)->format('H:i:s'),
+            'end_time' => now()->subHour()->format('H:i:s'),
+        ]);
+
         ExamSchedule::factory()->create([
             'room_id' => $this->roomA->id,
             'subject_id' => $subjectFuture->id,
@@ -103,6 +153,7 @@ class PengawasModuleTest extends TestCase
             'exam_date' => now()->toDateString(),
             'start_time' => now()->addHour()->format('H:i:s'),
             'end_time' => now()->addHours(2)->format('H:i:s'),
+            'exam_period_id' => $periodFuture->id,
             'status' => ExamSchedule::STATUS_SCHEDULED,
         ]);
 
@@ -113,6 +164,7 @@ class PengawasModuleTest extends TestCase
             'exam_date' => now()->toDateString(),
             'start_time' => now()->subHours(2)->format('H:i:s'),
             'end_time' => now()->subHour()->format('H:i:s'),
+            'exam_period_id' => $periodPast->id,
             'status' => ExamSchedule::STATUS_FINISHED,
         ]);
 
@@ -122,6 +174,20 @@ class PengawasModuleTest extends TestCase
             'class_name' => 'XI RPL 1',
             'exam_date' => now()->addDay()->toDateString(),
             'status' => ExamSchedule::STATUS_SCHEDULED,
+        ]);
+
+        SupervisorRoomAssignment::factory()->create([
+            'supervisor_id' => $this->pengawasA->supervisor->id,
+            'room_id' => $this->roomA->id,
+            'exam_period_id' => $periodFuture->id,
+            'exam_date' => now()->toDateString(),
+        ]);
+
+        SupervisorRoomAssignment::factory()->create([
+            'supervisor_id' => $this->pengawasA->supervisor->id,
+            'room_id' => $this->roomA->id,
+            'exam_period_id' => $periodPast->id,
+            'exam_date' => now()->toDateString(),
         ]);
 
         $response = $this->actingAs($this->pengawasA)->get(route('pengawas.dashboard'));
@@ -190,11 +256,23 @@ class PengawasModuleTest extends TestCase
             ->assertOk()
             ->assertSee($student->user->name);
 
+        $this->assertDatabaseMissing('exam_sessions', [
+            'student_id' => $student->id,
+            'exam_schedule_id' => $this->scheduleA->id,
+        ]);
+
+        $this->actingAs($this->pengawasA)
+            ->patch(route('pengawas.attendance.confirm', $this->scheduleA->id), [
+                'student_id' => $student->id,
+                'confirmed' => true,
+            ])
+            ->assertOk();
+
         $this->assertDatabaseHas('exam_sessions', [
             'student_id' => $student->id,
             'exam_schedule_id' => $this->scheduleA->id,
             'status' => ExamSession::STATUS_NOT_STARTED,
-            'attendance_confirmed' => false,
+            'attendance_confirmed' => true,
         ]);
     }
 
@@ -335,8 +413,15 @@ class PengawasModuleTest extends TestCase
             ->assertOk()
             ->assertDontSee('Fisika');
 
-        $this->actingAs($this->pengawasA)->post(route('pengawas.tokens.generate', ['schedule' => $scheduleB->id]))
-            ->assertNotFound();
+        $studentB = Student::factory()->create([
+            'class_name' => 'XI RPL 1',
+            'room_id' => $this->roomB->id,
+        ]);
+
+        $this->actingAs($this->pengawasA)->patch(route('pengawas.attendance.confirm', $scheduleB->id), [
+            'student_id' => $studentB->id,
+            'confirmed' => true,
+        ])->assertNotFound();
     }
 
     public function test_attendance_page_lists_class_participants_and_saves(): void
@@ -387,16 +472,17 @@ class PengawasModuleTest extends TestCase
             'started_at' => now(),
         ]);
 
-        $this->actingAs($this->pengawasA)->post(route('pengawas.tokens.generate', ['schedule' => $this->scheduleA->id]))
-            ->assertRedirect()->assertSessionHas('success');
-
-        $token = ExamToken::where('exam_schedule_id', $this->scheduleA->id)->first();
-        $this->assertNotNull($token);
-        $this->assertEquals(8, strlen($token->token_code));
+        ExamToken::create([
+            'exam_period_id' => $this->periodA->id,
+            'token_code' => 'TEST9999',
+            'rotation_index' => 0,
+            'valid_from' => now()->subMinute(),
+            'valid_until' => now()->addMinutes(15),
+        ]);
 
         $this->actingAs($this->pengawasA)->get(route('pengawas.tokens.index'))
             ->assertOk()
-            ->assertSee($token->token_code)
+            ->assertSee('TEST9999')
             ->assertSee('Sudah memasukkan token');
     }
 
@@ -416,5 +502,77 @@ class PengawasModuleTest extends TestCase
 
         $this->actingAs($admin)->get(route('pengawas.dashboard'))->assertForbidden();
         $this->actingAs($peserta)->get(route('pengawas.tokens.index'))->assertForbidden();
+    }
+
+    public function test_token_endpoints_only_show_own_room_period_tokens(): void
+    {
+        // Pengawas A -> roomA, has periodA with token "ROOMA001"
+        // Pengawas B -> roomB, has periodB with token "ROOMB002"
+        ExamToken::create([
+            'exam_period_id' => $this->periodA->id,
+            'token_code' => 'ROOMA001',
+            'rotation_index' => 0,
+            'valid_from' => now()->subMinute(),
+            'valid_until' => now()->addMinutes(15),
+        ]);
+
+        $subjectB = Subject::factory()->create(['name' => 'Biologi']);
+        $periodB = ExamPeriod::create([
+            'name' => 'Sesi Ruang B',
+            'name_prefix' => 'S2',
+            'grade_level' => null,
+            'session_number' => 1,
+            'exam_date' => now()->toDateString(),
+            'start_time' => now()->subMinutes(30)->format('H:i:s'),
+            'end_time' => now()->addMinutes(30)->format('H:i:s'),
+        ]);
+
+        $scheduleForRoomB = ExamSchedule::where('room_id', $this->roomB->id)->first();
+        $scheduleForRoomB->update(['exam_period_id' => $periodB->id]);
+
+        ExamToken::create([
+            'exam_period_id' => $periodB->id,
+            'token_code' => 'ROOMB002',
+            'rotation_index' => 0,
+            'valid_from' => now()->subMinute(),
+            'valid_until' => now()->addMinutes(15),
+        ]);
+
+        // Pengawas A sees only their room's token
+        $this->actingAs($this->pengawasA)->get(route('pengawas.tokens.index'))
+            ->assertOk()
+            ->assertSee('ROOMA001')
+            ->assertDontSee('ROOMB002')
+            ->assertSee('Sesi Ruang A')
+            ->assertDontSee('Sesi Ruang B');
+
+        // Pengawas B sees only their room's token
+        $this->actingAs($this->pengawasB)->get(route('pengawas.tokens.index'))
+            ->assertOk()
+            ->assertSee('ROOMB002')
+            ->assertDontSee('ROOMA001')
+            ->assertSee('Sesi Ruang B')
+            ->assertDontSee('Sesi Ruang A');
+
+        // AJAX endpoint: pengawas A gets only their token
+        $this->actingAs($this->pengawasA)->getJson(route('pengawas.tokens.current'))
+            ->assertOk()
+            ->assertJson(['active' => true, 'token_code' => 'ROOMA001'])
+            ->assertJsonMissing(['token_code' => 'ROOMB002']);
+
+        // AJAX endpoint: pengawas B gets only their token
+        $this->actingAs($this->pengawasB)->getJson(route('pengawas.tokens.current'))
+            ->assertOk()
+            ->assertJson(['active' => true, 'token_code' => 'ROOMB002'])
+            ->assertJsonMissing(['token_code' => 'ROOMA001']);
+
+        // Both routes are parameterless GET — no way to inject period_id via URL
+        $routeCollection = app('router')->getRoutes();
+        $indexRoute = $routeCollection->getByName('pengawas.tokens.index');
+        $currentRoute = $routeCollection->getByName('pengawas.tokens.current');
+        $this->assertNotNull($indexRoute);
+        $this->assertNotNull($currentRoute);
+        $this->assertContains('GET', $indexRoute->methods());
+        $this->assertContains('GET', $currentRoute->methods());
     }
 }

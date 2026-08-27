@@ -2,12 +2,12 @@
     <div class="space-y-6">
         <div>
             <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Absensi Peserta</h2>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Catat kehadiran peserta pada sesi ujian yang sedang berlangsung di ruangan {{ $room->display_name }}.</p>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Catat kehadiran peserta pada sesi ujian di ruangan {{ $room->display_name }}. Absensi berlaku untuk seluruh mata pelajaran dalam sesi ini.</p>
         </div>
 
         @include('admin.partials.flash')
 
-        @if ($schedule === null)
+        @if ($anchorSchedule === null)
             <div class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 @if ($upcomingSchedules->isEmpty())
                     <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada sesi ujian yang sedang dalam jendela absensi di ruangan Anda.</p>
@@ -23,31 +23,25 @@
                 @endif
             </div>
         @else
-            @if ($schedules->count() > 1)
-                <form method="GET" action="{{ route('pengawas.attendance.index') }}" class="flex items-end gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <div class="flex-1">
-                        <label for="schedule" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Pilih Mata Pelajaran</label>
-                        <select name="schedule" id="schedule" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" onchange="this.form.submit()">
-                            @foreach ($schedules as $item)
-                                <option value="{{ $item->id }}" @selected($item->id === $schedule->id)>{{ $item->subject?->name }} ({{ $item->class_name }})</option>
-                            @endforeach
-                        </select>
-                    </div>
-                </form>
-            @endif
-
             @php
-                $earlyWindow = $schedule->isAttendanceWindowOpen()
-                    && $schedule->computedStatus() !== \App\Models\ExamSchedule::STATUS_ONGOING;
-                $examOver = $schedule->computedStatus() === \App\Models\ExamSchedule::STATUS_FINISHED;
+                $activeSchedule = $schedules->first();
+                $earlyWindow = $activeSchedule !== null
+                    && $activeSchedule->isAttendanceWindowOpen()
+                    && $activeSchedule->computedStatus() !== \App\Models\ExamSchedule::STATUS_ONGOING;
+                $examOver = $activeSchedule !== null
+                    && $activeSchedule->computedStatus() === \App\Models\ExamSchedule::STATUS_FINISHED;
             @endphp
 
             <div class="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-gray-800 dark:bg-gray-900">
                 <div>
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ $schedule->subject?->name }}</h3>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Absensi Sesi Ujian</h3>
                     <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        Kelas {{ $schedule->class_name }} &middot; {{ $schedule->room?->display_name }} &middot;
-                        {{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }} - {{ \Illuminate\Support\Str::substr($schedule->end_time, 0, 5) }} WIB
+                        {{ $room->display_name }} &middot;
+                        {{ $allSchedules->pluck('subject.name')->filter()->implode(', ') }} &middot;
+                        {{ \Illuminate\Support\Str::substr($anchorSchedule->start_time, 0, 5) }} - {{ \Illuminate\Support\Str::substr($anchorSchedule->end_time, 0, 5) }} WIB
+                        @if ($allSchedules->count() > 1)
+                            &middot; {{ $allSchedules->count() }} mata pelajaran
+                        @endif
                     </p>
                 </div>
                 <x-badge-status :status="$earlyWindow ? 'belum_mulai' : 'berlangsung'" :label="$earlyWindow ? 'Jendela Absensi' : 'Sedang Berlangsung'" />
@@ -56,13 +50,13 @@
             @if ($earlyWindow && $examOver)
                 <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
                     Waktu ujian telah berakhir. Jendela absensi tetap terbuka
-                    <strong>{{ $schedule->attendanceToleranceMinutes() }} menit</strong> setelah selesai untuk
+                    <strong>{{ $activeSchedule->attendanceToleranceMinutes() }} menit</strong> setelah selesai untuk
                     absensi ulang peserta yang dinonaktifkan karena pelanggaran.
                 </div>
             @elseif ($earlyWindow)
                 <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
                     Jendela absensi telah dibuka (10 menit sebelum ujian). Ujian resmi dimulai pukul
-                    <strong>{{ \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) }}</strong>.
+                    <strong>{{ \Illuminate\Support\Str::substr($activeSchedule->start_time, 0, 5) }}</strong>.
                 </div>
             @endif
 
@@ -70,8 +64,8 @@
                 @foreach ($students as $index => $student)
                     @php
                         $session = $student->examSession;
-                        $locked = $session->locked_by_admin;
-                        $autoDisabled = ! $session->attendance_confirmed && (int) $session->violations_count > 0;
+                        $locked = $session?->locked_by_admin ?? false;
+                        $autoDisabled = $session !== null && ! $session->attendance_confirmed && (int) ($session->violations_count ?? 0) > 0;
                     @endphp
                     <tr class="transition hover:bg-gray-50 dark:hover:bg-gray-800/50 {{ $autoDisabled ? 'bg-amber-50 dark:bg-amber-500/10' : '' }} {{ $locked ? 'bg-gray-100 dark:bg-gray-800' : '' }}">
                         <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $index + 1 }}</td>
@@ -89,14 +83,14 @@
                             @else
                                 <div
                                     x-data="{
-                                        confirmed: @js($session->attendance_confirmed),
+                                        confirmed: @js($session?->attendance_confirmed ?? false),
                                         saving: false,
                                         error: '',
                                         async toggle(target) {
                                             this.saving = true;
                                             this.error = '';
                                             try {
-                                                const res = await fetch('{{ route('pengawas.attendance.confirm', $schedule->id) }}', {
+                                                const res = await fetch('{{ route('pengawas.attendance.confirm', $anchorSchedule->id) }}', {
                                                     method: 'PATCH',
                                                     headers: {
                                                         'Content-Type': 'application/json',

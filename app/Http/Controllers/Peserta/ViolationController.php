@@ -45,7 +45,7 @@ class ViolationController extends Controller
             return response()->json(['error' => 'Sesi ujian belum dimulai.'], 403);
         }
 
-        if (now()->gt($session->started_at->copy()->addMinutes((int) $schedule->duration_minutes))) {
+        if ($schedule->isExpiredAfterGrace($session)) {
             return response()->json(['expired' => true], 422);
         }
 

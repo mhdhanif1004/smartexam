@@ -9,3 +9,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('exam-schedules:sync-status')->everyMinute()->withoutOverlapping();
+
+Schedule::command('tokens:rotate')->everyMinute();

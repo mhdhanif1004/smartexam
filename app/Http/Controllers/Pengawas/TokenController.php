@@ -3,58 +3,94 @@
 namespace App\Http\Controllers\Pengawas;
 
 use App\Http\Controllers\Controller;
+use App\Models\ExamSession;
 use App\Models\ExamToken;
+use App\Models\Student;
 use App\Traits\ScopesSupervisorRoom;
-use Carbon\Carbon;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Illuminate\Http\JsonResponse;
 use Illuminate\View\View;
 
 class TokenController extends Controller
 {
     use ScopesSupervisorRoom;
 
-    public function index(Request $request): View
+    public function index(): View
     {
         $room = $this->supervisorRoom();
-        $schedules = $this->windowSchedules($room, 5);
-        $schedule = $this->currentSchedule($room, $request->integer('schedule') ?: null, 5);
-        $students = $schedule !== null ? $this->participants($schedule) : collect();
-        $token = $schedule !== null ? $this->activeToken($schedule->id) : null;
-        $upcomingSchedules = $this->upcomingSchedules($room, 5);
+        $period = $this->currentPeriod();
 
-        return view('pengawas.tokens.index', compact('room', 'schedules', 'schedule', 'students', 'token', 'upcomingSchedules'));
-    }
+        if ($period === null) {
+            return view('pengawas.tokens.index', [
+                'room' => $room,
+                'period' => null,
+                'activeToken' => null,
+                'nextRotationAt' => null,
+                'rotationHistory' => collect(),
+                'students' => collect(),
+                'stats' => ['sudah_token' => 0, 'belum_token' => 0],
+            ]);
+        }
 
-    public function generate(Request $request): RedirectResponse
-    {
-        $room = $this->supervisorRoom();
-        $schedule = $this->currentSchedule($room, $request->integer('schedule') ?: null, 5);
-
-        abort_if($schedule === null, 404, 'Tidak ada sesi ujian yang sedang dalam jendela token di ruangan Anda.');
-
-        ExamToken::where('exam_schedule_id', $schedule->id)->delete();
-
-        // valid_until berbasis waktu SELESAI ujian sesuai jadwal, bukan dari now()
-        $examEndTime = Carbon::parse($schedule->exam_date->format('Y-m-d').' '.$schedule->start_time)
-            ->addMinutes((int) $schedule->duration_minutes);
-
-        ExamToken::create([
-            'exam_schedule_id' => $schedule->id,
-            'token_code' => strtoupper(Str::random(8)),
-            'valid_until' => $examEndTime,
-        ]);
-
-        return back()->with('success', 'Token ujian baru berhasil dibuat.');
-    }
-
-    private function activeToken(int $scheduleId): ?ExamToken
-    {
-        return ExamToken::query()
-            ->where('exam_schedule_id', $scheduleId)
+        $activeToken = ExamToken::where('exam_period_id', $period->id)
+            ->where('valid_from', '<=', now())
             ->where('valid_until', '>', now())
-            ->latest('id')
             ->first();
+
+        $nextRotationAt = null;
+        if ($activeToken !== null) {
+            $nextRotationAt = $activeToken->valid_until;
+        }
+
+        $rotationHistory = ExamToken::where('exam_period_id', $period->id)
+            ->orderByDesc('rotation_index')
+            ->get();
+
+        $scheduleIds = $period->schedules()
+            ->where('room_id', $room->id)
+            ->pluck('id');
+
+        $students = Student::query()
+            ->with(['user', 'examSessions' => fn ($q) => $q->whereIn('exam_schedule_id', $scheduleIds)])
+            ->where('room_id', $room->id)
+            ->orderBy('nisn')
+            ->get();
+
+        $stats = ['sudah_token' => 0, 'belum_token' => 0];
+        foreach ($students as $student) {
+            $status = $student->examSessions->first()?->status ?? ExamSession::STATUS_NOT_STARTED;
+            if (in_array($status, [ExamSession::STATUS_IN_PROGRESS, ExamSession::STATUS_COMPLETED], true)) {
+                $stats['sudah_token']++;
+            } else {
+                $stats['belum_token']++;
+            }
+        }
+
+        return view('pengawas.tokens.index', compact('room', 'period', 'activeToken', 'nextRotationAt', 'rotationHistory', 'students', 'stats'));
+    }
+
+    public function currentToken(): JsonResponse
+    {
+        $room = $this->supervisorRoom();
+        $period = $this->currentPeriod();
+
+        if ($period === null) {
+            return response()->json(['active' => false]);
+        }
+
+        $activeToken = ExamToken::where('exam_period_id', $period->id)
+            ->where('valid_from', '<=', now())
+            ->where('valid_until', '>', now())
+            ->first();
+
+        if ($activeToken === null) {
+            return response()->json(['active' => false]);
+        }
+
+        return response()->json([
+            'active' => true,
+            'token_code' => $activeToken->token_code,
+            'rotation_index' => $activeToken->rotation_index,
+            'remaining_seconds' => max(0, $activeToken->valid_until->getTimestamp() - now()->getTimestamp()),
+        ]);
     }
 }

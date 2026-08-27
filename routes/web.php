@@ -149,7 +149,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
 
         Route::controller(PengawasTokenController::class)->prefix('tokens')->name('tokens.')->group(function () {
             Route::get('/', 'index')->name('index');
-            Route::post('/generate', 'generate')->name('generate');
+            Route::get('/current', 'currentToken')->name('current');
         });
     });
 
