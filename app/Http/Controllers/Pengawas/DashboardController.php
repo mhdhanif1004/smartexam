@@ -16,10 +16,23 @@ class DashboardController extends Controller
 
     public function __invoke(): View
     {
-        $room = $this->supervisorRoom();
-
         $supervisor = auth()->user()?->supervisor;
         abort_unless($supervisor instanceof Supervisor, 403);
+
+        $room = $this->supervisorRoom();
+
+        // Pengawas sah tapi belum ditugaskan ke ruangan mana pun hari ini —
+        // bukan pelanggaran akses, render empty state.
+        if ($room === null) {
+            return view('pengawas.dashboard', [
+                'room' => null,
+                'schedules' => collect(),
+                'scheduleStats' => [],
+                'activeSchedule' => null,
+                'students' => collect(),
+                'recentViolations' => collect(),
+            ]);
+        }
 
         $assignedPeriodIds = $supervisor->roomAssignments()
             ->where('exam_date', Carbon::today())

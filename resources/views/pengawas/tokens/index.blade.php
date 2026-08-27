@@ -2,14 +2,24 @@
     <div class="space-y-6" x-data="tokenApp()" x-init="init()">
         <div>
             <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Token Ujian</h2>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Token masuk peserta pada sesi ujian di ruangan {{ $room->display_name }}.</p>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                @if ($room !== null)
+                    Token masuk peserta pada sesi ujian di ruangan {{ $room->display_name }}.
+                @else
+                    Anda belum ditugaskan ke ruangan ujian mana pun hari ini.
+                @endif
+            </p>
         </div>
 
         @include('admin.partials.flash')
 
         @if ($period === null)
             <div class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada sesi ujian yang sedang berlangsung di ruangan Anda.</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {!! $room !== null
+                        ? 'Tidak ada sesi ujian yang sedang berlangsung di ruangan Anda.'
+                        : 'Belum ada jadwal ujian untuk Anda saat ini.' !!}
+                </p>
             </div>
         @else
             @php

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ExamAnswer;
 use App\Models\ExamPeriod;
 use App\Models\ExamResult;
+use App\Models\ExamRoomAssignment;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\ExamToken;
@@ -158,6 +159,33 @@ class PesertaModuleTest extends TestCase
             ->assertSee('Matematika')
             ->assertSee('Masuk Ujian')
             ->assertDontSee('Fisika');
+    }
+
+    public function test_dashboard_renders_empty_state_when_student_has_no_assignment(): void
+    {
+        // Siswa tanpa exam_room_assignment dan tanpa jadwal yang cocok
+        ExamRoomAssignment::where('student_id', $this->student->id)->delete();
+        ExamSchedule::whereNotNull('id')->delete();
+
+        $this->actingAs($this->user)->get(route('peserta.dashboard'))
+            ->assertOk()
+            ->assertSee('Tidak ada jadwal ujian untuk hari ini.')
+            ->assertSee('Ujian Hari Ini');
+    }
+
+    public function test_dashboard_renders_empty_state_when_period_deleted_mode_a(): void
+    {
+        // Simulasi hasil CHANGE 1 Mode A: periode dihapus, jadwal jadi orphan
+        // (exam_period_id -> null), sesi siswa tetap ada. Siswa tanpa jadwal
+        // yang bisa diakses olehnya -> dashboard tampil empty state, bukan error.
+        $this->period->delete();
+        $this->schedule->delete();
+        ExamRoomAssignment::where('student_id', $this->student->id)->delete();
+
+        $this->actingAs($this->user)->get(route('peserta.dashboard'))
+            ->assertOk()
+            ->assertSee('Tidak ada jadwal ujian untuk hari ini.')
+            ->assertSee('Ujian Hari Ini');
     }
 
     public function test_peserta_cannot_access_other_class_schedule(): void

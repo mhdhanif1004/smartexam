@@ -184,4 +184,81 @@ class ExamScheduleByDateTest extends TestCase
             ->get(route('admin.exam-schedules.by-date'))
             ->assertSessionHasErrors('date');
     }
+
+    public function test_by_date_shows_archived_badge_and_disables_edit_for_orphan_schedules(): void
+    {
+        // Jadwal orphan (exam_period_id NULL / periode dihapus) → badge Arsip
+        $this->makeSchedule();
+
+        Carbon::setTestNow(Carbon::parse('2026-08-09 12:00:00'));
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('admin.exam-schedules.by-date', ['date' => '2026-08-10']))
+            ->assertOk();
+
+        $this->assertStringContainsString('Arsip (Tanpa Sesi)', $response->content());
+        // Link Edit diganti jadi span non-link (tidak bisa diedit)
+        $this->assertStringContainsString('Jadwal arsip tidak dapat diedit', $response->content());
+    }
+
+    public function test_by_date_archived_badge_not_shown_for_normal_period_schedule(): void
+    {
+        $period = ExamPeriod::factory()->create([
+            'name' => 'Sesi Normal',
+            'exam_date' => '2026-08-10',
+            'start_time' => '07:00:00',
+            'end_time' => '09:00:00',
+        ]);
+        $schedule = $this->makeSchedule(['exam_period_id' => $period->id]);
+
+        Carbon::setTestNow(Carbon::parse('2026-08-09 12:00:00'));
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('admin.exam-schedules.by-date', ['date' => '2026-08-10']))
+            ->assertOk();
+
+        // Tidak ada badge arsip, dan Edit tetap tersedia (link reguler)
+        $this->assertStringNotContainsString('Arsip (Tanpa Sesi)', $response->content());
+        $this->assertStringContainsString(
+            route('admin.exam-schedules.edit', $schedule->id),
+            $response->content()
+        );
+    }
+
+    public function test_by_date_hide_archived_filter_removes_orphan_rows(): void
+    {
+        // Satu jadwal orphan + satu jadwal normal (ber-sesi)
+        // Satu jadwal orphan (berbeda mapel) + satu jadwal normal (ber-sesi)
+        $orphanSubject = Subject::factory()->create(['name' => 'Fisika']);
+        $this->makeSchedule(['subject_id' => $orphanSubject->id]); // orphan
+        $period = ExamPeriod::factory()->create([
+            'name' => 'Sesi Normal',
+            'exam_date' => '2026-08-10',
+            'start_time' => '07:00:00',
+            'end_time' => '09:00:00',
+        ]);
+        $this->makeSchedule([
+            'exam_period_id' => $period->id,
+            'start_time' => '08:00:00',
+            'end_time' => '09:30:00',
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-08-09 12:00:00'));
+
+        // Tanpa filter: tampil 2 baris (orphan Fisika + normal Matematika), badge arsip ada
+        $without = $this->actingAs($this->admin)
+            ->get(route('admin.exam-schedules.by-date', ['date' => '2026-08-10']))
+            ->assertOk();
+        $this->assertStringContainsString('Arsip (Tanpa Sesi)', $without->content());
+        $this->assertStringContainsString('Fisika', $without->content());
+
+        // Dengan hide_archived: baris orphan (Fisika) dihilangkan, badge arsip hilang
+        $withFilter = $this->actingAs($this->admin)
+            ->get(route('admin.exam-schedules.by-date', ['date' => '2026-08-10', 'hide_archived' => 1]))
+            ->assertOk();
+        $this->assertStringNotContainsString('Arsip (Tanpa Sesi)', $withFilter->content());
+        $this->assertStringNotContainsString('Fisika', $withFilter->content());
+        // Baris normal ber-sesi tetap tampil
+        $this->assertStringContainsString('Matematika', $withFilter->content());
+    }
 }

@@ -19,18 +19,19 @@ trait ScopesSupervisorRoom
      * hari ini. Diambil dari penugasan rotasi (supervisor_room_assignments)
      * untuk tanggal hari ini; bila tidak ada (misal periode legacy / belum
      * di-generate), fallback ke relasi statis Supervisor->room yang lama.
+     *
+     * Mengembalikan NULL bila pengawas SAH tapi tidak ditugaskan ke ruangan
+     * mana pun (tidak ada rotasi hari ini DAN tidak punya ruangan statis).
+     * Ini kondisi NORMAL (bukan pelanggaran akses) — pemanggil harus merender
+     * empty state, bukan 403. 403 hanya untuk role yang bukan pengawas.
      */
-    protected function supervisorRoom(): Room
+    protected function supervisorRoom(): ?Room
     {
         $supervisor = auth()->user()?->supervisor;
 
         abort_unless($supervisor instanceof Supervisor, 403, 'Anda tidak terdaftar sebagai pengawas.');
 
-        $room = $this->roomAssignedOn(now()->toDateString(), $supervisor) ?? $supervisor->room;
-
-        abort_unless($room instanceof Room, 403, 'Anda tidak ditugaskan pada ruangan ujian.');
-
-        return $room;
+        return $this->roomAssignedOn(now()->toDateString(), $supervisor) ?? $supervisor->room;
     }
 
     /**
@@ -213,6 +214,11 @@ trait ScopesSupervisorRoom
         abort_unless($supervisor instanceof Supervisor, 403);
 
         $room = $this->supervisorRoom();
+
+        if ($room === null) {
+            return null;
+        }
+
         $date = $date ?? now()->toDateString();
         $tokenWindowEdge = now()->addMinutes(5)->format('H:i:s');
 

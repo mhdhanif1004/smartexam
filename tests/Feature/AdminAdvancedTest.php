@@ -205,7 +205,7 @@ class AdminAdvancedTest extends TestCase
             ->assertSee('3')
             ->assertSee('Ujian Hari Ini')
             ->assertSee($upcoming->subject->name)
-            ->assertSee('Pelanggaran Terbaru');
+            ->assertSee('Notifikasi Pelanggaran');
     }
 
     public function test_peserta_cannot_access_new_admin_modules(): void

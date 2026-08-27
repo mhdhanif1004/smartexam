@@ -167,6 +167,7 @@ class SupervisorDashboardPeriodFilterTest extends TestCase
         $this->actingAs($this->user)
             ->get(route('pengawas.dashboard'))
             ->assertOk()
+            ->assertSee('Tidak ada jadwal ujian di ruangan Anda hari ini.')
             ->assertDontSee('Indonesia')
             ->assertDontSee('Inggris')
             ->assertDontSee('Matematika');

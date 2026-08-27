@@ -20,6 +20,10 @@ class ViolationController extends Controller
     {
         $room = $this->supervisorRoom();
 
+        if ($room === null) {
+            return response()->json(['violations' => []]);
+        }
+
         return response()->json([
             'violations' => $this->roomViolations($room, 5),
         ]);
@@ -34,6 +38,10 @@ class ViolationController extends Controller
     {
         $room = $this->supervisorRoom();
         $since = (int) $request->query('since', 0);
+
+        if ($room === null) {
+            return response()->json(['violations' => []]);
+        }
 
         $violations = Violation::query()
             ->with(['examSession.student.user', 'examSession.examSchedule.subject', 'examSession.examSchedule.room'])
@@ -65,6 +73,10 @@ class ViolationController extends Controller
     public function handle(Request $request, Violation $violation): JsonResponse
     {
         $room = $this->supervisorRoom();
+
+        if ($room === null) {
+            return response()->json(['error' => 'Anda belum ditugaskan ke ruangan ujian mana pun.'], 403);
+        }
 
         $owned = Violation::query()
             ->whereKey($violation->id)

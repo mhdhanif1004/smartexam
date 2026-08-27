@@ -79,7 +79,11 @@
             </div>
             <div class="flex gap-2">
                 <button type="submit" class="inline-flex items-center rounded-lg bg-gray-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-700">Cari</button>
-                @if (request('search') || request('status'))
+                <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                    <input type="checkbox" name="hide_archived" value="1" @checked(request('hide_archived')) class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
+                    Sembunyikan arsip (tanpa sesi)
+                </label>
+                @if (request('search') || request('status') || request('hide_archived'))
                     <a href="{{ route('admin.exam-schedules.by-date', ['date' => $examDate]) }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Reset</a>
                 @endif
             </div>
@@ -112,6 +116,9 @@
                                 <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $group->room_count }} ruangan</td>
                                 <td class="px-4 py-3 text-sm">
                                     <x-badge-status :status="$group->dominant_status" :label="$statuses[$group->dominant_status] ?? $group->dominant_status" />
+                                    @if ($group->is_orphan)
+                                        <span class="ml-2 inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700" title="Arsip tanpa sesi induk (periode telah dihapus atau dibuat manual). Sisa histori tetap dijaga.">Arsip (Tanpa Sesi)</span>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3 text-sm">
                                     <div class="flex items-center gap-2">
@@ -121,7 +128,11 @@
                                                 class="rounded bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20">
                                             Detail
                                         </button>
-                                        <a href="{{ route('admin.exam-schedules.edit', $group->representative_id) }}" class="rounded-md bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:bg-gray-500/10 dark:text-gray-300 dark:hover:bg-gray-500/20">Edit</a>
+                                        @if ($group->is_orphan)
+                                            <span class="cursor-not-allowed rounded-md bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-400 dark:bg-gray-800 dark:text-gray-500" title="Jadwal arsip tidak dapat diedit — hanya sisa histori.">Edit</span>
+                                        @else
+                                            <a href="{{ route('admin.exam-schedules.edit', $group->representative_id) }}" class="rounded-md bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:bg-gray-500/10 dark:text-gray-300 dark:hover:bg-gray-500/20">Edit</a>
+                                        @endif
                                         <button type="button"
                                                 @click="
                                                     deleteUrl = '{{ route('admin.exam-schedules.destroy', $group->representative_id) }}';

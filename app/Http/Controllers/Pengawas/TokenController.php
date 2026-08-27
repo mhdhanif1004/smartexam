@@ -17,6 +17,21 @@ class TokenController extends Controller
     public function index(): View
     {
         $room = $this->supervisorRoom();
+
+        // Pengawas sah tapi belum ditugaskan ke ruangan mana pun hari ini —
+        // bukan pelanggaran akses, render empty state.
+        if ($room === null) {
+            return view('pengawas.tokens.index', [
+                'room' => null,
+                'period' => null,
+                'activeToken' => null,
+                'nextRotationAt' => null,
+                'rotationHistory' => collect(),
+                'students' => collect(),
+                'stats' => ['sudah_token' => 0, 'belum_token' => 0],
+            ]);
+        }
+
         $period = $this->currentPeriod();
 
         if ($period === null) {
@@ -71,6 +86,11 @@ class TokenController extends Controller
     public function currentToken(): JsonResponse
     {
         $room = $this->supervisorRoom();
+
+        if ($room === null) {
+            return response()->json(['active' => false]);
+        }
+
         $period = $this->currentPeriod();
 
         if ($period === null) {
