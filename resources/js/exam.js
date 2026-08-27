@@ -43,6 +43,7 @@ export function examApp(config) {
         violationListeners: [],
 
         init() {
+            window.__smartExamApp = this;
             this.trackViolations();
             this.csrfRefreshTimer = setInterval(() => this.refreshCsrf(), 15 * 60 * 1000);
         },
@@ -123,37 +124,33 @@ export function examApp(config) {
             if (meta) meta.setAttribute('content', token);
         },
 
+        async reportViolation(type, options = {}) {
+            if (this.leaving || !this.started) return;
+            const now = Date.now();
+            if (now - this.lastViolationAt < 3000) return;
+            this.lastViolationAt = now;
+            try {
+                const response = await this.post(config.violationUrl, { violation_type: type });
+                if (!response.ok) return;
+                const data = await response.json().catch(() => ({}));
+                if (options.block) return;
+                if (!data.redirect || !data.url) return;
+                this.leaving = true;
+                this.showToast('Terdeteksi aktivitas mencurigakan. Anda akan diarahkan kembali ke dashboard.');
+                setTimeout(() => window.location.assign(data.url), 1500);
+            } catch (e) {}
+        },
+
         trackViolations() {
-            const record = (type, options = {}) => {
-                if (this.leaving || !this.started) return;
-                const now = Date.now();
-                if (now - this.lastViolationAt < 3000) return;
-                this.lastViolationAt = now;
-                this.post(config.violationUrl, { violation_type: type })
-                    .then((response) => {
-                        if (!response.ok) return null;
-                        return response.json().catch(() => ({}));
-                    })
-                    .then((data) => {
-                        if (!data || options.block) return;
-                        if (!data.redirect || !data.url) return;
-                        this.leaving = true;
-                        this.showToast('Terdeteksi aktivitas mencurigakan. Anda akan diarahkan kembali ke dashboard.');
-                        setTimeout(() => {
-                            window.location.assign(data.url);
-                        }, 1500);
-                    })
-                    .catch(() => {});
-            };
             const onVisibilityChange = () => {
-                if (document.hidden) record('berpindah_tab');
+                if (document.hidden) this.reportViolation('berpindah_tab');
             };
-            const onWindowBlur = () => record('kehilangan_fokus');
+            const onWindowBlur = () => this.reportViolation('kehilangan_fokus');
             const onResize = () => {
                 const delta = Math.abs(window.innerWidth - this.windowWidth);
                 if (delta >= 120) {
                     this.windowWidth = window.innerWidth;
-                    record('resize_jendela');
+                    this.reportViolation('resize_jendela');
                 }
             };
             const onFullscreenChange = () => {
@@ -165,7 +162,7 @@ export function examApp(config) {
                 if (this.hasEnteredFullscreen && !this.leaving) {
                     this.showConfirm = false;
                     this.fullscreenLost = true;
-                    record('keluar_fullscreen', { block: true });
+                    this.reportViolation('keluar_fullscreen', { block: true });
                 }
             };
             const onFullscreenError = () => {

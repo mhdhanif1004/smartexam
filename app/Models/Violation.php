@@ -21,14 +21,25 @@ class Violation extends Model
 
     public const TYPE_FULLSCREEN_EXIT = 'keluar_fullscreen';
 
+    public const TYPE_NATIVE_BACK = 'keluar_tombol_back';
+
+    public const TYPE_EMERGENCY_EXIT = 'keluar_gesture_darurat';
+
+    public const TYPE_UNPIN_SYSTEM = 'keluar_unpin_sistem';
+
     /**
      * Jenis pelanggaran yang dilaporkan otomatis oleh mesin deteksi peserta.
+     * Meliputi deteksi browser (tab switch, blur, resize, fullscreen) dan
+     * deteksi native dari Flutter WebView (back button, gesture, unpin).
      */
     public const AUTO_TYPES = [
         self::TYPE_TAB_SWITCH => 'Berpindah Tab/Aplikasi Lain',
         self::TYPE_BLUR => 'Kehilangan Fokus Jendela',
         self::TYPE_RESIZE => 'Perubahan Ukuran Jendela',
         self::TYPE_FULLSCREEN_EXIT => 'Keluar Mode Fullscreen',
+        self::TYPE_NATIVE_BACK => 'Keluar via Tombol Back',
+        self::TYPE_EMERGENCY_EXIT => 'Keluar via Gesture Darurat',
+        self::TYPE_UNPIN_SYSTEM => 'Unpin Aplikasi dari Sistem',
     ];
 
     public const TYPE_LABELS = [
@@ -41,6 +52,9 @@ class Violation extends Model
         self::TYPE_BLUR => 'Kehilangan Fokus Jendela',
         self::TYPE_RESIZE => 'Perubahan Ukuran Jendela',
         self::TYPE_FULLSCREEN_EXIT => 'Keluar Mode Fullscreen',
+        self::TYPE_NATIVE_BACK => 'Keluar via Tombol Back',
+        self::TYPE_EMERGENCY_EXIT => 'Keluar via Gesture Darurat',
+        self::TYPE_UNPIN_SYSTEM => 'Unpin Aplikasi dari Sistem',
     ];
 
     protected $fillable = [
