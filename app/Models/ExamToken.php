@@ -8,20 +8,23 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ExamToken extends Model
 {
     protected $fillable = [
-        'exam_schedule_id',
+        'exam_period_id',
         'token_code',
+        'rotation_index',
+        'valid_from',
         'valid_until',
     ];
 
     protected function casts(): array
     {
         return [
+            'valid_from' => 'datetime',
             'valid_until' => 'datetime',
         ];
     }
 
-    public function examSchedule(): BelongsTo
+    public function examPeriod(): BelongsTo
     {
-        return $this->belongsTo(ExamSchedule::class);
+        return $this->belongsTo(ExamPeriod::class);
     }
 }

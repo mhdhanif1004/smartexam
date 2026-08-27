@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Console\Commands\GenerateSessionTokens;
+use App\Models\ExamPeriod;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\Room;
@@ -248,55 +250,77 @@ class ExamScheduleTimingTest extends TestCase
     {
         [$room, $pengawas] = $this->supervisorRoom();
         $subject = Subject::factory()->create(['name' => 'Fisika']);
+        $period = ExamPeriod::create([
+            'name' => 'Sesi 1',
+            'name_prefix' => 'S1',
+            'grade_level' => null,
+            'session_number' => 1,
+            'exam_date' => '2026-08-10',
+            'start_time' => '09:00:00',
+            'end_time' => '10:00:00',
+        ]);
         $schedule = ExamSchedule::factory()->create([
             'room_id' => $room->id,
             'subject_id' => $subject->id,
             'class_name' => 'XI RPL 1',
+            'exam_period_id' => $period->id,
             'exam_date' => '2026-08-10',
             'start_time' => '09:00:00',
             'end_time' => '10:00:00',
             'status' => ExamSchedule::STATUS_SCHEDULED,
         ]);
 
-        // 5 menit sebelum mulai -> halaman token menampilkan jadwal + info token tersedia
+        // 5 menit sebelum mulai -> halaman token menampilkan nama sesi
         Carbon::setTestNow(Carbon::parse('2026-08-10 08:55:00'));
         $this->actingAs($pengawas)->get(route('pengawas.tokens.index'))
             ->assertOk()
-            ->assertSee('Fisika')
-            ->assertSee('Token tersedia');
+            ->assertSee('Sesi 1');
 
-        // 6 menit sebelum mulai -> belum masuk jendela token, tampilkan info
+        // 6 menit sebelum mulai -> belum masuk jendela, tampilkan info tidak ada sesi
         Carbon::setTestNow(Carbon::parse('2026-08-10 08:54:00'));
         $this->actingAs($pengawas)->get(route('pengawas.tokens.index'))
             ->assertOk()
-            ->assertSee('5 menit sebelum ujian dimulai', false)
-            ->assertSee('08:55', false);
+            ->assertSee('Tidak ada sesi ujian yang sedang berlangsung');
     }
 
-    public function test_token_generation_blocked_before_window_and_allowed_in_window(): void
+    public function test_token_rotation_blocked_before_window_and_allowed_in_window(): void
     {
         [$room, $pengawas] = $this->supervisorRoom();
-        $schedule = ExamSchedule::factory()->create([
+        $period = ExamPeriod::create([
+            'name' => 'Sesi 1',
+            'name_prefix' => 'S1',
+            'grade_level' => null,
+            'session_number' => 1,
+            'exam_date' => '2026-08-10',
+            'start_time' => '09:00:00',
+            'end_time' => '10:00:00',
+        ]);
+        ExamSchedule::factory()->create([
             'room_id' => $room->id,
+            'exam_period_id' => $period->id,
             'exam_date' => '2026-08-10',
             'start_time' => '09:00:00',
             'end_time' => '10:00:00',
             'status' => ExamSchedule::STATUS_SCHEDULED,
         ]);
 
-        // 6 menit sebelum mulai -> generate token ditolak
+        // 6 menit sebelum mulai -> command tidak generate token (belum masuk window)
         Carbon::setTestNow(Carbon::parse('2026-08-10 08:54:00'));
-        $this->actingAs($pengawas)
-            ->post(route('pengawas.tokens.generate', ['schedule' => $schedule->id]))
-            ->assertNotFound();
+        $this->artisan(GenerateSessionTokens::class);
+        $this->assertDatabaseCount('exam_tokens', 0);
 
-        // 5 menit sebelum mulai -> generate token berhasil
+        // 5 menit sebelum mulai -> command generate token window 0
         Carbon::setTestNow(Carbon::parse('2026-08-10 08:55:00'));
-        $this->actingAs($pengawas)
-            ->post(route('pengawas.tokens.generate', ['schedule' => $schedule->id]))
-            ->assertRedirect();
+        $this->artisan(GenerateSessionTokens::class);
+        $this->assertDatabaseHas('exam_tokens', [
+            'exam_period_id' => $period->id,
+            'rotation_index' => 0,
+        ]);
 
-        $this->assertDatabaseHas('exam_tokens', ['exam_schedule_id' => $schedule->id]);
+        // Halaman token menampilkan token aktif
+        $this->actingAs($pengawas)->get(route('pengawas.tokens.index'))
+            ->assertOk()
+            ->assertSee('Sesi 1');
     }
 
     public function test_admin_exam_schedule_status_filter_uses_computed_status(): void

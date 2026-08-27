@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Peserta;
 
 use App\Http\Controllers\Controller;
 use App\Models\ExamAnswer;
+use App\Models\ExamPeriod;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\ExamToken;
@@ -47,7 +48,7 @@ class ExamController extends Controller
 
         if ($session !== null && $session->status === ExamSession::STATUS_IN_PROGRESS) {
             if (($error = $this->accessBlock($session)) !== null) {
-                return view('peserta.exams.token', ['schedule' => $this->schedule, 'accessError' => $error]);
+                return view('peserta.exams.token', ['schedule' => $this->schedule, 'student' => $this->student, 'accessError' => $error]);
             }
 
             return redirect()->route('peserta.exams.work', $this->schedule->id);
@@ -59,6 +60,7 @@ class ExamController extends Controller
 
         return view('peserta.exams.token', [
             'schedule' => $this->schedule,
+            'student' => $this->student,
             'accessError' => $session === null ? self::ACCESS_ERROR_NOT_CONFIRMED : $this->accessBlock($session),
         ]);
     }
@@ -97,9 +99,12 @@ class ExamController extends Controller
 
         $tokenCode = strtoupper(trim((string) $request->string('token_code')));
 
+        $periodId = $this->schedule->exam_period_id;
+
         $token = ExamToken::query()
-            ->where('exam_schedule_id', $this->schedule->id)
+            ->where('exam_period_id', $periodId)
             ->where('token_code', $tokenCode)
+            ->where('valid_from', '<=', now())
             ->where('valid_until', '>', now())
             ->first();
 
@@ -107,9 +112,14 @@ class ExamController extends Controller
             return back()->with('error', 'Token ujian salah atau sudah tidak berlaku.');
         }
 
+        $deadlineType = $this->schedule->computedStatus() === ExamSchedule::STATUS_FINISHED
+            ? ExamSession::DEADLINE_TYPE_DURATION
+            : ExamSession::DEADLINE_TYPE_SCHEDULE_END;
+
         $session->update([
             'status' => ExamSession::STATUS_IN_PROGRESS,
-            'started_at' => now(),
+            'started_at' => $session->started_at ?? now(),
+            'deadline_type' => $session->deadline_type ?? $deadlineType,
         ]);
 
         return redirect()->route('peserta.exams.work', $this->schedule->id)
@@ -165,6 +175,23 @@ class ExamController extends Controller
 
         $deadline = $this->deadline($session)->timestamp;
 
+        $period = $this->schedule->examPeriod;
+
+        if ($period !== null) {
+            $periodEnd = Carbon::parse($period->exam_date->format('Y-m-d').' '.$period->end_time);
+            $periodStart = Carbon::parse($period->exam_date->format('Y-m-d').' '.$period->start_time);
+            $graceMinutes = config('exam.grace_period_minutes', 10);
+            $sesiDeadline = $periodEnd->copy()->addMinutes($graceMinutes);
+            $totalSessionSeconds = max(0, $periodEnd->getTimestamp() - $periodStart->getTimestamp());
+            $remainingSession = max(0, $sesiDeadline->getTimestamp() - now()->getTimestamp());
+            $isFinalMapel = $this->computeIsFinalMapel($this->schedule, $period);
+        } else {
+            $mapelRemaining = max(0, $deadline - now()->getTimestamp());
+            $totalSessionSeconds = $mapelRemaining;
+            $remainingSession = $mapelRemaining;
+            $isFinalMapel = true;
+        }
+
         return view('peserta.exams.work', [
             'schedule' => $this->schedule,
             'session' => $session,
@@ -172,6 +199,9 @@ class ExamController extends Controller
             'savedAnswers' => $savedAnswers,
             'doubtfulQuestions' => $doubtfulQuestions,
             'deadline' => $deadline,
+            'totalSessionSeconds' => $totalSessionSeconds,
+            'remainingSession' => $remainingSession,
+            'isFinalMapel' => $isFinalMapel,
         ]);
     }
 
@@ -200,7 +230,7 @@ class ExamController extends Controller
             return response()->json(['error' => 'Sesi ujian belum dimulai.'], 403);
         }
 
-        if (now()->gt($this->deadline($session, $schedule))) {
+        if ($schedule->isExpiredAfterGrace($session)) {
             return response()->json(['expired' => true], 422);
         }
 
@@ -234,7 +264,7 @@ class ExamController extends Controller
             return response()->json(['error' => 'Sesi ujian belum dimulai.'], 403);
         }
 
-        if (now()->gt($this->deadline($session, $schedule))) {
+        if ($schedule->isExpiredAfterGrace($session)) {
             return response()->json(['expired' => true], 422);
         }
 
@@ -304,7 +334,35 @@ class ExamController extends Controller
             ]);
         }
 
-        return response()->json(['locked' => false]);
+        $remainingMapel = max(0, $this->deadline($session, $schedule)->getTimestamp() - now()->getTimestamp());
+
+        $period = $schedule->examPeriod;
+
+        if ($period !== null) {
+            $periodEnd = Carbon::parse($period->exam_date->format('Y-m-d').' '.$period->end_time);
+            $periodStart = Carbon::parse($period->exam_date->format('Y-m-d').' '.$period->start_time);
+            $graceMinutes = config('exam.grace_period_minutes', 10);
+            $sesiDeadline = $periodEnd->copy()->addMinutes($graceMinutes);
+            $remainingSesi = max(0, $sesiDeadline->getTimestamp() - now()->getTimestamp());
+            $totalSesi = max(0, $periodEnd->getTimestamp() - $periodStart->getTimestamp());
+            $isFinalMapel = $this->computeIsFinalMapel($schedule, $period);
+        } else {
+            $remainingSesi = $remainingMapel;
+            $totalSesi = $remainingMapel;
+            $isFinalMapel = true;
+        }
+
+        return response()->json([
+            'locked' => false,
+            'mapel' => [
+                'remaining_seconds' => $remainingMapel,
+                'is_final' => $isFinalMapel,
+            ],
+            'sesi' => [
+                'remaining_seconds' => $remainingSesi,
+                'total_seconds' => $totalSesi,
+            ],
+        ]);
     }
 
     public function submit(Request $request, int $schedule): RedirectResponse
@@ -327,11 +385,19 @@ class ExamController extends Controller
             return $this->deny('Sesi ujian belum dimulai.');
         }
 
-        $this->storeAnswers($session, $this->schedule, (array) $request->input('answers', []), $this->student->classroom_id);
+        $isExpired = $this->schedule->isExpiredAfterGrace($session);
+
+        if (! $isExpired) {
+            $this->storeAnswers($session, $this->schedule, (array) $request->input('answers', []), $this->student->classroom_id);
+        }
+
         $this->grading->finalize($session, $this->schedule);
 
         return redirect()->route('peserta.exams.finished', $this->schedule->id)
-            ->with('success', 'Ujian berhasil dikumpulkan.');
+            ->with($isExpired ? 'warning' : 'success',
+                $isExpired
+                    ? 'Waktu ujian telah habis. Jawaban dikumpulkan otomatis.'
+                    : 'Ujian berhasil dikumpulkan.');
     }
 
     public function finished(Request $request, int $schedule): View|RedirectResponse
@@ -393,12 +459,23 @@ class ExamController extends Controller
             return $this->deny('Ujian ini tidak dijadwalkan hari ini.');
         }
 
-        if ($this->schedule->computedStatus() !== ExamSchedule::STATUS_ONGOING) {
-            $message = $this->schedule->computedStatus() === ExamSchedule::STATUS_SCHEDULED
-                ? 'Ujian belum waktunya dimulai.'
-                : 'Waktu ujian sudah berakhir.';
+        if ($this->schedule->computedStatus() === ExamSchedule::STATUS_SCHEDULED) {
+            // Early-start: siswa sudah selesai mapel lain dalam sesi yang sama,
+            // boleh mulai mapel ini lebih awal selama tidak ada sesi paralel aktif.
+            if ($this->schedule->exam_period_id !== null
+                && $this->schedule->isWithinPeriodWindow()
+                && $this->hasCompletedOtherMapelInPeriod()
+                && ! $this->hasActiveSessionInPeriod()) {
+                return null;
+            }
 
-            return $this->deny($message);
+            return $this->deny('Ujian belum waktunya dimulai.');
+        }
+
+        // FINISHED tapi masih dalam sesi (ExamPeriod) → izinkan (susulan)
+        if ($this->schedule->computedStatus() === ExamSchedule::STATUS_FINISHED
+            && ! $this->schedule->isWithinPeriodWindow()) {
+            return $this->deny('Waktu ujian sudah berakhir.');
         }
 
         return null;
@@ -461,6 +538,36 @@ class ExamController extends Controller
         return null;
     }
 
+    private function hasActiveSessionInPeriod(): bool
+    {
+        if ($this->schedule->exam_period_id === null) {
+            return false;
+        }
+
+        return ExamSession::query()
+            ->where('student_id', $this->student->id)
+            ->whereHas('examSchedule', fn ($q) => $q
+                ->where('exam_period_id', $this->schedule->exam_period_id)
+                ->where('id', '!=', $this->schedule->id))
+            ->where('status', ExamSession::STATUS_IN_PROGRESS)
+            ->exists();
+    }
+
+    private function hasCompletedOtherMapelInPeriod(): bool
+    {
+        if ($this->schedule->exam_period_id === null) {
+            return false;
+        }
+
+        return ExamSession::query()
+            ->where('student_id', $this->student->id)
+            ->whereHas('examSchedule', fn ($q) => $q
+                ->where('exam_period_id', $this->schedule->exam_period_id)
+                ->where('id', '!=', $this->schedule->id))
+            ->where('status', ExamSession::STATUS_COMPLETED)
+            ->exists();
+    }
+
     private function subjectHasActiveQuestions(): bool
     {
         return $this->schedule->subject
@@ -495,11 +602,27 @@ class ExamController extends Controller
         }
     }
 
-    private function deadline(ExamSession $session, ?ExamSchedule $schedule = null): Carbon
+    private function deadline(ExamSession $session, ?ExamSchedule $schedule = null): \Carbon\Carbon
     {
-        $schedule ??= $this->schedule;
+        return $session->deadline($schedule ?? $this->schedule);
+    }
 
-        return $session->started_at->copy()->addMinutes((int) $schedule->duration_minutes);
+    /**
+     * Tentukan apakah schedule ini adalah mapel terakhir (berdasarkan
+     * urutan start_time) dalam satu ExamPeriod. Dipakai untuk menentukan
+     * apakah Timer Sesi perlu ditampilkan (mengambil alih Timer Mapel).
+     */
+    private function computeIsFinalMapel(ExamSchedule $schedule, ExamPeriod $period): bool
+    {
+        if ($schedule->exam_period_id === null) {
+            return true;
+        }
+
+        $lastSchedule = $period->schedules()
+            ->orderBy('start_time', 'desc')
+            ->first();
+
+        return $lastSchedule !== null && $lastSchedule->id === $schedule->id;
     }
 
     /**

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Pengawas;
 use App\Http\Controllers\Controller;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
+use App\Models\Room;
 use App\Models\Student;
 use App\Traits\ScopesSupervisorRoom;
 use Illuminate\Http\JsonResponse;
@@ -23,12 +24,36 @@ class AttendanceController extends Controller
     {
         $room = $this->supervisorRoom();
         $tolerance = ExamSchedule::attendanceToleranceMinutes();
-        $schedules = $this->windowSchedules($room, 10, $tolerance);
-        $schedule = $this->currentSchedule($room, $request->integer('schedule') ?: null, 10, $tolerance);
-        $students = $schedule !== null ? $this->attendanceRows($schedule) : collect();
-        $upcomingSchedules = $this->upcomingSchedules($room, 10, $tolerance);
+        $periodIds = $this->assignedPeriodIds($room);
 
-        return view('pengawas.attendance.index', compact('room', 'schedules', 'schedule', 'students', 'upcomingSchedules'));
+        // Active schedules for banner display (window-filtered)
+        $schedules = $this->windowSchedules($room, 10, $tolerance, $periodIds);
+
+        // ALL schedules in assigned periods — no window filter.
+        // Student list spans every mapel so propagation reaches them all.
+        $allSchedules = $this->allAssignedSchedules($room, $periodIds);
+
+        $allStudentIds = $allSchedules
+            ->map(fn (ExamSchedule $s) => $s->participantStudentIds())
+            ->flatten()
+            ->unique()
+            ->values();
+
+        $students = $allSchedules->isNotEmpty()
+            ? $this->consolidatedAttendanceRows($allSchedules, $allStudentIds)
+            : collect();
+
+        // Anchor: first window-filtered schedule by start_time (deterministic for confirm AJAX).
+        // Uses $schedules (window-filtered) NOT $allSchedules so the page only shows
+        // the banner+table when an active or tolerance-window schedule exists.
+        $anchorSchedule = $schedules->first();
+
+        $upcomingSchedules = $this->upcomingSchedules($room, 10, $tolerance, $periodIds);
+
+        return view('pengawas.attendance.index', compact(
+            'room', 'schedules', 'allSchedules', 'anchorSchedule',
+            'students', 'upcomingSchedules',
+        ));
     }
 
     /**
@@ -39,7 +64,13 @@ class AttendanceController extends Controller
         $schedule->syncStatusIfNeeded();
 
         $room = $this->supervisorRoom();
-        $ongoing = $this->currentSchedule($room, $schedule->id, 10, ExamSchedule::attendanceToleranceMinutes());
+        $periodIds = $this->assignedPeriodIds($room);
+
+        if ($schedule->exam_period_id !== null && ! $periodIds->contains($schedule->exam_period_id)) {
+            return response()->json(['error' => 'Anda tidak ditugaskan pada periode ujian jadwal ini.'], 403);
+        }
+
+        $ongoing = $this->currentSchedule($room, $schedule->id, 10, ExamSchedule::attendanceToleranceMinutes(), $periodIds);
 
         if ($ongoing === null) {
             return response()->json(['error' => 'Jadwal ujian tidak sedang dalam jendela absensi di ruangan Anda.'], 404);
@@ -74,28 +105,45 @@ class AttendanceController extends Controller
             'attendance_status' => $confirmed ? ExamSession::ATTENDANCE_PRESENT : ExamSession::ATTENDANCE_ABSENT,
         ]);
 
+        if ($confirmed) {
+            $this->propagateAttendance($student, $schedule, true);
+        }
+
         return response()->json(['ok' => true]);
     }
 
     public function update(Request $request): RedirectResponse
     {
         $room = $this->supervisorRoom();
-        $schedule = $this->currentSchedule($room, $request->integer('schedule') ?: null, 10, ExamSchedule::attendanceToleranceMinutes());
+        $periodIds = $this->assignedPeriodIds($room);
 
-        abort_if($schedule === null, 404, 'Tidak ada sesi ujian yang sedang dalam jendela absensi di ruangan Anda.');
+        $allSchedules = $this->allAssignedSchedules($room, $periodIds);
 
-        $schedule->syncStatusIfNeeded();
+        abort_if($allSchedules->isEmpty(), 404, 'Tidak ada sesi ujian yang sedang berlangsung di ruangan Anda.');
+
+        $anchorSchedule = $allSchedules->first();
+
+        if ($anchorSchedule->exam_period_id !== null && ! $periodIds->contains($anchorSchedule->exam_period_id)) {
+            abort(403, 'Anda tidak ditugaskan pada periode ujian jadwal ini.');
+        }
+
+        $anchorSchedule->syncStatusIfNeeded();
+
+        $allParticipantIds = $allSchedules
+            ->map(fn (ExamSchedule $s) => $s->participantStudentIds())
+            ->flatten()
+            ->unique()
+            ->values()
+            ->all();
 
         $validator = Validator::make($request->all(), [
             'attendance' => ['required', 'array'],
             'attendance.*' => ['required', Rule::in(array_keys(ExamSession::ATTENDANCE_STATUSES))],
         ]);
 
-        $validator->after(function ($validator) use ($request, $schedule) {
-            $participantIds = $schedule->participantStudentIds();
-
+        $validator->after(function ($validator) use ($request, $allParticipantIds) {
             foreach (array_keys($request->input('attendance', [])) as $studentId) {
-                if (! in_array((int) $studentId, $participantIds, true)) {
+                if (! in_array((int) $studentId, $allParticipantIds, true)) {
                     $validator->errors()->add('attendance', 'Siswa bukan peserta pada sesi ujian ini.');
 
                     return;
@@ -103,11 +151,13 @@ class AttendanceController extends Controller
             }
         })->validate();
 
+        $confirmedStatuses = [];
+
         foreach ($request->input('attendance') as $studentId => $status) {
             $confirmed = $status === ExamSession::ATTENDANCE_PRESENT;
 
             ExamSession::updateOrCreate(
-                ['student_id' => $studentId, 'exam_schedule_id' => $schedule->id],
+                ['student_id' => $studentId, 'exam_schedule_id' => $anchorSchedule->id],
                 [
                     'attendance_status' => $status,
                     'attendance_confirmed' => $confirmed,
@@ -115,45 +165,167 @@ class AttendanceController extends Controller
                     'attendance_confirmed_by' => auth()->id(),
                 ]
             );
+
+            if ($confirmed) {
+                $confirmedStatuses[] = $studentId;
+            }
+        }
+
+        if ($confirmedStatuses !== []) {
+            $students = Student::whereIn('id', $confirmedStatuses)->get();
+            foreach ($students as $student) {
+                $this->propagateAttendance($student, $anchorSchedule, true);
+            }
         }
 
         return back()->with('success', 'Absensi peserta berhasil disimpan.');
     }
 
     /**
-     * Daftar siswa peserta lengkap dengan sesi ujian (dibuat otomatis bila
-     * belum ada) serta jumlah pelanggaran untuk deteksi "nonaktif otomatis".
+     * ALL schedules in assigned periods for today — no window filter.
+     * Used for consolidated attendance so propagation reaches every mapel.
+     *
+     * @return Collection<int, ExamSchedule>
+     */
+    private function allAssignedSchedules(Room $room, Collection $periodIds): Collection
+    {
+        $today = now()->startOfDay();
+
+        $query = ExamSchedule::query()
+            ->with(['subject', 'room'])
+            ->where('room_id', $room->id)
+            ->where('exam_date', '>=', $today)
+            ->where('exam_date', '<', $today->copy()->addDay());
+
+        if ($periodIds->isNotEmpty()) {
+            $query->whereIn('exam_period_id', $periodIds);
+        }
+
+        return $query
+            ->orderBy('start_time')
+            ->get();
+    }
+
+    /**
+     * Read-only consolidated attendance rows. Does NOT create sessions or
+     * run propagation — that happens at confirm() time via PUSH.
      *
      * @return Collection<int, Student>
      */
-    private function attendanceRows(ExamSchedule $schedule): Collection
+    private function consolidatedAttendanceRows(Collection $allSchedules, Collection $studentIds): Collection
     {
         $students = Student::query()
             ->with('user')
-            ->whereIn('id', $schedule->participantStudentIds())
+            ->whereIn('id', $studentIds)
             ->orderBy('nisn')
             ->get();
 
         $sessions = ExamSession::query()
-            ->where('exam_schedule_id', $schedule->id)
+            ->whereIn('exam_schedule_id', $allSchedules->pluck('id'))
+            ->whereIn('student_id', $studentIds)
             ->withCount('violations')
             ->get()
-            ->keyBy('student_id');
+            ->groupBy('student_id');
 
         foreach ($students as $student) {
-            $session = $sessions->get($student->id);
-
-            if ($session === null) {
-                $session = ExamSession::query()->create([
-                    'student_id' => $student->id,
-                    'exam_schedule_id' => $schedule->id,
-                    'status' => ExamSession::STATUS_NOT_STARTED,
-                ]);
-            }
-
+            $studentSessions = $sessions->get($student->id, collect());
+            $session = $studentSessions->first();
             $student->setRelation('examSession', $session);
         }
 
         return $students;
+    }
+
+    /**
+     * Propagate attendance dalam satu ExamPeriod / ruangan.
+     *
+     * - overwriteExisting = true (dari confirm/update): schedule saat ini
+     *   sudah di-confirm → PUSH ke semua schedule lain (create/update).
+     * - overwriteExisting = false (dari attendanceRows): session baru
+     *   dibuat untuk schedule ini → PULL dari schedule lain yang sudah
+     *   di-confirm.
+     *
+     * Hanya mengisi sesi yang BELUM di-attend supaya data manual
+     * pengawas tidak ter-overwrite.
+     */
+    private function propagateAttendance(Student $student, ExamSchedule $currentSchedule, bool $overwriteExisting): void
+    {
+        $period = $currentSchedule->examPeriod;
+
+        if ($period === null) {
+            return;
+        }
+
+        $otherScheduleIds = $period->schedules()
+            ->where('room_id', $currentSchedule->room_id)
+            ->where('id', '!=', $currentSchedule->id)
+            ->pluck('id')
+            ->all();
+
+        if ($otherScheduleIds === []) {
+            return;
+        }
+
+        if ($overwriteExisting) {
+            $sourceSession = ExamSession::query()
+                ->where('student_id', $student->id)
+                ->where('exam_schedule_id', $currentSchedule->id)
+                ->where('attendance_confirmed', true)
+                ->first();
+
+            if ($sourceSession === null) {
+                return;
+            }
+
+            foreach ($otherScheduleIds as $otherId) {
+                $existing = ExamSession::query()
+                    ->where('student_id', $student->id)
+                    ->where('exam_schedule_id', $otherId)
+                    ->first();
+
+                if ($existing === null) {
+                    ExamSession::query()->create([
+                        'student_id' => $student->id,
+                        'exam_schedule_id' => $otherId,
+                        'status' => ExamSession::STATUS_NOT_STARTED,
+                        'attendance_confirmed' => true,
+                        'attendance_confirmed_at' => $sourceSession->attendance_confirmed_at,
+                        'attendance_confirmed_by' => $sourceSession->attendance_confirmed_by,
+                        'attendance_status' => ExamSession::ATTENDANCE_PRESENT,
+                    ]);
+                } elseif (! $existing->attendance_confirmed) {
+                    $existing->update([
+                        'attendance_confirmed' => true,
+                        'attendance_confirmed_at' => $sourceSession->attendance_confirmed_at,
+                        'attendance_confirmed_by' => $sourceSession->attendance_confirmed_by,
+                        'attendance_status' => ExamSession::ATTENDANCE_PRESENT,
+                    ]);
+                }
+            }
+        } else {
+            $sourceSession = ExamSession::query()
+                ->where('student_id', $student->id)
+                ->whereIn('exam_schedule_id', $otherScheduleIds)
+                ->where('attendance_confirmed', true)
+                ->first();
+
+            if ($sourceSession === null) {
+                return;
+            }
+
+            ExamSession::query()
+                ->where('student_id', $student->id)
+                ->where('exam_schedule_id', $currentSchedule->id)
+                ->where(function ($q) {
+                    $q->whereNull('attendance_confirmed')
+                        ->orWhere('attendance_confirmed', false);
+                })
+                ->update([
+                    'attendance_confirmed' => true,
+                    'attendance_confirmed_at' => $sourceSession->attendance_confirmed_at,
+                    'attendance_confirmed_by' => $sourceSession->attendance_confirmed_by,
+                    'attendance_status' => ExamSession::ATTENDANCE_PRESENT,
+                ]);
+        }
     }
 }

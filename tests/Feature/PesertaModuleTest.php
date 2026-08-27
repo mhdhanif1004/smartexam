@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ExamAnswer;
+use App\Models\ExamPeriod;
 use App\Models\ExamResult;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
@@ -16,6 +17,7 @@ use App\Models\User;
 use App\Models\Violation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class PesertaModuleTest extends TestCase
@@ -41,7 +43,24 @@ class PesertaModuleTest extends TestCase
         $this->student->update(['room_id' => $room->id]);
         $this->user = $this->student->user;
         $this->subject = Subject::factory()->create(['name' => 'Matematika']);
+        $this->period = ExamPeriod::create([
+            'name' => 'Ujian Hari Ini',
+            'name_prefix' => 'UH',
+            'grade_level' => null,
+            'session_number' => 1,
+            'exam_date' => now()->toDateString(),
+            'start_time' => '08:00:00',
+            'end_time' => '11:00:00',
+        ]);
         $this->schedule = $this->scheduleToday('XI RPL 1', '08:30:00', '10:30:00');
+        $this->schedule->update(['exam_period_id' => $this->period->id]);
+
+        DB::table('exam_room_assignments')->insert([
+            'exam_period_id' => $this->period->id,
+            'student_id' => $this->student->id,
+            'room_id' => $this->student->room_id,
+            'seat_number' => 1,
+        ]);
     }
 
     protected function tearDown(): void
@@ -68,8 +87,10 @@ class PesertaModuleTest extends TestCase
     private function validToken(ExamSchedule $schedule): string
     {
         ExamToken::create([
-            'exam_schedule_id' => $schedule->id,
+            'exam_period_id' => $schedule->exam_period_id,
             'token_code' => 'ABC12345',
+            'rotation_index' => 0,
+            'valid_from' => now()->subHour(),
             'valid_until' => now()->addHour(),
         ]);
 
@@ -112,7 +133,10 @@ class PesertaModuleTest extends TestCase
     {
         $emptySubject = Subject::factory()->create();
         $schedule = $this->scheduleToday('XI RPL 1', '08:30:00', '10:30:00');
-        $schedule->update(['subject_id' => $emptySubject->id]);
+        $schedule->update([
+            'subject_id' => $emptySubject->id,
+            'exam_period_id' => $this->period->id,
+        ]);
 
         return $schedule;
     }
@@ -167,6 +191,32 @@ class PesertaModuleTest extends TestCase
         $this->actingAs($this->user)->get(route('peserta.exams.token', $schedule->id))
             ->assertRedirect(route('peserta.dashboard'))
             ->assertSessionHas('error');
+    }
+
+    public function test_token_page_shows_student_class_name_not_schedule_class_name(): void
+    {
+        // Create a schedule with empty class_name (like auto-generated sessions)
+        $schedule = ExamSchedule::factory()->create([
+            'subject_id' => $this->subject->id,
+            'room_id' => $this->student->room_id,
+            'class_name' => '',
+            'exam_date' => now()->toDateString(),
+            'start_time' => '08:30:00',
+            'end_time' => '10:30:00',
+            'duration_minutes' => 60,
+            'status' => 'ongoing',
+            'exam_period_id' => $this->period->id,
+        ]);
+
+        $response = $this->actingAs($this->user)->get(route('peserta.exams.token', $schedule->id));
+        $response->assertOk();
+
+        $html = $response->getContent();
+        // The Kelas label should be followed by the student's class_name, not an empty string
+        $this->assertStringContainsString('Kelas', $html);
+        $this->assertStringContainsString('XI RPL 1', $html);
+        // Verify the <dd> after "Kelas" contains the student class, not empty
+        $this->assertMatchesRegularExpression('/Kelas<\/dt>\s*<dd[^>]*>\s*XI RPL 1\s*<\/dd>/s', $html);
     }
 
     public function test_invalid_token_is_rejected(): void
@@ -440,6 +490,10 @@ class PesertaModuleTest extends TestCase
 
     public function test_expired_session_rejects_save_answer(): void
     {
+        // Set period end_time to 08:30 → sesiDeadline = 08:30 + 10 grace = 08:40
+        // now() = 09:00 > 08:40 → expired by sesi+grace
+        $this->period->update(['end_time' => '08:30:00']);
+
         ExamSession::create([
             'student_id' => $this->student->id,
             'exam_schedule_id' => $this->schedule->id,
@@ -604,6 +658,10 @@ class PesertaModuleTest extends TestCase
 
     public function test_violation_endpoint_rejects_expired_session(): void
     {
+        // Set period end_time to 08:30 → sesiDeadline = 08:40
+        // now() = 09:00 > 08:40 → expired by sesi+grace
+        $this->period->update(['end_time' => '08:30:00']);
+
         ExamSession::create([
             'student_id' => $this->student->id,
             'exam_schedule_id' => $this->schedule->id,
@@ -746,5 +804,136 @@ class PesertaModuleTest extends TestCase
         $this->actingAs($this->user)->get(route('peserta.dashboard'))
             ->assertOk()
             ->assertSee('Lanjutkan');
+    }
+
+    /**
+     * submit() SETELAH deadline: payload jawaban baru di-IGNORE,
+     * finalize pakai jawaban yang sudah tersimpan di DB.
+     */
+    public function test_submit_after_deadline_ignores_new_answer_payload(): void
+    {
+        // Set period end_time to 09:30 → sesiDeadline = 09:30 + 10 grace = 09:40
+        // Test advances to 10:00 > 09:40 → expired by sesi+grace
+        $this->period->update(['end_time' => '09:30:00']);
+
+        $session = ExamSession::create([
+            'student_id' => $this->student->id,
+            'exam_schedule_id' => $this->schedule->id,
+            'status' => ExamSession::STATUS_IN_PROGRESS,
+            'started_at' => Carbon::parse('2026-07-31 08:50:00'),
+            'deadline_type' => ExamSession::DEADLINE_TYPE_DURATION,
+            'attendance_confirmed' => true,
+        ]);
+
+        $question = Question::factory()->create([
+            'subject_id' => $this->subject->id,
+            'type' => Question::TYPE_SINGLE_CHOICE,
+            'options' => ['A' => 'Opsi A', 'B' => 'Opsi B'],
+            'answer_key' => 'A',
+            'score_weight' => 10,
+        ]);
+        $question->classrooms()->sync($this->student->classroom_id);
+
+        // Save answer "A" via saveAnswer() BEFORE deadline (now=09:00, deadline=09:50)
+        $this->actingAs($this->user)->postJson(route('peserta.exams.save-answer', $this->schedule->id), [
+            'answers' => [$question->id => ['answer' => 'A']],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('exam_answers', [
+            'exam_session_id' => $session->id,
+            'question_id' => $question->id,
+            'student_answer' => '{"answer":"A"}',
+        ]);
+
+        // NOW AFTER deadline (10:00 > 09:50)
+        Carbon::setTestNow(Carbon::parse('2026-07-31 10:00:00'));
+
+        // Submit with DIFFERENT answer "B" — bypass JS
+        $response = $this->actingAs($this->user)->post(route('peserta.exams.submit', $this->schedule->id), [
+            'answers' => [
+                $question->id => ['answer' => 'B'],
+            ],
+        ]);
+
+        $response->assertRedirect(route('peserta.exams.finished', $this->schedule->id));
+        $response->assertSessionHas('warning', 'Waktu ujian telah habis. Jawaban dikumpulkan otomatis.');
+        $response->assertSessionMissing('success');
+
+        // "B" NOT stored
+        $this->assertDatabaseMissing('exam_answers', [
+            'exam_session_id' => $session->id,
+            'question_id' => $question->id,
+            'student_answer' => json_encode('B'),
+        ]);
+
+        // "A" STILL there
+        $this->assertDatabaseHas('exam_answers', [
+            'exam_session_id' => $session->id,
+            'question_id' => $question->id,
+            'student_answer' => '{"answer":"A"}',
+        ]);
+
+        $session->refresh();
+        $this->assertSame(ExamSession::STATUS_COMPLETED, $session->status);
+        $this->assertNotNull($session->finished_at);
+
+        $result = $session->examResult;
+        $this->assertNotNull($result);
+        $this->assertSame(10.00, (float) $result->total_score);
+        $this->assertTrue($result->is_passed);
+
+        $this->assertDatabaseHas('exam_answers', [
+            'exam_session_id' => $session->id,
+            'question_id' => $question->id,
+            'is_correct' => true,
+            'score' => 10.00,
+        ]);
+    }
+
+    /**
+     * submit() SEBELUM deadline: jawaban baru disimpan normal.
+     */
+    public function test_submit_before_deadline_stores_answers_normally(): void
+    {
+        $session = ExamSession::create([
+            'student_id' => $this->student->id,
+            'exam_schedule_id' => $this->schedule->id,
+            'status' => ExamSession::STATUS_IN_PROGRESS,
+            'started_at' => Carbon::parse('2026-07-31 08:50:00'),
+            'deadline_type' => ExamSession::DEADLINE_TYPE_DURATION,
+            'attendance_confirmed' => true,
+        ]);
+
+        $question = Question::factory()->create([
+            'subject_id' => $this->subject->id,
+            'type' => Question::TYPE_SINGLE_CHOICE,
+            'options' => ['A' => 'Opsi A', 'B' => 'Opsi B'],
+            'answer_key' => 'A',
+            'score_weight' => 10,
+        ]);
+        $question->classrooms()->sync($this->student->classroom_id);
+
+        // now=09:00, deadline=09:50 → NOT expired
+        $response = $this->actingAs($this->user)->post(route('peserta.exams.submit', $this->schedule->id), [
+            'answers' => [
+                $question->id => ['answer' => 'A'],
+            ],
+        ]);
+
+        $response->assertRedirect(route('peserta.exams.finished', $this->schedule->id));
+        $response->assertSessionHas('success', 'Ujian berhasil dikumpulkan.');
+        $response->assertSessionMissing('warning');
+
+        $this->assertDatabaseHas('exam_answers', [
+            'exam_session_id' => $session->id,
+            'question_id' => $question->id,
+            'student_answer' => '{"answer":"A"}',
+        ]);
+
+        $session->refresh();
+        $this->assertSame(ExamSession::STATUS_COMPLETED, $session->status);
+
+        $result = $session->examResult;
+        $this->assertSame(10.00, (float) $result->total_score);
     }
 }

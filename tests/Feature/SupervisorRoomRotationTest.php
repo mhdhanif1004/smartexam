@@ -286,6 +286,7 @@ class SupervisorRoomRotationTest extends TestCase
             'exam_date' => now()->toDateString(),
             'start_time' => now()->subMinutes(30)->format('H:i:s'),
             'end_time' => now()->addMinutes(30)->format('H:i:s'),
+            'exam_period_id' => $period->id,
             'status' => ExamSchedule::STATUS_ONGOING,
         ]);
 

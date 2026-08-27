@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Pengawas;
 use App\Http\Controllers\Controller;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
+use App\Models\Supervisor;
 use App\Traits\ScopesSupervisorRoom;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
@@ -17,10 +18,19 @@ class DashboardController extends Controller
     {
         $room = $this->supervisorRoom();
 
+        $supervisor = auth()->user()?->supervisor;
+        abort_unless($supervisor instanceof Supervisor, 403);
+
+        $assignedPeriodIds = $supervisor->roomAssignments()
+            ->where('exam_date', Carbon::today())
+            ->where('room_id', $room->id)
+            ->pluck('exam_period_id');
+
         $schedules = ExamSchedule::query()
             ->with(['subject', 'room'])
             ->where('room_id', $room->id)
             ->whereDate('exam_date', Carbon::today())
+            ->whereIn('exam_period_id', $assignedPeriodIds)
             ->orderBy('start_time')
             ->get();
 

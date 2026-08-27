@@ -5,6 +5,10 @@
              answers: {{ Js::from($savedAnswers) }},
              doubtful: {{ Js::from($doubtfulQuestions) }},
              deadline: {{ $deadline }},
+             totalSessionSeconds: {{ $totalSessionSeconds }},
+             remainingSession: {{ $remainingSession }},
+             graceSeconds: {{ config('exam.grace_period_minutes', 10) * 60 }},
+             isFinalMapel: {{ $isFinalMapel ? 'true' : 'false' }},
              saveUrl: {{ Js::from(route('peserta.exams.save-answer', $schedule->id)) }},
              doubtUrl: {{ Js::from(route('peserta.exams.questions.toggle-doubtful', [$schedule->id, ':question'])) }},
              submitUrl: {{ Js::from(route('peserta.exams.submit', $schedule->id)) }},
@@ -15,7 +19,7 @@
              csrf: {{ Js::from(csrf_token()) }},
              csrfUrl: {{ Js::from(route('csrf-token')) }},
               loginUrl: {{ Js::from(route('login')) }},
-          })"> 
+         })"> 
 
 
         <div :class="fullscreenLost ? 'pointer-events-none opacity-60' : ''">
@@ -30,9 +34,18 @@
                 </div>
 
                 <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-                    <div class="text-center">
-                        <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Sisa Waktu</p>
+                    {{-- Timer Mapel --}}
+                    <div x-show="!isFinalMapel" class="text-center">
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Sisa Waktu Mapel</p>
                         <p class="font-mono text-2xl font-bold tabular-nums" :class="remaining < 300 ? 'text-rose-600 dark:text-rose-400' : 'text-gray-900 dark:text-gray-100'" x-text="formatTime(remaining)"></p>
+                        <p class="text-[9px] text-gray-400 dark:text-gray-500">Dihitung sejak Anda mulai</p>
+                    </div>
+
+                    {{-- Timer Sesi (normal atau takeover slot mapel saat isFinalMapel) --}}
+                    <div class="text-center">
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Sisa Waktu Sesi</p>
+                        <p class="font-mono text-2xl font-bold tabular-nums" :class="inGracePeriod ? 'text-amber-600 dark:text-amber-400' : (remainingSesi < 300 ? 'text-rose-600 dark:text-rose-400' : 'text-gray-900 dark:text-gray-100')" x-text="formatTime(remainingSesi)"></p>
+                        <p x-show="inGracePeriod" class="text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Waktu Tambahan</p>
                     </div>
                     <div class="text-center">
                         <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Terjawab</p>

@@ -13,6 +13,7 @@ use App\Models\Supervisor;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use ReflectionMethod;
 use Tests\TestCase;
 
@@ -276,6 +277,14 @@ class ExamAccessMigrationTest extends TestCase
         $assigned = $this->studentWithName('Adam Peserta', $examRoom);
         $unassigned = $this->studentWithName('Bella Tidak', $examRoom);
         $this->assign($this->period, $assigned, $examRoom);
+
+        DB::table('supervisor_room_assignments')->insert([
+            'exam_period_id' => $this->period->id,
+            'exam_date' => now()->toDateString(),
+            'supervisor_id' => $supervisor->id,
+            'room_id' => $examRoom->id,
+            'rotation_index' => 1,
+        ]);
 
         $schedule = $this->periodSchedule($this->period, $examRoom);
 

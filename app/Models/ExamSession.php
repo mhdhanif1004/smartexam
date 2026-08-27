@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Database\Factories\ExamSessionFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -36,10 +37,15 @@ class ExamSession extends Model
         self::ATTENDANCE_ABSENT => 'Tidak Hadir',
     ];
 
+    public const DEADLINE_TYPE_SCHEDULE_END = 'schedule_end';
+
+    public const DEADLINE_TYPE_DURATION = 'duration';
+
     protected $fillable = [
         'student_id',
         'exam_schedule_id',
         'started_at',
+        'deadline_type',
         'finished_at',
         'status',
         'attendance_status',
@@ -104,6 +110,21 @@ class ExamSession extends Model
         return (int) $this->violation_flag_1
             + (int) $this->violation_flag_2
             + (int) $this->violation_flag_3;
+    }
+
+    /**
+     * Hitung deadline mapel berdasarkan deadline_type yang di-snapshot.
+     * NULL diperlakukan sebagai 'duration' (fallback untuk data lama).
+     */
+    public function deadline(?ExamSchedule $schedule = null): Carbon
+    {
+        $schedule ??= $this->examSchedule;
+
+        $type = $this->deadline_type ?? self::DEADLINE_TYPE_DURATION;
+
+        return $type === self::DEADLINE_TYPE_SCHEDULE_END
+            ? $schedule->examEnd()
+            : $this->started_at->copy()->addMinutes((int) $schedule->duration_minutes);
     }
 
     /**

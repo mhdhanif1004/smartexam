@@ -134,11 +134,56 @@ class ExamSchedule extends Model
     }
 
     /**
+     * Check if the session has expired based on the sesi (period) deadline
+     * including grace period. For schedules without an ExamPeriod, falls
+     * back to the per-mapel deadline via ExamSession::deadline().
+     *
+     * Single source of truth for expiry logic used by saveAnswer(),
+     * toggleDoubtful(), submit(), and ViolationController::store().
+     */
+    public function isExpiredAfterGrace(ExamSession $session): bool
+    {
+        $period = $this->examPeriod;
+
+        if ($period !== null) {
+            $periodEnd = Carbon::parse(
+                $period->exam_date->format('Y-m-d').' '.$period->end_time
+            );
+            $graceMinutes = config('exam.grace_period_minutes', 10);
+            $sesiDeadline = $periodEnd->copy()->addMinutes($graceMinutes);
+
+            return now()->gt($sesiDeadline);
+        }
+
+        return now()->gt($session->deadline($this));
+    }
+
+    /**
      * Datetime jendela dibuka = exam_date + start_time - earlyMinutes.
      */
     public function windowOpensAt(int $earlyMinutes = 0): Carbon
     {
         return $this->examStart()->subMinutes($earlyMinutes);
+    }
+
+    /**
+     * Apakah siswa masih boleh mengerjakan mapel ini karena sesi
+     * (ExamPeriod) keseluruhan belum berakhir? Dipakai untuk menentukan
+     * status "susulan" di dashboard siswa.
+     */
+    public function isWithinPeriodWindow(): bool
+    {
+        $period = $this->examPeriod;
+
+        if ($period === null) {
+            return $this->computedStatus() === self::STATUS_ONGOING;
+        }
+
+        $periodEnd = Carbon::parse(
+            $period->exam_date->format('Y-m-d').' '.$period->end_time
+        );
+
+        return now()->lte($periodEnd);
     }
 
     public function getCurrentStatusAttribute(): string

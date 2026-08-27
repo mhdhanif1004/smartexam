@@ -2,6 +2,7 @@
 
 namespace App\Traits;
 
+use App\Models\ExamPeriod;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\Room;
@@ -30,6 +31,23 @@ trait ScopesSupervisorRoom
         abort_unless($room instanceof Room, 403, 'Anda tidak ditugaskan pada ruangan ujian.');
 
         return $room;
+    }
+
+    /**
+     * ID periode ujian yang ditugaskan untuk pengawas ini pada hari ini di
+     * ruangan tertentu. Dipakai untuk membatasi dropdown jadwal hanya ke
+     * periode yang menjadi tanggung jawab pengawas tersebut.
+     */
+    protected function assignedPeriodIds(Room $room): Collection
+    {
+        $supervisor = auth()->user()?->supervisor;
+
+        abort_unless($supervisor instanceof Supervisor, 403);
+
+        return $supervisor->roomAssignments()
+            ->where('exam_date', Carbon::today())
+            ->where('room_id', $room->id)
+            ->pluck('exam_period_id');
     }
 
     /**
@@ -74,15 +92,21 @@ trait ScopesSupervisorRoom
      *
      * @return Collection<int, ExamSchedule>
      */
-    protected function windowSchedules(Room $room, int $earlyMinutes, int $lateMinutes = 0): Collection
+    protected function windowSchedules(Room $room, int $earlyMinutes, int $lateMinutes = 0, ?Collection $periodIds = null): Collection
     {
         $today = now()->startOfDay();
 
-        return ExamSchedule::query()
+        $query = ExamSchedule::query()
             ->with(['subject', 'room'])
             ->where('room_id', $room->id)
             ->where('exam_date', '>=', $today)
-            ->where('exam_date', '<', $today->copy()->addDay())
+            ->where('exam_date', '<', $today->copy()->addDay());
+
+        if ($periodIds !== null && $periodIds->isNotEmpty()) {
+            $query->whereIn('exam_period_id', $periodIds);
+        }
+
+        return $query
             ->orderBy('start_time')
             ->get()
             ->filter(fn (ExamSchedule $schedule) => $schedule->windowOpen($earlyMinutes, $lateMinutes))
@@ -93,9 +117,9 @@ trait ScopesSupervisorRoom
      * Sesi yang sedang dalam jendela untuk halaman absensi/token
      * (dengan pilihan lewat query param).
      */
-    protected function currentSchedule(Room $room, ?int $requestedId = null, int $earlyMinutes = 0, int $lateMinutes = 0): ?ExamSchedule
+    protected function currentSchedule(Room $room, ?int $requestedId = null, int $earlyMinutes = 0, int $lateMinutes = 0, ?Collection $periodIds = null): ?ExamSchedule
     {
-        $schedules = $this->windowSchedules($room, $earlyMinutes, $lateMinutes);
+        $schedules = $this->windowSchedules($room, $earlyMinutes, $lateMinutes, $periodIds);
 
         if ($schedules->isEmpty()) {
             return null;
@@ -115,15 +139,21 @@ trait ScopesSupervisorRoom
      *
      * @return Collection<int, ExamSchedule>
      */
-    protected function upcomingSchedules(Room $room, int $earlyMinutes, int $lateMinutes = 0): Collection
+    protected function upcomingSchedules(Room $room, int $earlyMinutes, int $lateMinutes = 0, ?Collection $periodIds = null): Collection
     {
         $today = now()->startOfDay();
 
-        return ExamSchedule::query()
+        $query = ExamSchedule::query()
             ->with(['subject', 'room'])
             ->where('room_id', $room->id)
             ->where('exam_date', '>=', $today)
-            ->where('exam_date', '<', $today->copy()->addDay())
+            ->where('exam_date', '<', $today->copy()->addDay());
+
+        if ($periodIds !== null && $periodIds->isNotEmpty()) {
+            $query->whereIn('exam_period_id', $periodIds);
+        }
+
+        return $query
             ->orderBy('start_time')
             ->get()
             ->filter(fn (ExamSchedule $schedule) => $schedule->computedStatus() === ExamSchedule::STATUS_SCHEDULED
@@ -171,6 +201,28 @@ trait ScopesSupervisorRoom
         }
 
         return $stats;
+    }
+
+    /**
+     * ExamPeriod yang sedang aktif untuk ruangan pengawas ini.
+     * Dibatasi HANYA untuk periode yang punya jadwal di ruangan ini.
+     */
+    public function currentPeriod(?string $date = null): ?ExamPeriod
+    {
+        $supervisor = auth()->user()?->supervisor;
+        abort_unless($supervisor instanceof Supervisor, 403);
+
+        $room = $this->supervisorRoom();
+        $date = $date ?? now()->toDateString();
+        $tokenWindowEdge = now()->addMinutes(5)->format('H:i:s');
+
+        return ExamPeriod::query()
+            ->where('exam_date', $date)
+            ->whereHas('schedules', fn ($q) => $q->where('room_id', $room->id))
+            ->where('start_time', '<=', $tokenWindowEdge)
+            ->where('end_time', '>', now()->format('H:i:s'))
+            ->orderBy('start_time')
+            ->first();
     }
 
     /**

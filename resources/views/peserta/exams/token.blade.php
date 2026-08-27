@@ -6,7 +6,7 @@
             <dl class="mt-4 space-y-2 text-sm">
                 <div class="flex justify-between gap-4">
                     <dt class="text-gray-500 dark:text-gray-400">Kelas</dt>
-                    <dd class="font-semibold text-gray-900 dark:text-gray-100">{{ $schedule->class_name }}</dd>
+                    <dd class="font-semibold text-gray-900 dark:text-gray-100">{{ $student->class_name }}</dd>
                 </div>
                 <div class="flex justify-between gap-4">
                     <dt class="text-gray-500 dark:text-gray-400">Ruangan</dt>

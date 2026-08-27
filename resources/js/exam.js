@@ -19,6 +19,10 @@ export function examApp(config) {
         doubtful: config.doubtful || {},
         current: 0,
         remaining: Math.max(0, config.deadline - Math.floor(Date.now() / 1000)),
+        remainingSesi: Math.max(0, config.remainingSession || 0),
+        totalSessionSeconds: config.totalSessionSeconds || 0,
+        graceSeconds: config.graceSeconds || 0,
+        isFinalMapel: config.isFinalMapel || false,
         saving: false,
         saveQueued: false,
         submitting: false,
@@ -41,6 +45,15 @@ export function examApp(config) {
         fullscreenLost: false,
         hasEnteredFullscreen: false,
         violationListeners: [],
+        mapelWarningShown: false,
+        sesiWarningShown: false,
+        graceWarningShown: false,
+
+        get inGracePeriod() {
+            return this.graceSeconds > 0
+                && this.remainingSesi > 0
+                && this.remainingSesi <= this.graceSeconds;
+        },
 
         init() {
             this.trackViolations();
@@ -55,9 +68,26 @@ export function examApp(config) {
             if (this.started) return;
             this.started = true;
             this.remaining = Math.max(0, config.deadline - Math.floor(Date.now() / 1000));
+            this.remainingSesi = Math.max(0, config.remainingSession || 0);
             this.timer = setInterval(() => {
                 this.remaining -= 1;
-                if (this.remaining <= 0) {
+                this.remainingSesi = Math.max(0, this.remainingSesi - 1);
+
+                if (this.remaining === 300 && !this.isFinalMapel && !this.mapelWarningShown) {
+                    this.mapelWarningShown = true;
+                    this.showToast('Sisa waktu mapel tinggal 5 menit.');
+                }
+                if (this.remainingSesi === 300 && !this.sesiWarningShown) {
+                    this.sesiWarningShown = true;
+                    this.showToast('Sisa waktu sesi tinggal 5 menit.');
+                }
+
+                if (this.inGracePeriod && !this.graceWarningShown) {
+                    this.graceWarningShown = true;
+                    this.showToast('Waktu resmi sudah berakhir. Anda dalam masa toleransi.');
+                }
+
+                if (this.remainingSesi <= 0) {
                     this.submit(true);
                 }
             }, 1000);
@@ -191,7 +221,7 @@ export function examApp(config) {
 
             this.violationListeners.forEach(([target, type, handler]) => target.addEventListener(type, handler));
 
-            this.statusTimer = setInterval(() => this.checkStatus(), 20000);
+            this.statusTimer = setInterval(() => this.checkStatus(), 10000);
         },
 
         teardownViolationListeners() {
@@ -218,12 +248,30 @@ export function examApp(config) {
                 });
                 if (!response.ok) return;
                 const data = await response.json();
-                if (!data || !data.locked) return;
-                this.leaving = true;
-                this.showToast(data.message || 'Ujian Anda dihentikan oleh Administrator.');
-                setTimeout(() => {
-                    window.location.assign(config.dashboardUrl);
-                }, 1500);
+                if (!data) return;
+                if (data.locked) {
+                    this.leaving = true;
+                    this.showToast(data.message || 'Ujian Anda dihentikan oleh Administrator.');
+                    setTimeout(() => {
+                        window.location.assign(config.dashboardUrl);
+                    }, 1500);
+                    return;
+                }
+                if (data.mapel) {
+                    const serverRemaining = data.mapel.remaining_seconds;
+                    const drift = Math.abs(this.remaining - serverRemaining);
+                    if (drift > 3) {
+                        this.remaining = serverRemaining;
+                    }
+                    this.isFinalMapel = data.mapel.is_final;
+                }
+                if (data.sesi) {
+                    const serverSesi = data.sesi.remaining_seconds;
+                    const sesiDrift = Math.abs(this.remainingSesi - serverSesi);
+                    if (sesiDrift > 3) {
+                        this.remainingSesi = serverSesi;
+                    }
+                }
             } catch (e) {
                 // Gangguan jaringan; polling berikutnya akan mencoba lagi.
             }

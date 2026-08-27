@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreExamPeriodAutoGenerateRequest;
 use App\Http\Requests\Admin\StoreExamPeriodGroupsRequest;
 use App\Http\Requests\Admin\StoreExamPeriodRequest;
+use App\Models\Classroom;
 use App\Models\ExamPeriod;
 use App\Models\ExamRoomAssignment;
 use App\Models\ExamSchedule;
@@ -271,8 +272,26 @@ class ExamPeriodController extends Controller
             $message .= ' Peringatan: '.$result['unfilledSlots'].' slot pengawas belum terisi karena jumlah pengawas aktif kurang dari kebutuhan total.';
         }
 
-        return redirect()->route('admin.exam-periods.index')
+        $missingPairs = $this->findMissingQuestionPairs($classNames, $subjectRows);
+
+        $warning = null;
+        if ($missingPairs !== []) {
+            $count = count($missingPairs);
+            $preview = implode(', ', array_slice($missingPairs, 0, 5));
+            if ($count > 5) {
+                $preview .= ' dan '.($count - 5).' lainnya';
+            }
+            $warning = "PERHATIAN: {$count} kombinasi kelas×mapel belum punya soal ({$preview}). Pastikan soal sudah diassign sebelum siswa mulai ujian.";
+        }
+
+        $redirect = redirect()->route('admin.exam-periods.index')
             ->with('success', $message);
+
+        if ($warning !== null) {
+            return $redirect->with('warning', $warning);
+        }
+
+        return $redirect;
     }
 
     public function show(ExamPeriod $examPeriod): View
@@ -530,6 +549,71 @@ class ExamPeriodController extends Controller
         }
 
         return $ids;
+    }
+
+    /**
+     * Cek kombinasi (classroom × subject) yang belum punya soal aktif.
+     * Dipanggil SETELAH transaksi utama commit agar tidak membebani
+     * proses insert yang melibatkan banyak baris.
+     *
+     * @param  array<int, string>  $classNames
+     * @param  array<int, array{subject_id: int, duration_minutes: int}>  $subjectRows
+     * @return array<int, string> contoh: ["XI RPL 1 × Matematika", ...]
+     */
+    private function findMissingQuestionPairs(array $classNames, array $subjectRows): array
+    {
+        $subjectIds = collect($subjectRows)->pluck('subject_id')->unique()->values()->all();
+
+        if ($subjectIds === [] || $classNames === []) {
+            return [];
+        }
+
+        $classroomMap = Classroom::query()
+            ->whereIn('name', $classNames)
+            ->pluck('id', 'name');
+
+        $subjectMap = Subject::query()
+            ->whereIn('id', $subjectIds)
+            ->pluck('name', 'id');
+
+        if ($classroomMap->isEmpty() || $subjectMap->isEmpty()) {
+            return [];
+        }
+
+        // Ambil pasangan (classroom_id, subject_id) yang SUDAH punya soal aktif
+        $coveredPairs = DB::table('question_classroom')
+            ->join('questions', 'questions.id', '=', 'question_classroom.question_id')
+            ->whereIn('question_classroom.classroom_id', $classroomMap->values()->all())
+            ->whereIn('questions.subject_id', $subjectIds)
+            ->where('questions.is_active', true)
+            ->select('question_classroom.classroom_id', 'questions.subject_id')
+            ->distinct()
+            ->get();
+
+        $coveredSet = [];
+        foreach ($coveredPairs as $row) {
+            $coveredSet["{$row->classroom_id}-{$row->subject_id}"] = true;
+        }
+
+        $missing = [];
+        foreach ($classNames as $className) {
+            $classroomId = $classroomMap->get($className);
+            if ($classroomId === null) {
+                continue;
+            }
+
+            foreach ($subjectRows as $row) {
+                $subjectId = (int) $row['subject_id'];
+                $key = "{$classroomId}-{$subjectId}";
+
+                if (! isset($coveredSet[$key])) {
+                    $subjectName = $subjectMap->get($subjectId, "Mapel #{$subjectId}");
+                    $missing[] = "{$className} × {$subjectName}";
+                }
+            }
+        }
+
+        return $missing;
     }
 
     /**

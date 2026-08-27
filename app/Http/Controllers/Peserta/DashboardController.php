@@ -31,9 +31,9 @@ class DashboardController extends Controller
             ->get()
             ->keyBy('exam_schedule_id');
 
-        $schedules->each(function (ExamSchedule $schedule) use ($sessions) {
+        $schedules->each(function (ExamSchedule $schedule) use ($sessions, $student) {
             $schedule->exam_session = $sessions->get($schedule->id);
-            $schedule->display = $this->displayFor($schedule);
+            $schedule->display = $this->displayFor($schedule, $student);
         });
 
         $stats = [
@@ -48,7 +48,7 @@ class DashboardController extends Controller
     /**
      * @return array{key: string, label: string, can_start: bool, url: ?string}
      */
-    private function displayFor(ExamSchedule $schedule): array
+    private function displayFor(ExamSchedule $schedule, Student $student): array
     {
         $session = $schedule->exam_session;
 
@@ -81,6 +81,22 @@ class DashboardController extends Controller
             ];
         }
 
+        // Early-start: sudah selesai mapel lain dalam sesi yang sama,
+        // boleh langsung lanjut ke mapel berikutnya (selama tidak ada
+        // sesi paralel lain yang masih in_progress).
+        if ($schedule->computedStatus() === ExamSchedule::STATUS_SCHEDULED
+            && $schedule->exam_period_id !== null
+            && $schedule->isWithinPeriodWindow()
+            && $this->hasCompletedOtherMapelInPeriod($schedule, $student)
+            && ! $this->hasActiveSessionInPeriod($schedule, $student)) {
+            return [
+                'key' => 'bisa_dimulai',
+                'label' => 'Bisa Dimulai',
+                'can_start' => true,
+                'url' => route('peserta.exams.token', $schedule),
+            ];
+        }
+
         return match ($schedule->computedStatus()) {
             ExamSchedule::STATUS_SCHEDULED => [
                 'key' => 'belum_mulai',
@@ -94,12 +110,49 @@ class DashboardController extends Controller
                 'can_start' => true,
                 'url' => route('peserta.exams.token', $schedule),
             ],
-            default => [
-                'key' => 'terlewat',
-                'label' => 'Waktu Terlewat',
-                'can_start' => false,
-                'url' => null,
-            ],
+            default => $schedule->isWithinPeriodWindow()
+                ? [
+                    'key' => 'susulan',
+                    'label' => 'Bisa Dikerjakan',
+                    'can_start' => true,
+                    'url' => route('peserta.exams.token', $schedule),
+                ]
+                : [
+                    'key' => 'terlewat',
+                    'label' => 'Waktu Terlewat',
+                    'can_start' => false,
+                    'url' => null,
+                ],
         };
+    }
+
+    private function hasCompletedOtherMapelInPeriod(ExamSchedule $schedule, Student $student): bool
+    {
+        if ($schedule->exam_period_id === null) {
+            return false;
+        }
+
+        return ExamSession::query()
+            ->where('student_id', $student->id)
+            ->whereHas('examSchedule', fn ($q) => $q
+                ->where('exam_period_id', $schedule->exam_period_id)
+                ->where('id', '!=', $schedule->id))
+            ->where('status', ExamSession::STATUS_COMPLETED)
+            ->exists();
+    }
+
+    private function hasActiveSessionInPeriod(ExamSchedule $schedule, Student $student): bool
+    {
+        if ($schedule->exam_period_id === null) {
+            return false;
+        }
+
+        return ExamSession::query()
+            ->where('student_id', $student->id)
+            ->whereHas('examSchedule', fn ($q) => $q
+                ->where('exam_period_id', $schedule->exam_period_id)
+                ->where('id', '!=', $schedule->id))
+            ->where('status', ExamSession::STATUS_IN_PROGRESS)
+            ->exists();
     }
 }
