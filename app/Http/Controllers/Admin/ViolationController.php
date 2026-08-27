@@ -67,4 +67,33 @@ class ViolationController extends Controller
 
         return response()->json(['ok' => true, 'locked' => $locked]);
     }
+
+    /**
+     * Polling endpoint: kembalikan pelanggaran BARU (seluruh sekolah)
+     * yang belum dilihat client. Client mengirim `since` (ID terakhir diketahui).
+     */
+    public function polling(Request $request): JsonResponse
+    {
+        $since = (int) $request->query('since', 0);
+
+        $violations = Violation::query()
+            ->with(['examSession.student.user', 'examSession.examSchedule.subject', 'examSession.examSchedule.room'])
+            ->where('id', '>', $since)
+            ->latest('id')
+            ->limit(50)
+            ->get()
+            ->map(fn (Violation $v) => [
+                'id' => $v->id,
+                'student_name' => $v->examSession?->student?->user?->name ?? '-',
+                'class_name' => $v->examSession?->student?->class_name ?? '-',
+                'subject' => $v->examSession?->examSchedule?->subject?->name ?? '-',
+                'room_name' => $v->examSession?->examSchedule?->room?->display_name ?? '-',
+                'violation_type' => $v->violation_type,
+                'violation_label' => Violation::typeLabel($v->violation_type),
+                'occurred_at' => $v->occurred_at?->format('d M H:i'),
+                'handled' => (bool) $v->handled_by_supervisor,
+            ]);
+
+        return response()->json(['violations' => $violations]);
+    }
 }

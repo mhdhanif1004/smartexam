@@ -103,54 +103,33 @@
         @endif
 
         <div
-            x-data="{
-                violations: @js($recentViolations),
-                loading: false,
-                async refresh() {
-                    this.loading = true;
-                    try {
-                        const res = await fetch('{{ route('pengawas.violations.recent') }}', {
-                            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
-                        });
-                        if (res.ok) {
-                            this.violations = (await res.json()).violations;
-                        }
-                    } finally {
-                        this.loading = false;
-                    }
-                },
-                async markHandled(id) {
-                    const url = @js(route('pengawas.violations.handle', '__ID__'));
-                    const res = await fetch(url.replace('__ID__', id), {
-                        method: 'PATCH',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': @js(csrf_token()),
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
-                    });
-                    if (res.ok) {
-                        const item = this.violations.find((v) => v.id === id);
-                        if (item) item.handled = true;
-                    }
-                },
-                init() {
-                    this.timer = setInterval(() => this.refresh(), 10000);
-                }
-            }"
+            x-data="violationPolling({
+                endpoint: '{{ route('pengawas.violations.polling') }}',
+                csrf: '{{ csrf_token() }}',
+                handleUrl: '{{ route('pengawas.violations.handle', '__ID__') }}',
+                initialViolations: @js($recentViolations),
+            })"
             class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900"
         >
             <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
-                <div>
+                <div class="flex items-center gap-3">
                     <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Notifikasi Pelanggaran</h3>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Menyegarkan otomatis setiap 10 detik.</p>
+                    <span x-show="badgeCount > 0" x-text="badgeCount" @click="dismissBadge()"
+                          class="inline-flex h-5 min-w-[20px] cursor-pointer items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white"></span>
                 </div>
-                <button type="button" @click="refresh()" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700" :disabled="loading">
+                <button type="button" @click="poll()" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700" :disabled="loading">
                     <svg class="h-3.5 w-3.5" :class="loading && 'animate-spin'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
                     </svg>
                     <span x-text="loading ? 'Memuat...' : 'Refresh'"></span>
                 </button>
+            </div>
+
+            <div x-show="permissionStatus === 'default'" class="border-b border-amber-200 bg-amber-50 px-5 py-3 dark:border-amber-800 dark:bg-amber-500/10">
+                <div class="flex items-center justify-between gap-3">
+                    <p class="text-xs text-amber-700 dark:text-amber-300">Aktifkan notifikasi browser untuk peringatan pelanggaran real-time.</p>
+                    <button type="button" @click="requestPermission()" class="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-500">Aktifkan</button>
+                </div>
             </div>
             <ul class="divide-y divide-gray-100 dark:divide-gray-800">
                 <template x-for="violation in violations" :key="violation.id">

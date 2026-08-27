@@ -26,6 +26,38 @@ class ViolationController extends Controller
     }
 
     /**
+     * Polling endpoint: kembalikan pelanggaran BARU yang belum dilihat client.
+     * Client mengirim parameter `since` (ID pelanggaran terakhir yang diketahui)
+     * dan hanya pelanggaran dengan id lebih besar yang dikembalikan.
+     */
+    public function polling(Request $request): JsonResponse
+    {
+        $room = $this->supervisorRoom();
+        $since = (int) $request->query('since', 0);
+
+        $violations = Violation::query()
+            ->with(['examSession.student.user', 'examSession.examSchedule.subject', 'examSession.examSchedule.room'])
+            ->whereHas('examSession.examSchedule', fn ($query) => $query->where('room_id', $room->id))
+            ->where('id', '>', $since)
+            ->latest('id')
+            ->limit(20)
+            ->get()
+            ->map(fn (Violation $v) => [
+                'id' => $v->id,
+                'student_name' => $v->examSession?->student?->user?->name ?? '-',
+                'class_name' => $v->examSession?->student?->class_name ?? '-',
+                'subject' => $v->examSession?->examSchedule?->subject?->name ?? '-',
+                'room_name' => $v->examSession?->examSchedule?->room?->display_name ?? '-',
+                'violation_type' => $v->violation_type,
+                'violation_label' => Violation::typeLabel($v->violation_type),
+                'occurred_at' => $v->occurred_at?->format('d M H:i'),
+                'handled' => (bool) $v->handled_by_supervisor,
+            ]);
+
+        return response()->json(['violations' => $violations]);
+    }
+
+    /**
      * Tandai pelanggaran sudah ditangani pengawas. Aksi ini hanya menambah
      * penanda "sudah dilihat/ditangani" di UI pengawas; tidak mengubah
      * violation_flag di exam_sessions maupun data asli violations.
