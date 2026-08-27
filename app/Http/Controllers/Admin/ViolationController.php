@@ -94,6 +94,14 @@ class ViolationController extends Controller
                 'handled' => (bool) $v->handled_by_supervisor,
             ]);
 
-        return response()->json(['violations' => $violations]);
+        $unhandledCount = Violation::query()
+            ->where('handled_by_supervisor', false)
+            ->where('id', '>', $since)
+            ->count();
+
+        return response()->json([
+            'violations' => $violations,
+            'unhandled_count' => $unhandledCount,
+        ]);
     }
 }

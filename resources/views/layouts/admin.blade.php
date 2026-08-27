@@ -21,12 +21,20 @@
             <main class="flex-1 p-4 sm:p-6 lg:p-8">
                 {{ $slot }}
             </main>
-            @include('layouts.partials.violation-panel', [
-                'pollingEndpoint' => route('admin.violations.polling'),
-                'handleEndpoint'  => null,
-            ])
         </div>
     </div>
+    {{-- Background violation polling: Worker + suara + Notification API.
+         TANPA panel visual — panel hanya ada di Dashboard.
+         Pada halaman Riwayat Pelanggaran, otomatis tandai semua sudah dilihat. --}}
+    <div x-data="violationPolling({
+        endpoint: '{{ route('admin.violations.polling') }}',
+        csrf: '{{ csrf_token() }}',
+        csrfUrl: '{{ route('csrf-token') }}',
+        userKey: '{{ auth()->user()->role . '-' . auth()->user()->id }}',
+        handleUrl: null,
+        initialViolations: [],
+        isHistoryPage: @js(request()->routeIs('admin.violations.index')),
+    })" x-init></div>
     @stack('scripts')
 </body>
 </html>

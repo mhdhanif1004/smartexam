@@ -31,13 +31,27 @@ function poll() {
             return res.json();
         })
         .then((data) => {
+            // Sertakan jumlah pelanggaran belum ditangani (dari server) agar
+            // main thread bisa memperbarui badge secara akurat (sumber kebenaran
+            // = database, bukan akumulasi client).
+            const unhandledCount = typeof data.unhandled_count === 'number'
+                ? data.unhandled_count
+                : null;
+
             const fresh = data.violations || [];
-            if (fresh.length === 0) return;
+            if (fresh.length === 0) {
+                // Tetap kirim unhandled_count walau tidak ada pelanggaran baru,
+                // supaya badge selalu sinkron dengan database.
+                if (unhandledCount !== null) {
+                    self.postMessage({ type: 'unhandledCount', unhandled_count: unhandledCount });
+                }
+                return;
+            }
 
             lastSeenId = Math.max(lastSeenId, ...fresh.map((v) => v.id));
 
             // Kirim data pelanggaran baru ke main thread
-            self.postMessage({ type: 'newViolations', violations: fresh });
+            self.postMessage({ type: 'newViolations', violations: fresh, unhandled_count: unhandledCount });
         })
         .catch(() => {
             // Fetch error — diam saja, polling akan coba lagi di interval berikutnya
