@@ -153,19 +153,21 @@
                 tokenActive: @js($activeToken !== null),
                 tokenCode: @js($activeToken?->token_code ?? ''),
                 remainingSeconds: @js($activeToken ? max(0, $activeToken->valid_until->getTimestamp() - now()->getTimestamp()) : 0),
+                _countdownTimer: null,
+                _pollTimer: null,
                 init() {
                     this.startCountdown();
                     this.startPolling();
                 },
                 startCountdown() {
-                    setInterval(() => {
+                    this._countdownTimer = setInterval(() => {
                         if (this.remainingSeconds > 0) {
                             this.remainingSeconds--;
                         }
                     }, 1000);
                 },
                 startPolling() {
-                    setInterval(async () => {
+                    this._pollTimer = setInterval(async () => {
                         try {
                             const res = await fetch('{{ route('pengawas.tokens.current') }}', {
                                 headers: { 'Accept': 'application/json' },
@@ -182,6 +184,10 @@
                             }
                         } catch (e) {}
                     }, 10000);
+                },
+                destroy() {
+                    clearInterval(this._countdownTimer);
+                    clearInterval(this._pollTimer);
                 },
                 formatTime(seconds) {
                     if (seconds <= 0) return '00:00';

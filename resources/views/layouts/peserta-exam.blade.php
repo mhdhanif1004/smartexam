@@ -10,7 +10,7 @@
     @include('layouts.partials.theme-init')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="font-sans antialiased text-gray-800 dark:text-gray-200">
+<body data-turbo="false" class="font-sans antialiased text-gray-800 dark:text-gray-200">
     <div class="min-h-screen bg-gray-100 dark:bg-gray-950">
         <main class="flex-1 p-4 sm:p-6 lg:p-8">
             {{ $slot }}

@@ -8,6 +8,13 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title }} - {{ config('app.name', 'SmartExam') }}</title>
     @include('layouts.partials.theme-init')
+    {{-- Turbo Drive (navigasi instan antar menu tanpa reload). Matikan kapan saja via
+         TURBO_ENABLED=false di .env => app.js tidak akan memuat Turbo (rollback cepat). --}}
+    @if (config('app.turbo_enabled'))
+        <meta name="turbo-cache-control" content="no-cache">
+        <meta name="turbo-root" content="/">
+        <script>window.SMARTEXAM_TURBO_ENABLED = true;</script>
+    @endif
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="font-sans antialiased text-gray-800 dark:text-gray-200">

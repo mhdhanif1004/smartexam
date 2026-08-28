@@ -69,6 +69,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Turbo Drive (Hotwire)
+    |--------------------------------------------------------------------------
+    |
+    | Mengaktifkan navigasi instan (swap <body> tanpa reload) via Turbo Drive.
+    | Dirender ke window.SMARTEXAM_TURBO_ENABLED di layout Admin & Pengawas;
+    | app.js memuat Turbo secara dinamis HANYA jika flag ini true.
+    |
+    | ROLLBACK CEPAT: jika Turbo bermasalah di penggunaan nyata, cukup set
+    | TURBO_ENABLED=false di .env (lalu `php artisan config:clear`), flag menjadi
+    | false, dan Turbo sama sekali tidak dimuat => perilaku full-reload normal.
+    |
+    */
+
+    'turbo_enabled' => (bool) env('TURBO_ENABLED', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

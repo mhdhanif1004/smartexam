@@ -10,7 +10,7 @@
     @include('layouts.partials.theme-init')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="font-sans antialiased text-gray-800 dark:text-gray-200">
+<body data-turbo="false" class="font-sans antialiased text-gray-800 dark:text-gray-200">
     <div x-data="{ sidebarOpen: false }" class="flex h-screen overflow-hidden bg-gray-100 dark:bg-gray-950">
         <x-sidebar :role="'peserta'" />
 
