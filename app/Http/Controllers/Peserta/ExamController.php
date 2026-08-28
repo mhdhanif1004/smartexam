@@ -42,7 +42,7 @@ class ExamController extends Controller
 
         $session = $this->existingSession();
 
-        if ($session !== null && $session->status === ExamSession::STATUS_COMPLETED) {
+        if ($session !== null && $session->isTerminal()) {
             return redirect()->route('peserta.exams.finished', $this->schedule->id);
         }
 
@@ -77,7 +77,7 @@ class ExamController extends Controller
 
         $session = $this->existingSession();
 
-        if ($session !== null && $session->status === ExamSession::STATUS_COMPLETED) {
+        if ($session !== null && $session->isTerminal()) {
             return redirect()->route('peserta.exams.finished', $this->schedule->id);
         }
 
@@ -134,7 +134,7 @@ class ExamController extends Controller
 
         $session = $this->sessionFor();
 
-        if ($session->status === ExamSession::STATUS_COMPLETED) {
+        if ($session->isTerminal()) {
             return redirect()->route('peserta.exams.finished', $this->schedule->id);
         }
 
@@ -234,6 +234,8 @@ class ExamController extends Controller
             return response()->json(['expired' => true], 422);
         }
 
+        $session->touchLastActivity();
+
         $this->storeAnswers($session, $schedule, (array) $request->input('answers', []), $student->classroom_id);
 
         return response()->json(['ok' => true]);
@@ -327,6 +329,8 @@ class ExamController extends Controller
             return response()->json(['active' => false]);
         }
 
+        $session->touchLastActivity();
+
         if ($session->locked_by_admin) {
             return response()->json([
                 'locked' => true,
@@ -373,7 +377,7 @@ class ExamController extends Controller
 
         $session = $this->sessionFor();
 
-        if ($session->status === ExamSession::STATUS_COMPLETED) {
+        if ($session->isTerminal()) {
             return redirect()->route('peserta.exams.finished', $this->schedule->id);
         }
 
@@ -408,7 +412,7 @@ class ExamController extends Controller
 
         $session = $this->sessionFor();
 
-        if ($session->status !== ExamSession::STATUS_COMPLETED || $session->finished_at === null) {
+        if (! $session->isTerminal() || $session->finished_at === null) {
             return $this->deny('Ujian belum selesai dikerjakan.');
         }
 
@@ -564,7 +568,7 @@ class ExamController extends Controller
             ->whereHas('examSchedule', fn ($q) => $q
                 ->where('exam_period_id', $this->schedule->exam_period_id)
                 ->where('id', '!=', $this->schedule->id))
-            ->where('status', ExamSession::STATUS_COMPLETED)
+            ->whereIn('status', [ExamSession::STATUS_COMPLETED, ExamSession::STATUS_TIMED_OUT])
             ->exists();
     }
 

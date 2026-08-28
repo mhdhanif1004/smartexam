@@ -52,10 +52,12 @@ class DashboardController extends Controller
     {
         $session = $schedule->exam_session;
 
-        if ($session !== null && $session->status === ExamSession::STATUS_COMPLETED) {
+        if ($session !== null && $session->isTerminal()) {
             return [
                 'key' => 'selesai',
-                'label' => 'Selesai',
+                'label' => $session->status === ExamSession::STATUS_TIMED_OUT
+                    ? 'Waktu Habis'
+                    : 'Selesai',
                 'can_start' => false,
                 'url' => route('peserta.exams.finished', $schedule),
             ];
@@ -137,7 +139,7 @@ class DashboardController extends Controller
             ->whereHas('examSchedule', fn ($q) => $q
                 ->where('exam_period_id', $schedule->exam_period_id)
                 ->where('id', '!=', $schedule->id))
-            ->where('status', ExamSession::STATUS_COMPLETED)
+            ->whereIn('status', [ExamSession::STATUS_COMPLETED, ExamSession::STATUS_TIMED_OUT])
             ->exists();
     }
 

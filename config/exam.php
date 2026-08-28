@@ -25,6 +25,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Sesi Ujian Macet (sessions:cleanup-stuck)
+    |--------------------------------------------------------------------------
+    |
+    | cleanup_heartbeat_interval_seconds: jeda minimal antar penulisan kolom
+    | last_activity_at (detak jantung) agar polling tiap 10 detik tidak
+    | membebani tulis DB. Default 60 detik; tetap cukup akurat untuk kriteria
+    | stuck 30 menit.
+    |
+    | cleanup_grace_minutes: berapa lama sejak last_activity_at terakhir sesi
+    | dianggap "stuck" (tidak ada aktivitas sama sekali) sehingga di-cleanup
+    | menjadi status timed_out. Diambil dari jejak terakhir siswa aktif,
+    | terlepas dari jadwal mapel/period.
+    |
+    */
+
+    'cleanup_heartbeat_interval_seconds' => (int) env('EXAM_CLEANUP_HEARTBEAT_INTERVAL_SECONDS', 60),
+
+    'cleanup_grace_minutes' => (int) env('EXAM_CLEANUP_GRACE_MINUTES', 30),
+
+    /*
+    |--------------------------------------------------------------------------
     | Batas Maksimal Pengawas per Ruangan
     |--------------------------------------------------------------------------
     |

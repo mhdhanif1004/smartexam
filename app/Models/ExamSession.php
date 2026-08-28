@@ -22,10 +22,13 @@ class ExamSession extends Model
 
     public const STATUS_COMPLETED = 'completed';
 
+    public const STATUS_TIMED_OUT = 'timed_out';
+
     public const STATUSES = [
         self::STATUS_NOT_STARTED => 'Belum Mulai',
         self::STATUS_IN_PROGRESS => 'Sedang Mengerjakan',
         self::STATUS_COMPLETED => 'Selesai',
+        self::STATUS_TIMED_OUT => 'Waktu Habis',
     ];
 
     public const ATTENDANCE_PRESENT = 'hadir';
@@ -45,8 +48,10 @@ class ExamSession extends Model
         'student_id',
         'exam_schedule_id',
         'started_at',
+        'last_activity_at',
         'deadline_type',
         'finished_at',
+        'timed_out_at',
         'status',
         'attendance_status',
         'attendance_confirmed',
@@ -64,7 +69,9 @@ class ExamSession extends Model
     {
         return [
             'started_at' => 'datetime',
+            'last_activity_at' => 'datetime',
             'finished_at' => 'datetime',
+            'timed_out_at' => 'datetime',
             'attendance_confirmed' => 'boolean',
             'attendance_confirmed_at' => 'datetime',
             'violation_flag_1' => 'boolean',
@@ -125,6 +132,37 @@ class ExamSession extends Model
         return $type === self::DEADLINE_TYPE_SCHEDULE_END
             ? $schedule->examEnd()
             : $this->started_at->copy()->addMinutes((int) $schedule->duration_minutes);
+    }
+
+    /**
+     * Perbarui detak jantung sesi (last_activity_at) dengan throttle.
+     * Hanya menulis ke DB bila belum pernah ada, atau sudah ≥ 60 detik sejak
+     * update terakhir. Dipanggil dari polling status() dan saveAnswer()
+     * agar deteksi "stuck" oleh `sessions:cleanup-stuck` akurat tanpa
+     * membebani tulis DB pada setiap polling (10 detik).
+     */
+    public function touchLastActivity(): bool
+    {
+        $now = now();
+
+        if ($this->last_activity_at !== null
+            && $this->last_activity_at->diffInSeconds($now) < config('exam.cleanup_heartbeat_interval_seconds', 60)) {
+            return false;
+        }
+
+        $this->update(['last_activity_at' => $now]);
+
+        return true;
+    }
+
+    /**
+     * Apakah sesi sudah berakhir secara terminal (selesai normal atau
+     * di-cleanup karena macet). Sesi terminal tidak boleh dikerjakan ulang
+     * dan selalu diarahkan ke halaman hasil.
+     */
+    public function isTerminal(): bool
+    {
+        return in_array($this->status, [self::STATUS_COMPLETED, self::STATUS_TIMED_OUT], true);
     }
 
     /**

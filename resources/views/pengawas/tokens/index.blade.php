@@ -122,7 +122,7 @@
                 <x-table :headers="['No', 'NISN', 'Nama Peserta', 'Kelas', 'Status Token']">
                     @foreach ($students as $index => $student)
                         @php($session = $student->examSessions->first())
-                        @php($entered = $session && in_array($session->status, [\App\Models\ExamSession::STATUS_IN_PROGRESS, \App\Models\ExamSession::STATUS_COMPLETED], true))
+                        @php($entered = $session && in_array($session->status, [\App\Models\ExamSession::STATUS_IN_PROGRESS, \App\Models\ExamSession::STATUS_COMPLETED, \App\Models\ExamSession::STATUS_TIMED_OUT], true))
                         <tr class="transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
                             <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $index + 1 }}</td>
                             <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $student->nisn }}</td>
