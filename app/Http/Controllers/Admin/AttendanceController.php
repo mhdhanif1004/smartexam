@@ -93,7 +93,7 @@ class AttendanceController extends Controller
 
         $students = Student::query()
             ->with('user')
-            ->whereIn('id', $schedules->flatMap(fn (ExamSchedule $schedule) => $schedule->participantStudentIds())->unique())
+            ->whereIn('id', ExamSchedule::participantStudentIdsBySchedules($schedules)->flatten()->unique())
             ->get()
             ->keyBy('id');
 

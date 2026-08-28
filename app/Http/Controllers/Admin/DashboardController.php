@@ -43,46 +43,43 @@ class DashboardController extends Controller
             '90 - 100' => 0,
         ];
 
-        foreach (ExamResult::query()->whereNotNull('total_score')->pluck('total_score') as $score) {
-            $score = (float) $score;
+        // Distribusi nilai dihitung 1 query agregat (bucket CASE WHEN),
+        // bukan memuat seluruh total_score ke PHP.
+        $bucketTotals = ExamResult::query()
+            ->whereNotNull('total_score')
+            ->selectRaw("CASE
+                WHEN total_score < 40 THEN '0 - 39'
+                WHEN total_score < 60 THEN '40 - 59'
+                WHEN total_score < 75 THEN '60 - 74'
+                WHEN total_score < 90 THEN '75 - 89'
+                ELSE '90 - 100'
+            END as bucket")
+            ->selectRaw('COUNT(*) as cnt')
+            ->groupBy('bucket')
+            ->pluck('cnt', 'bucket');
 
-            if ($score < 40) {
-                $distributionBuckets['0 - 39']++;
-            } elseif ($score < 60) {
-                $distributionBuckets['40 - 59']++;
-            } elseif ($score < 75) {
-                $distributionBuckets['60 - 74']++;
-            } elseif ($score < 90) {
-                $distributionBuckets['75 - 89']++;
-            } else {
-                $distributionBuckets['90 - 100']++;
-            }
+        foreach ($distributionBuckets as $key => $value) {
+            $distributionBuckets[$key] = (int) ($bucketTotals[$key] ?? 0);
         }
 
         $today = Carbon::today();
         $tomorrow = $today->copy()->addDay();
 
-        $todaySchedules = ExamSchedule::query()
+        // Kehadiran hari ini dihitung 1 query agregat (whereIn + SUM CASE),
+        // bukan 1 query per jadwal.
+        $todayScheduleIds = ExamSchedule::query()
             ->whereDate('exam_date', '>=', $today)
             ->whereDate('exam_date', '<', $tomorrow)
-            ->get();
+            ->pluck('id');
 
-        $presentCount = 0;
-        $absentCount = 0;
+        $attendanceAggregates = ExamSession::query()
+            ->whereIn('exam_schedule_id', $todayScheduleIds)
+            ->selectRaw('SUM(CASE WHEN attendance_confirmed = 1 THEN 1 ELSE 0 END) as present')
+            ->selectRaw('SUM(CASE WHEN attendance_confirmed = 0 OR attendance_confirmed IS NULL THEN 1 ELSE 0 END) as absent')
+            ->first();
 
-        foreach ($todaySchedules as $schedule) {
-            $sessions = ExamSession::query()
-                ->where('exam_schedule_id', $schedule->id)
-                ->get();
-
-            foreach ($sessions as $session) {
-                if ($session->attendance_confirmed) {
-                    $presentCount++;
-                } else {
-                    $absentCount++;
-                }
-            }
-        }
+        $presentCount = (int) ($attendanceAggregates->present ?? 0);
+        $absentCount = (int) ($attendanceAggregates->absent ?? 0);
 
         $recentSupervisorAttendances = SupervisorAttendance::query()
             ->with(['supervisor.user', 'examSchedule.subject', 'room'])

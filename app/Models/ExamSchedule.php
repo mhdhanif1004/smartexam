@@ -302,6 +302,61 @@ class ExamSchedule extends Model
     }
 
     /**
+     * ID siswa peserta untuk BANYAK jadwal sekaligus, dalam 1-2 query agregat
+     * (bukan 1 query per jadwal). Hasil berupa Collection keyed by schedule id
+     * => array<int, int>. Dipakai di halaman absensi/dashboard pengawas yang
+     * sebelumnya memanggil participantStudentIds() per jadwal di dalam loop
+     * (N+1).
+     *
+     * @param  Collection<int, ExamSchedule>  $schedules
+     * @return Collection<int, array<int, int>>
+     */
+    public static function participantStudentIdsBySchedules(Collection $schedules): Collection
+    {
+        $result = $schedules->mapWithKeys(fn (self $schedule) => [$schedule->id => []]);
+
+        if ($schedules->isEmpty()) {
+            return $result;
+        }
+
+        $periodSchedules = $schedules->filter(fn (self $schedule) => $schedule->exam_period_id !== null);
+        $legacySchedules = $schedules->filter(fn (self $schedule) => $schedule->exam_period_id === null);
+
+        if ($periodSchedules->isNotEmpty()) {
+            $assignments = ExamRoomAssignment::query()
+                ->whereIn('exam_period_id', $periodSchedules->pluck('exam_period_id')->unique()->values())
+                ->whereIn('room_id', $periodSchedules->pluck('room_id')->unique()->values())
+                ->get(['exam_period_id', 'room_id', 'student_id'])
+                ->groupBy(fn ($assignment) => $assignment->exam_period_id.'|'.$assignment->room_id);
+
+            foreach ($periodSchedules as $schedule) {
+                $result[$schedule->id] = $assignments
+                    ->get($schedule->exam_period_id.'|'.$schedule->room_id, collect())
+                    ->pluck('student_id')
+                    ->values()
+                    ->all();
+            }
+        }
+
+        if ($legacySchedules->isNotEmpty()) {
+            $studentsByRoom = Student::query()
+                ->whereIn('room_id', $legacySchedules->pluck('room_id')->unique()->values())
+                ->get(['room_id', 'id'])
+                ->groupBy('room_id');
+
+            foreach ($legacySchedules as $schedule) {
+                $result[$schedule->id] = $studentsByRoom
+                    ->get($schedule->room_id, collect())
+                    ->pluck('id')
+                    ->values()
+                    ->all();
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Koleksi siswa peserta jadwal ini.
      *
      * @return Collection<int, Student>

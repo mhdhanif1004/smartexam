@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\Violation;
 use Database\Seeders\ClassroomSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -168,6 +169,94 @@ class AdminAdvancedTest extends TestCase
         $this->assertStringContainsString('application/pdf', $pdf->headers->get('content-type'));
     }
 
+    public function test_report_summary_uses_single_sql_aggregate(): void
+    {
+        $schedule = ExamSchedule::factory()->create(['exam_date' => '2026-08-10']);
+
+        // Data cukup banyak (> satu halaman paginate 15) agar membuktikan summary
+        // dihitung agregat di SQL tanpa memuat seluruh baris.
+        foreach ([100, 80, 60, 90, 95, 70, 55, 88, 77, 66, 45, 92, 83, 74, 99, 81, 50, 65] as $score) {
+            ExamResult::factory()->create([
+                'exam_session_id' => ExamSession::factory()->create([
+                    'student_id' => Student::factory()->create()->id,
+                    'exam_schedule_id' => $schedule->id,
+                ])->id,
+                'total_score' => $score,
+                'is_passed' => $score >= 75,
+            ]);
+        }
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+
+        $response = $this->actingAs($this->admin)->get(route('admin.reports.index', [
+            'subject_id' => $schedule->subject_id,
+        ]));
+
+        $queries = collect(DB::getQueryLog())->count();
+        DB::disableQueryLog();
+
+        $response->assertOk();
+
+        // Summary: 18 baris, avg 76.11, max 100, min 45, 10 lulus (>=75), 8 gagal.
+        $response->assertSee('76.11')
+            ->assertSee('100.00')
+            ->assertSee('45.00')
+            ->assertSee('10')
+            ->assertSee('8');
+
+        // Agregat 1 query (bukan 2x ->get() semua baris seperti sebelumnya),
+        // sehingga total query tidak membesar seiring jumlah baris.
+        $this->assertLessThan(15, $queries);
+    }
+
+    public function test_dashboard_distribution_and_attendance_use_sql_aggregates(): void
+    {
+        $today = Carbon::today()->format('Y-m-d');
+        $room = Room::factory()->create();
+
+        $sessions = [];
+        foreach ([true, false, false] as $i => $present) {
+            $schedule = ExamSchedule::factory()->create([
+                'room_id' => $room->id,
+                'exam_date' => $today,
+            ]);
+            $sessions[] = ExamSession::factory()->create([
+                'student_id' => Student::factory()->create()->id,
+                'exam_schedule_id' => $schedule->id,
+                'attendance_confirmed' => $present,
+            ]);
+        }
+
+        // Nilai tersebar satu per bucket histogram (1 sesi per hasil).
+        foreach ([30, 50, 65, 80, 95] as $score) {
+            $resultSession = ExamSession::factory()->create([
+                'student_id' => Student::factory()->create()->id,
+                'exam_schedule_id' => $sessions[0]->exam_schedule_id,
+                'attendance_confirmed' => true,
+            ]);
+            ExamResult::factory()->create([
+                'exam_session_id' => $resultSession->id,
+                'total_score' => $score,
+                'is_passed' => $score >= 75,
+            ]);
+        }
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+
+        $response = $this->actingAs($this->admin)->get(route('admin.dashboard'));
+
+        $queries = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $response->assertOk()
+            // Distibusi nilai 5 bucket, masing-masing 1 hasil.
+            ->assertSee('[1,1,1,1,1]');
+
+        $this->assertLessThan(30, $queries);
+    }
+
     public function test_admin_can_view_violations_with_filters(): void
     {
         $room = Room::factory()->create();
@@ -205,7 +294,7 @@ class AdminAdvancedTest extends TestCase
             ->assertSee('3')
             ->assertSee('Ujian Hari Ini')
             ->assertSee($upcoming->subject->name)
-            ->assertSee('Notifikasi Pelanggaran');
+            ->assertSee('Pelanggaran Terbaru');
     }
 
     public function test_peserta_cannot_access_new_admin_modules(): void

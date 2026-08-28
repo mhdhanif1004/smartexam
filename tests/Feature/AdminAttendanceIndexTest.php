@@ -14,6 +14,7 @@ use App\Models\SupervisorAttendance;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class AdminAttendanceIndexTest extends TestCase
@@ -278,6 +279,49 @@ class AdminAttendanceIndexTest extends TestCase
             ->get(route('admin.attendance.index', ['date' => '2026-12-31']))
             ->assertOk()
             ->assertSee('Tidak ada sesi ujian pada tanggal ini.');
+    }
+
+    public function test_admin_attendance_index_participant_lookup_is_batched(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $period = $this->period('Sesi 1');
+        $subject = Subject::factory()->create(['name' => 'Matematika']);
+        $room = Room::factory()->create(['room_number' => 1]);
+
+        // 6 jadwal periode; sebelumnya memicu N+1 (1 query participantStudentIds
+        // per jadwal) dan ditarik 1 query per jadwal.
+        $schedules = [];
+        foreach (range(1, 6) as $i) {
+            $schedule = ExamSchedule::factory()->create([
+                'subject_id' => $subject->id,
+                'room_id' => $room->id,
+                'exam_period_id' => $period->id,
+                'class_name' => 'XI RPL 1',
+                'exam_date' => '2026-08-12',
+                'start_time' => '08:30:00',
+                'end_time' => '10:30:00',
+                'duration_minutes' => 60,
+                'status' => ExamSchedule::STATUS_ONGOING,
+            ]);
+            $schedules[] = $schedule;
+
+            $student = $this->studentWithName("Peserta {$i}", $room);
+            $this->assign($period, $student, $room);
+        }
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+
+        $this->actingAs($admin)
+            ->get(route('admin.attendance.index'))
+            ->assertOk();
+
+        $queries = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        // Lookup peserta semua jadwal di-batch (1 query agregat + 1 query siswa),
+        // sehingga total query tidak bertambah per jadwal.
+        $this->assertLessThan(20, $queries);
     }
 
     private function period(string $name): ExamPeriod

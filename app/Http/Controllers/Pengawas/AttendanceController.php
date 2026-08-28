@@ -47,8 +47,7 @@ class AttendanceController extends Controller
         // Student list spans every mapel so propagation reaches them all.
         $allSchedules = $this->allAssignedSchedules($room, $periodIds);
 
-        $allStudentIds = $allSchedules
-            ->map(fn (ExamSchedule $s) => $s->participantStudentIds())
+        $allStudentIds = ExamSchedule::participantStudentIdsBySchedules($allSchedules)
             ->flatten()
             ->unique()
             ->values();
@@ -153,8 +152,7 @@ class AttendanceController extends Controller
 
         $anchorSchedule->syncStatusIfNeeded();
 
-        $allParticipantIds = $allSchedules
-            ->map(fn (ExamSchedule $s) => $s->participantStudentIds())
+        $allParticipantIds = ExamSchedule::participantStudentIdsBySchedules($allSchedules)
             ->flatten()
             ->unique()
             ->values()

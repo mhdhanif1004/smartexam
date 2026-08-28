@@ -49,14 +49,24 @@ class DashboardController extends Controller
 
         $scheduleStats = [];
         $activeSchedule = null;
+        $ongoingSchedules = collect();
 
         foreach ($schedules as $schedule) {
             $schedule->setAttribute('live_status', $schedule->computedStatus());
 
             if ($schedule->live_status === ExamSchedule::STATUS_ONGOING) {
-                $scheduleStats[$schedule->id] = $this->scheduleStats($schedule);
+                $ongoingSchedules->push($schedule);
                 $activeSchedule ??= $schedule;
             }
+        }
+
+        $participantIdsBySchedule = ExamSchedule::participantStudentIdsBySchedules($ongoingSchedules);
+
+        foreach ($ongoingSchedules as $schedule) {
+            $scheduleStats[$schedule->id] = $this->scheduleStats(
+                $schedule,
+                $participantIdsBySchedule->get($schedule->id, []),
+            );
         }
 
         return view('pengawas.dashboard', [
@@ -72,11 +82,12 @@ class DashboardController extends Controller
     /**
      * Ringkasan absensi dan progres peserta dari exam_sessions jadwal tersebut.
      *
+     * @param  array<int, int>  $participantIds
      * @return array{total: int, hadir: int, sedang_mengerjakan: int, selesai: int}
      */
-    protected function scheduleStats(ExamSchedule $schedule): array
+    protected function scheduleStats(ExamSchedule $schedule, array $participantIds = []): array
     {
-        $total = count($schedule->participantStudentIds());
+        $total = count($participantIds !== [] ? $participantIds : $schedule->participantStudentIds());
 
         $sessions = ExamSession::query()
             ->where('exam_schedule_id', $schedule->id)
