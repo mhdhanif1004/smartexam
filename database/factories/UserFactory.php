@@ -55,6 +55,15 @@ class UserFactory extends Factory
         ]);
     }
 
+    public function guruMapel(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'guru_mapel',
+            'email' => fake()->unique()->safeEmail(),
+            'username' => null,
+        ]);
+    }
+
     public function peserta(): static
     {
         return $this->state(fn (array $attributes) => [

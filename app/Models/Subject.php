@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\SubjectFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Subject extends Model
@@ -26,5 +27,15 @@ class Subject extends Model
     public function examSchedules(): HasMany
     {
         return $this->hasMany(ExamSchedule::class);
+    }
+
+    public function guruMapels(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            GuruMapel::class,
+            'teacher_subject_class_assignments',
+            'subject_id',
+            'guru_mapel_id'
+        )->withTimestamps();
     }
 }

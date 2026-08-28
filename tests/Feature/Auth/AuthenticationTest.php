@@ -56,6 +56,19 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect(route('pengawas.dashboard', absolute: false));
     }
 
+    public function test_guru_mapel_can_authenticate_using_email(): void
+    {
+        $guru = User::factory()->guruMapel()->create();
+
+        $response = $this->post('/login', [
+            'email' => $guru->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticatedAs($guru);
+        $response->assertRedirect(route('guru_mapel.dashboard', absolute: false));
+    }
+
     public function test_peserta_cannot_authenticate_using_email_when_they_have_none(): void
     {
         $user = User::factory()->create();

@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\StoreClassroomRequest;
 use App\Http\Requests\Admin\UpdateClassroomRequest;
 use App\Models\Classroom;
 use App\Models\Student;
+use App\Models\TeacherSubjectClassAssignment;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +33,24 @@ class ClassroomController extends Controller
     public function create(): View
     {
         return view('admin.classrooms.create');
+    }
+
+    public function show(Classroom $classroom): View
+    {
+        $students = Student::query()
+            ->with('user')
+            ->where('classroom_id', $classroom->id)
+            ->orderBy('nisn')
+            ->get();
+
+        $assignments = TeacherSubjectClassAssignment::query()
+            ->with(['subject', 'guruMapel.user'])
+            ->where('classroom_id', $classroom->id)
+            ->get()
+            ->sortBy(fn ($assignment) => $assignment->subject?->name)
+            ->values();
+
+        return view('admin.classrooms.show', compact('classroom', 'students', 'assignments'));
     }
 
     public function store(StoreClassroomRequest $request): RedirectResponse

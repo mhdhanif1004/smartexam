@@ -117,4 +117,14 @@ class Classroom extends Model
     {
         return $this->belongsToMany(Question::class, 'question_classroom')->withTimestamps();
     }
+
+    public function guruMapels(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            GuruMapel::class,
+            'teacher_subject_class_assignments',
+            'classroom_id',
+            'guru_mapel_id'
+        )->withTimestamps();
+    }
 }

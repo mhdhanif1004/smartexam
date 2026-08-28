@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\GuruMapel;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -23,6 +24,15 @@ class RootRedirectTest extends TestCase
         $this->actingAs($admin)
             ->get('/')
             ->assertRedirect(route('admin.dashboard', absolute: false));
+    }
+
+    public function test_guru_mapel_accessing_root_is_redirected_to_guru_mapel_dashboard(): void
+    {
+        $guru = GuruMapel::factory()->create()->user;
+
+        $this->actingAs($guru)
+            ->get('/')
+            ->assertRedirect(route('guru_mapel.dashboard', absolute: false));
     }
 
     public function test_authenticated_user_accessing_login_page_is_redirected_to_role_dashboard(): void

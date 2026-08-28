@@ -37,6 +37,7 @@
                     </td>
                     <td class="px-4 py-3 text-sm">
                         <div class="flex items-center gap-2">
+                            <a href="{{ route('admin.classrooms.show', $classroom) }}" class="rounded-md bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-200 dark:bg-gray-700/60 dark:text-gray-200 dark:hover:bg-gray-700">Detail</a>
                             <a href="{{ route('admin.classrooms.edit', $classroom) }}" class="rounded-md bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20">Edit</a>
                             <button type="button" @click="deleteUrl = '{{ route('admin.classrooms.destroy', $classroom) }}'; $dispatch('open-modal', 'confirm-delete')" class="rounded-md bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20">Hapus</button>
                         </div>

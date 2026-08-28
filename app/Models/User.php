@@ -21,6 +21,8 @@ class User extends Authenticatable
 
     public const ROLE_PESERTA = 'peserta';
 
+    public const ROLE_GURU_MAPEL = 'guru_mapel';
+
     /**
      * The attributes that are mass assignable.
      *
@@ -71,6 +73,11 @@ class User extends Authenticatable
         return $this->hasOne(Supervisor::class);
     }
 
+    public function guruMapel(): HasOne
+    {
+        return $this->hasOne(GuruMapel::class);
+    }
+
     public function reportedViolations(): HasMany
     {
         return $this->hasMany(Violation::class, 'reported_by');
@@ -91,11 +98,17 @@ class User extends Authenticatable
         return $this->role === self::ROLE_PESERTA;
     }
 
+    public function isGuruMapel(): bool
+    {
+        return $this->role === self::ROLE_GURU_MAPEL;
+    }
+
     public function dashboardRoute(): string
     {
         return match ($this->role) {
             self::ROLE_ADMIN => 'admin.dashboard',
             self::ROLE_PENGAWAS => 'pengawas.dashboard',
+            self::ROLE_GURU_MAPEL => 'guru_mapel.dashboard',
             default => 'peserta.dashboard',
         };
     }

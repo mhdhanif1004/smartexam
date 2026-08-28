@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\GuruMapel;
 use App\Models\Student;
 use App\Models\Supervisor;
 use App\Models\User;
@@ -39,6 +40,15 @@ class RoleAccessTest extends TestCase
         $response->assertOk();
     }
 
+    public function test_guru_mapel_can_access_guru_mapel_dashboard(): void
+    {
+        $guru = GuruMapel::factory()->create()->user;
+
+        $response = $this->actingAs($guru)->get('/guru_mapel/dashboard');
+
+        $response->assertOk();
+    }
+
     public function test_peserta_cannot_access_admin_dashboard(): void
     {
         $peserta = User::factory()->peserta()->create();
@@ -53,6 +63,24 @@ class RoleAccessTest extends TestCase
         $admin = User::factory()->admin()->create();
 
         $response = $this->actingAs($admin)->get('/peserta/dashboard');
+
+        $response->assertForbidden();
+    }
+
+    public function test_guru_mapel_cannot_access_admin_dashboard(): void
+    {
+        $guru = GuruMapel::factory()->create()->user;
+
+        $response = $this->actingAs($guru)->get('/admin/dashboard');
+
+        $response->assertForbidden();
+    }
+
+    public function test_guru_mapel_cannot_access_peserta_dashboard(): void
+    {
+        $guru = GuruMapel::factory()->create()->user;
+
+        $response = $this->actingAs($guru)->get('/peserta/dashboard');
 
         $response->assertForbidden();
     }

@@ -4,11 +4,14 @@ namespace Database\Seeders;
 
 use App\Models\Classroom;
 use App\Models\ExamSchedule;
+use App\Models\Grade;
+use App\Models\GuruMapel;
 use App\Models\Question;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Supervisor;
+use App\Models\TeacherSubjectClassAssignment;
 use App\Models\User;
 use App\Services\CredentialGenerator;
 use Illuminate\Database\Seeder;
@@ -109,6 +112,67 @@ class DatabaseSeeder extends Seeder
                 'subject_id' => $subject->id,
             ])->each(function (Question $question) {
                 $question->classrooms()->sync(Classroom::where('name', 'XI RPL 1')->value('id'));
+            });
+        });
+
+        // 2 guru mapel contoh. Masing-masing diampu untuk mapel pertama dan
+        // kedua (co-teaching pada "Matematika") di kelas demo "XI RPL 1",
+        // agar penugasan mapel-kelas bisa langsung dilihat di dashboard.
+        $demoClassroom = Classroom::where('name', 'XI RPL 1')->value('id');
+
+        $guruUsers = User::factory()->guruMapel()->count(2)->create();
+
+        $guruUsers->each(function (User $user, int $index) use ($subjects, $demoClassroom) {
+            $guru = $user->guruMapel()->create(['nip' => fake()->optional()->numerify('################')]);
+
+            TeacherSubjectClassAssignment::create([
+                'guru_mapel_id' => $guru->id,
+                'subject_id' => $subjects->get($index === 0 ? 0 : 1)->id,
+                'classroom_id' => $demoClassroom,
+            ]);
+
+            $password = app(CredentialGenerator::class)->password();
+            $user->update([
+                'password' => $password,
+                'plain_password' => $password,
+            ]);
+
+            $this->command?->info('  Contoh akun guru mapel: email='.$user->email.' password='.$user->plain_password);
+        });
+
+        // Data demo Fase 1: soal milik guru, absensi KBM, dan nilai. Setiap
+        // guru mendapat beberapa soal untuk mapel yang diampunya, satu baris
+        // absensi untuk tiap siswa di kelas demo, dan nilai tugas.
+        GuruMapel::query()->with('assignments')->get()->each(function (GuruMapel $guru) use ($demoClassroom) {
+            $assignment = $guru->assignments->first();
+
+            if ($assignment === null) {
+                return;
+            }
+
+            Question::factory()->count(3)->create([
+                'subject_id' => $assignment->subject_id,
+                'created_by_user_id' => $guru->user_id,
+            ])->each(function (Question $question) use ($demoClassroom) {
+                $question->classrooms()->sync($demoClassroom);
+            });
+
+            $students = Student::query()->where('classroom_id', $demoClassroom)->orderBy('nisn')->get();
+
+            $students->each(function (Student $student) use ($guru, $assignment, $demoClassroom) {
+                Grade::updateOrCreate(
+                    [
+                        'guru_mapel_id' => $guru->id,
+                        'student_id' => $student->id,
+                        'subject_id' => $assignment->subject_id,
+                        'classroom_id' => $demoClassroom,
+                        'grade_type' => Grade::TYPE_TUGAS,
+                    ],
+                    [
+                        'title' => 'Tugas 1',
+                        'score' => fake()->numberBetween(60, 100),
+                    ]
+                );
             });
         });
 

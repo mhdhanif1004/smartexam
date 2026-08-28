@@ -26,6 +26,7 @@
             ['label' => 'Siswa', 'route' => 'admin.students.index', 'icon' => 'academic-cap'],
             ['label' => 'Kelas', 'route' => 'admin.classrooms.index', 'icon' => 'users'],
             ['label' => 'Pengawas', 'route' => 'admin.supervisors.index', 'icon' => 'user-group'],
+            ['label' => 'Guru Mapel', 'route' => 'admin.guru-mapels.index', 'icon' => 'academic-cap'],
             ['label' => 'Mata Pelajaran', 'route' => 'admin.subjects.index', 'icon' => 'book-open'],
             ['label' => 'Ruangan', 'route' => 'admin.rooms.index', 'icon' => 'building-office'],
             ['label' => 'Soal', 'route' => 'admin.questions.index', 'icon' => 'question-mark'],
@@ -42,6 +43,12 @@
             ['label' => 'Absensi', 'route' => 'pengawas.attendance.index', 'icon' => 'clipboard-check'],
             ['label' => 'Token Ujian', 'route' => 'pengawas.tokens.index', 'icon' => 'key'],
         ],
+        'guru_mapel' => [
+            ['label' => 'Dashboard', 'route' => 'guru_mapel.dashboard', 'icon' => 'dashboard'],
+            ['label' => 'Soal', 'route' => 'guru_mapel.questions.index', 'icon' => 'question-mark'],
+            ['label' => 'Nilai', 'route' => 'guru_mapel.grades.index', 'icon' => 'chart-bar'],
+            ['label' => 'Hasil Ujian CBT', 'route' => 'guru_mapel.exam-results.index', 'icon' => 'eye'],
+        ],
         'peserta' => [
             ['label' => 'Dashboard', 'route' => 'peserta.dashboard', 'icon' => 'dashboard'],
         ],
@@ -51,6 +58,7 @@
         'admin' => 'Administrator',
         'pengawas' => 'Pengawas',
         'peserta' => 'Peserta',
+        'guru_mapel' => 'Guru Mapel',
     ];
 
     $items = $menuGroups[$role] ?? [];

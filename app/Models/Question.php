@@ -37,6 +37,7 @@ class Question extends Model
 
     protected $fillable = [
         'subject_id',
+        'created_by_user_id',
         'type',
         'question_text',
         'image_path',
@@ -59,6 +60,15 @@ class Question extends Model
     public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class);
+    }
+
+    /**
+     * Pengguna yang membuat soal (guru mapel). Null untuk soal lama/buatan
+     * admin yang tidak mengikuti alur kepemilikan guru.
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
     }
 
     /**
@@ -122,5 +132,22 @@ class Question extends Model
     public function scopeTargetingClassroom(Builder $query, int $classroomId): Builder
     {
         return $query->whereHas('classrooms', fn (Builder $q) => $q->whereKey($classroomId));
+    }
+
+    /**
+     * Batasi soal "milik" seorang guru mapel (dibuat olehnya). Soal buatan
+     * admin (created_by_user_id null) dan soal guru lain tidak termasuk.
+     */
+    public function scopeOwnedBy(Builder $query, User $user): Builder
+    {
+        return $query->where('created_by_user_id', $user->id);
+    }
+
+    /**
+     * Alias scope untuk kode yang lebih eksplisit: soal yang dibuat guru.
+     */
+    public function scopeCreatedByGuru(Builder $query, User $user): Builder
+    {
+        return $query->ownedBy($user);
     }
 }

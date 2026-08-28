@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\ClassroomController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ExamPeriodController;
 use App\Http\Controllers\Admin\ExamScheduleController;
+use App\Http\Controllers\Admin\GuruMapelController;
 use App\Http\Controllers\Admin\LoginCardController;
 use App\Http\Controllers\Admin\PlainPasswordController;
 use App\Http\Controllers\Admin\QuestionController;
@@ -18,6 +19,10 @@ use App\Http\Controllers\Admin\SubjectController;
 use App\Http\Controllers\Admin\SupervisorController;
 use App\Http\Controllers\Admin\SupervisorImportExportController;
 use App\Http\Controllers\Admin\ViolationController;
+use App\Http\Controllers\GuruMapel\DashboardController as GuruMapelDashboardController;
+use App\Http\Controllers\GuruMapel\ExamResultController;
+use App\Http\Controllers\GuruMapel\GradeController;
+use App\Http\Controllers\GuruMapel\QuestionController as GuruMapelQuestionController;
 use App\Http\Controllers\Pengawas\AttendanceController as PengawasAttendanceController;
 use App\Http\Controllers\Pengawas\DashboardController as PengawasDashboardController;
 use App\Http\Controllers\Pengawas\TokenController as PengawasTokenController;
@@ -65,6 +70,11 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::resource('supervisors', SupervisorController::class)->except(['show']);
         Route::get('supervisors/{supervisor}', [SupervisorController::class, 'show'])->name('supervisors.show');
         Route::post('supervisors/bulk-delete', [SupervisorController::class, 'bulkDelete'])->name('supervisors.bulk-delete');
+        Route::resource('guru-mapels', GuruMapelController::class);
+        Route::post('guru-mapels/bulk-delete', [GuruMapelController::class, 'bulkDelete'])->name('guru-mapels.bulk-delete');
+        Route::get('guru-mapels/{guru_mapel}/assignments', [GuruMapelController::class, 'editAssignments'])->name('guru-mapels.assignments.edit');
+        Route::post('guru-mapels/{guru_mapel}/assignments', [GuruMapelController::class, 'storeAssignment'])->name('guru-mapels.assignments.store');
+        Route::delete('teacher-assignments/{assignment}', [GuruMapelController::class, 'destroyAssignment'])->name('guru-mapels.assignments.destroy');
         Route::resource('subjects', SubjectController::class)->except(['show']);
         Route::get('subjects/{subject}/delete-preview', [SubjectController::class, 'deletePreview'])->name('subjects.delete-preview');
         Route::patch('subjects/{subject}/name', [SubjectController::class, 'updateName'])->name('subjects.update-name');
@@ -74,6 +84,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::post('rooms/bulk-delete', [RoomController::class, 'bulkDelete'])->name('rooms.bulk-delete');
         Route::get('rooms/{room}/detail', [RoomController::class, 'detail'])->name('rooms.detail');
         Route::resource('classrooms', ClassroomController::class)->except(['show']);
+        Route::get('classrooms/{classroom}', [ClassroomController::class, 'show'])->name('classrooms.show');
         Route::get('exam-schedules/by-date', [ExamScheduleController::class, 'byDate'])->name('exam-schedules.by-date');
         Route::get('exam-schedules/{examSchedule}/detail', [ExamScheduleController::class, 'detail'])->name('exam-schedules.detail');
         Route::resource('exam-schedules', ExamScheduleController::class)->except(['show']);
@@ -151,6 +162,27 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::controller(PengawasTokenController::class)->prefix('tokens')->name('tokens.')->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('/current', 'currentToken')->name('current');
+        });
+    });
+
+    Route::prefix('guru_mapel')->middleware(['auth', 'verified', 'role:guru_mapel'])->name('guru_mapel.')->group(function () {
+        Route::get('/dashboard', GuruMapelDashboardController::class)->name('dashboard');
+
+        Route::resource('questions', GuruMapelQuestionController::class)->except(['show']);
+
+        Route::controller(GradeController::class)->prefix('grades')->name('grades.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/', 'store')->name('store');
+            Route::get('/students', 'students')->name('students');
+            Route::get('/student-history', 'studentHistory')->name('student-history');
+            Route::get('/export-excel', 'exportExcel')->name('export-excel');
+            Route::get('/export-pdf', 'exportPdf')->name('export-pdf');
+        });
+
+        Route::controller(ExamResultController::class)->prefix('exam-results')->name('exam-results.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/{schedule}', 'schedule')->name('schedule');
+            Route::get('/{schedule}/{student}', 'student')->name('student');
         });
     });
 

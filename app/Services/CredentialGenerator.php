@@ -40,6 +40,43 @@ class CredentialGenerator
         return $this->random(self::PASSWORD_CHARS, max(8, $length));
     }
 
+    /**
+     * Bagian lokal email dari sebuah nama: lowercase semua, buang spasi dan
+     * karakter selain huruf/angka. Contoh: "Yanto Sudirman" => "yantosudirman".
+     */
+    public function emailLocalPart(string $name): string
+    {
+        $normalized = strtolower(trim($name));
+
+        return preg_replace('/[^a-z0-9]/', '', $normalized) ?? '';
+    }
+
+    /**
+     * Buat email unik berbasis @gmail.com dari nama. Bila bagian lokal sudah
+     * dipakai user lain, tambahkan angka sebelum "@gmail.com" (2, 3, dst)
+     * sampai ditemukan kombinasi yang belum terpakai, sehingga guru tetap bisa
+     * dibuat meski nama mengarah ke email yang bentrok.
+     */
+    public function uniqueEmail(string $name): string
+    {
+        $localPart = $this->emailLocalPart($name) ?: 'guru';
+        $candidate = $localPart.'@gmail.com';
+
+        $taken = fn (string $email): bool => User::query()->where('email', $email)->exists();
+
+        if (! $taken($candidate)) {
+            return $candidate;
+        }
+
+        for ($i = 2; ; $i++) {
+            $candidate = $localPart.$i.'@gmail.com';
+
+            if (! $taken($candidate)) {
+                return $candidate;
+            }
+        }
+    }
+
     private function random(string $charset, int $length): string
     {
         $max = strlen($charset) - 1;
