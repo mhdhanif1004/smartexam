@@ -63,6 +63,46 @@ class QuestionModuleEnhancementTest extends TestCase
         $this->assertTrue($copy->is_active);
     }
 
+    public function test_duplicate_question_copies_image_file_independently(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('question-images/asli.png', 'gambar asli');
+
+        $question = Question::factory()->create(['image_path' => 'question-images/asli.png']);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.questions.duplicate', $question))
+            ->assertRedirect(route('admin.questions.index'));
+
+        $copy = Question::where('id', '!=', $question->id)->first();
+        $this->assertNotNull($copy);
+        $this->assertNotSame('question-images/asli.png', $copy->image_path);
+        $this->assertNotEmpty($copy->image_path);
+        $this->assertStringContainsString('question-images/', (string) $copy->image_path);
+
+        // File asli tetap ada dan duplikat punya file fisik sendiri.
+        Storage::disk('public')->assertExists('question-images/asli.png');
+        Storage::disk('public')->assertExists($copy->image_path);
+
+        // Menghapus file asli tidak menghapus file duplikat (independen).
+        $question->image_path && Storage::disk('public')->delete('question-images/asli.png');
+        Storage::disk('public')->assertMissing('question-images/asli.png');
+        Storage::disk('public')->assertExists($copy->image_path);
+    }
+
+    public function test_duplicate_question_without_image_stays_without_image(): void
+    {
+        $question = Question::factory()->create(['image_path' => null]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.questions.duplicate', $question))
+            ->assertRedirect(route('admin.questions.index'));
+
+        $copy = Question::where('id', '!=', $question->id)->first();
+        $this->assertNotNull($copy);
+        $this->assertNull($copy->image_path);
+    }
+
     public function test_admin_can_toggle_question_active_status(): void
     {
         $question = Question::factory()->create(['is_active' => true]);

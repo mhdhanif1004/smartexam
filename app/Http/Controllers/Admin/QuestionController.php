@@ -16,6 +16,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -272,7 +273,7 @@ class QuestionController extends Controller
     {
         $question->load('classrooms');
 
-        $copy = Question::create([
+        $payload = [
             'subject_id' => $question->subject_id,
             'type' => $question->type,
             'question_text' => $question->question_text,
@@ -280,7 +281,18 @@ class QuestionController extends Controller
             'answer_key' => $question->answer_key,
             'score_weight' => $question->score_weight,
             'is_active' => true,
-        ]);
+        ];
+
+        // Salin file gambar secara fisik ke nama baru agar duplikat memiliki
+        // file independen (menghapus salah satu tidak menghapus gambar soal lain).
+        if (filled($question->image_path)) {
+            $duplicatePath = $this->duplicateImageFile($question->image_path);
+            if ($duplicatePath !== null) {
+                $payload['image_path'] = $duplicatePath;
+            }
+        }
+
+        $copy = Question::create($payload);
 
         $copy->classrooms()->sync($question->classrooms->pluck('id'));
 
@@ -389,6 +401,26 @@ class QuestionController extends Controller
         if (filled($path)) {
             Storage::disk('public')->delete($path);
         }
+    }
+
+    /**
+     * Salin file gambar ke nama unik baru di folder yang sama.
+     * Mengembalikan path baru, atau null bila file asli tidak ada/memakai disk tak dikenal.
+     */
+    private function duplicateImageFile(string $path): ?string
+    {
+        $disk = Storage::disk('public');
+
+        if (! $disk->exists($path)) {
+            return null;
+        }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $newPath = 'question-images/'.Str::random(40).($extension !== '' ? '.'.$extension : '');
+
+        $disk->copy($path, $newPath);
+
+        return $newPath;
     }
 
     /**
