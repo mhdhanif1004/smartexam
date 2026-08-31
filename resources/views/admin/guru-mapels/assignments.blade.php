@@ -4,7 +4,7 @@
             <div>
                 <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Kelola Mata Pelajaran</h2>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    {{ $guruMapel->user?->name }} &middot; tambah atau hapus mapel yang diampu guru. Kelas yang menjadi cakupan akses ditentukan otomatis dari soal yang dibuat guru.
+                    {{ $guruMapel->user?->name }} &middot; tambah atau hapus mapel yang diampu guru. Kelas yang menjadi cakupan akses disimpan sebagai penugasan per kelas.
                 </p>
             </div>
             <div class="flex items-center gap-2">
@@ -77,8 +77,8 @@
         </div>
 
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Cakupan Kelas (Otomatis dari Soal)</h3>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Kelas yang dapat diisi nilai/absensi guru ini, ditentukan oleh kelas target pada soal yang dibuat guru. Bersifat read-only dan selalu mengikuti soal terkini.</p>
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Cakupan Kelas</h3>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Kelas yang dapat diisi nilai/absensi guru ini, sesuai penugasan yang tersimpan (dari kelola mapel atau impor). Bersifat read-only.</p>
             <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 @forelse ($classScope as $subjectId => $rooms)
                     <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/40">
@@ -90,7 +90,7 @@
                         </ul>
                     </div>
                 @empty
-                    <p class="text-sm text-gray-500 dark:text-gray-400 sm:col-span-2 lg:col-span-3">Belum ada kelas yang tercakup (guru belum membuat soal untuk mapel yang diampu).</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 sm:col-span-2 lg:col-span-3">Belum ada kelas yang tercakup.</p>
                 @endforelse
             </div>
         </div>

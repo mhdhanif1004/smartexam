@@ -1,84 +1,86 @@
 <x-layouts.guru_mapel title="Soal Saya">
-    <div class="space-y-6" x-data="importState">
+    <div class="space-y-6" x-data="importState()">
         @php($importRouteTemplate = route('guru_mapel.questions.import-template', '__TYPE__'))
         @php($importFailedTemplate = route('guru_mapel.questions.import-failed', '__FILE__'))
         <script>
             function importState() {
                 return {
-                    step: 1,
-                    type: '',
-                    file: null,
-                    classroomIds: [],
-                    busy: false,
-                    message: '',
-                    result: null,
-                    finished: null,
-                    onFileChange(e) {
-                        this.file = e.target.files[0];
-                        this.message = '';
-                        this.result = null;
-                        this.finished = null;
-                    },
-                    templateUrl() {
-                        if (!this.type) return '#';
-                        return @json($importRouteTemplate).replace('__TYPE__', this.type);
-                    },
-                    failedUrl() {
-                        return @json($importFailedTemplate).replace('__FILE__', encodeURIComponent(this.finished?.failed_file ?? ''));
-                    },
-                    validate() {
-                        if (!this.type) { this.message = 'Pilih jenis soal terlebih dahulu.'; return; }
-                        if (!this.file) { this.message = 'Pilih file Excel/CSV terlebih dahulu.'; return; }
-                        if (this.classroomIds.length === 0) { this.message = 'Pilih minimal satu kelas target untuk soal yang diimpor.'; return; }
-                        this.busy = true;
-                        this.message = '';
-                        const formData = new FormData();
-                        formData.append('type', this.type);
-                        formData.append('file', this.file);
-                        this.classroomIds.forEach((id) => formData.append('classroom_ids[]', id));
-                        fetch(@json(route('guru_mapel.questions.import-validate')), {
-                            method: 'POST',
-                            body: formData,
-                            headers: { 'X-CSRF-TOKEN': @json(csrf_token()), 'Accept': 'application/json' },
-                        })
-                            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
-                            .then(({ ok, data }) => {
-                                if (!ok) {
-                                    const errors = Object.values(data.errors || {}).flat();
-                                    this.message = data.message || (errors.length ? errors.join(' ') : 'Terjadi kesalahan saat memvalidasi file.');
-                                    return;
-                                }
-                                this.result = data;
-                                this.step = 2;
+                    importState: {
+                        step: 1,
+                        type: '',
+                        file: null,
+                        classroomIds: [],
+                        busy: false,
+                        message: '',
+                        result: null,
+                        finished: null,
+                        onFileChange(e) {
+                            this.file = e.target.files[0];
+                            this.message = '';
+                            this.result = null;
+                            this.finished = null;
+                        },
+                        templateUrl() {
+                            if (!this.type) return '#';
+                            return @json($importRouteTemplate).replace('__TYPE__', this.type);
+                        },
+                        failedUrl() {
+                            return @json($importFailedTemplate).replace('__FILE__', encodeURIComponent(this.finished?.failed_file ?? ''));
+                        },
+                        validate() {
+                            if (!this.type) { this.message = 'Pilih jenis soal terlebih dahulu.'; return; }
+                            if (!this.file) { this.message = 'Pilih file Excel/CSV terlebih dahulu.'; return; }
+                            if (this.classroomIds.length === 0) { this.message = 'Pilih minimal satu kelas target untuk soal yang diimpor.'; return; }
+                            this.busy = true;
+                            this.message = '';
+                            const formData = new FormData();
+                            formData.append('type', this.type);
+                            formData.append('file', this.file);
+                            this.classroomIds.forEach((id) => formData.append('classroom_ids[]', id));
+                            fetch(@json(route('guru_mapel.questions.import-validate')), {
+                                method: 'POST',
+                                body: formData,
+                                headers: { 'X-CSRF-TOKEN': @json(csrf_token()), 'Accept': 'application/json' },
                             })
-                            .catch(() => { this.message = 'Terjadi kesalahan saat memvalidasi file.'; })
-                            .finally(() => { this.busy = false; });
-                    },
-                    confirm() {
-                        this.busy = true;
-                        this.message = '';
-                        fetch(@json(route('guru_mapel.questions.import-confirm')), {
-                            method: 'POST',
-                            headers: { 'X-CSRF-TOKEN': @json(csrf_token()), 'Accept': 'application/json' },
-                        })
-                            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
-                            .then(({ ok, data }) => {
-                                if (!ok) { this.message = data.message || 'Terjadi kesalahan saat mengimpor.'; return; }
-                                this.finished = data;
-                                this.step = 3;
+                                .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+                                .then(({ ok, data }) => {
+                                    if (!ok) {
+                                        const errors = Object.values(data.errors || {}).flat();
+                                        this.message = data.message || (errors.length ? errors.join(' ') : 'Terjadi kesalahan saat memvalidasi file.');
+                                        return;
+                                    }
+                                    this.result = data;
+                                    this.step = 2;
+                                })
+                                .catch(() => { this.message = 'Terjadi kesalahan saat memvalidasi file.'; })
+                                .finally(() => { this.busy = false; });
+                        },
+                        confirm() {
+                            this.busy = true;
+                            this.message = '';
+                            fetch(@json(route('guru_mapel.questions.import-confirm')), {
+                                method: 'POST',
+                                headers: { 'X-CSRF-TOKEN': @json(csrf_token()), 'Accept': 'application/json' },
                             })
-                            .catch(() => { this.message = 'Terjadi kesalahan saat mengimpor.'; })
-                            .finally(() => { this.busy = false; });
-                    },
-                    reset() {
-                        this.step = 1;
-                        this.type = '';
-                        this.file = null;
-                        this.classroomIds = [];
-                        this.busy = false;
-                        this.message = '';
-                        this.result = null;
-                        this.finished = null;
+                                .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+                                .then(({ ok, data }) => {
+                                    if (!ok) { this.message = data.message || 'Terjadi kesalahan saat mengimpor.'; return; }
+                                    this.finished = data;
+                                    this.step = 3;
+                                })
+                                .catch(() => { this.message = 'Terjadi kesalahan saat mengimpor.'; })
+                                .finally(() => { this.busy = false; });
+                        },
+                        reset() {
+                            this.step = 1;
+                            this.type = '';
+                            this.file = null;
+                            this.classroomIds = [];
+                            this.busy = false;
+                            this.message = '';
+                            this.result = null;
+                            this.finished = null;
+                        },
                     },
                 };
             }
@@ -166,9 +168,16 @@
                                 <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{{ $question->subject?->name }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{{ \App\Models\Question::TYPES[$question->type] ?? $question->type }}</td>
                                 <td class="px-6 py-4 text-sm">
+                                    @php($targetParts = \App\Models\Classroom::summarizeTargetParts($question->classrooms->pluck('id')))
                                     <div class="flex flex-wrap gap-1">
-                                        @forelse ($question->classrooms as $classroom)
-                                            <span class="inline-flex rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">{{ $classroom->name }}</span>
+                                        @forelse ($targetParts as $part)
+                                            <span class="inline-flex rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
+                                                @if ($part['type'] === 'grade')
+                                                    {{ $part['label'] }} (Semua Kelas)
+                                                @else
+                                                    {{ $part['label'] }}
+                                                @endif
+                                            </span>
                                         @empty
                                             <span class="text-xs text-gray-400 dark:text-gray-500">Belum ada target</span>
                                         @endforelse

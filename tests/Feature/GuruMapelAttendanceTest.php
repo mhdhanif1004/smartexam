@@ -6,7 +6,6 @@ use App\Models\Classroom;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\GuruMapel;
-use App\Models\Question;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
@@ -20,13 +19,13 @@ class GuruMapelAttendanceTest extends TestCase
     use RefreshDatabase;
 
     /**
-     * Guru yang mengampu satu mapel di satu kelas. Default sudah punya
-     * cakupan kelas (soal miliknya menargetkan kelas) karena akses absensi
-     * kini diturunkan dari soal yang dibuat guru.
+     * Guru yang mengampu satu mapel di satu kelas. Cakupan kelas ditetapkan
+     * lewat classroom_id pada penugasan (pivot) sehingga akses absensi untuk
+     * kelas tersebut terbuka.
      *
      * @return array{0: GuruMapel, 1: Subject, 2: Classroom, 3: mixed}
      */
-    private function makeAmpuGuru(int $studentCount = 1, bool $withScope = true): array
+    private function makeAmpuGuru(int $studentCount = 1): array
     {
         $guru = GuruMapel::factory()->create();
         $subject = Subject::factory()->create();
@@ -35,23 +34,13 @@ class GuruMapelAttendanceTest extends TestCase
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $classroom->id,
         ]);
 
         $students = Student::factory()->count($studentCount)->create([
             'classroom_id' => $classroom->id,
             'class_name' => $classroom->name,
         ]);
-
-        if ($withScope) {
-            $question = Question::query()->create([
-                'subject_id' => $subject->id,
-                'type' => Question::TYPE_ESSAY,
-                'question_text' => 'Soal pembuka cakupan kelas',
-                'score_weight' => 10,
-                'created_by_user_id' => $guru->user_id,
-            ]);
-            $question->classrooms()->attach($classroom->id);
-        }
 
         return [$guru, $subject, $classroom, $students];
     }

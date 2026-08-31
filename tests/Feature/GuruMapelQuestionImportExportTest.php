@@ -270,6 +270,12 @@ class GuruMapelQuestionImportExportTest extends TestCase
             ->assertSee('Import Soal', false)
             ->getContent();
 
+        // Root scope memakai factory-call agar state tersarang di bawah
+        // `importState.*` (bukan properti tingkat-atas), sehingga seluruh
+        // x-if/x-show di dalam modal merender konten langkah 1 secara penuh.
+        $this->assertStringContainsString('x-data="importState()"', $html);
+        $this->assertStringContainsString('importState: {', $html);
+
         // Modal memakai komponen classroom-picker mode 'all' yang terikat ke
         // importState.classroomIds untuk alur AJAX (bukan form POST).
         $this->assertStringContainsString('target: importState.classroomIds', $html);
@@ -277,6 +283,14 @@ class GuruMapelQuestionImportExportTest extends TestCase
         $this->assertStringContainsString('guru_mapel\/questions\/import-validate', $html);
         $this->assertStringContainsString($classroom->name, $html);
         $this->assertStringContainsString($extra->name, $html);
+
+        // Konten lengkap langkah 1: pilihan jenis, unduh template, upload
+        // file, dan tombol validasi. Wajib ada — mencegah modal "kosong".
+        $this->assertStringContainsString('Jenis Soal', $html);
+        $this->assertStringContainsString('Unduh Template', $html);
+        $this->assertStringContainsString('file:mr-4', $html);
+        $this->assertStringContainsString('classroom_ids[]', $html);
+        $this->assertStringContainsString('Validasi & Lanjutkan', $html);
     }
 
     public function test_default_create_uses_internal_scoped_picker_not_bind(): void

@@ -24,7 +24,7 @@
             <div class="flex items-center justify-between border-b border-gray-200 px-5 py-3 dark:border-gray-800">
                 <div>
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Cakupan Mengajar (Mapel - Kelas)</h3>
-                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Mapel yang diampu guru beserta kelas target, diturunkan dari soal yang dibuat guru. Bersifat read-only (tidak diisi manual).</p>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Mapel yang diampu guru beserta kelas target, sesuai penugasan yang tersimpan.</p>
                 </div>
                 <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">{{ $assignments->count() }} pasangan</span>
             </div>

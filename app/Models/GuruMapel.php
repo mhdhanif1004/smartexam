@@ -53,12 +53,11 @@ class GuruMapel extends Model
     /**
      * ID kelas yang menjadi cakupan akses guru ini untuk mapel tertentu.
      *
-     * SUMBER KEBENARAN BARU: bukan lagi dari kolom classroom_id di pivot
-     * penugasan, melainkan diturunkan secara dinamis dari kelas-kelas yang
-     * menjadi target (pivot question_classroom) dari soal yang DIBUAT guru
-     * ini untuk mapel tersebut. Karena bersifat live (query tiap request),
-     * menghapus seluruh soal guru untuk sebuah kelas otomatis menghapus
-     * akses guru ke kelas itu pada request berikutnya.
+     * SUMBER KEBENARAN: kolom classroom_id pada pivot penugasan
+     * teacher_subject_class_assignments. Kelas di-assign secara eksplisit,
+     * baik lewat admin maupun impor Guru Mapel (termasuk perluasan "SEMUA
+     * kelas" pada suatu tingkat saat impor). Baris penugasan yang hanya
+     * berisi mapel (classroom_id null) ikut dianggap "seluruh kelas".
      *
      * Bila $subjectId null, seluruh kelas lintas mapel yang diampu guru
      * dikembalikan.
@@ -67,24 +66,19 @@ class GuruMapel extends Model
      */
     public function ampuClassroomIds(?int $subjectId = null): Collection
     {
-        $query = $this->questionsQuery();
+        $query = $this->assignments()->whereNotNull('classroom_id');
 
         if ($subjectId !== null) {
             $query->where('subject_id', $subjectId);
         }
 
-        return $query
-            ->with('classrooms')
-            ->get()
-            ->flatMap(fn (Question $question) => $question->classrooms->pluck('id'))
-            ->unique()
-            ->values();
+        return $query->pluck('classroom_id')->unique()->values();
     }
 
     /**
      * Cek apakah guru ini mengampu mapel $subjectId dan/atau target kelas
-     * $classroomId. Kepemilikan mapel berasal dari pivot penugasan; cakupan
-     * kelas berasal dari soal yang dibuat guru (lihat ampuClassroomIds).
+     * $classroomId. Kepemilikan mapel dan cakupan kelas sama-sama berasal
+     * dari pivot penugasan (lihat ampuClassroomIds).
      */
     public function isAmpu(?int $subjectId = null, ?int $classroomId = null): bool
     {
@@ -103,26 +97,29 @@ class GuruMapel extends Model
 
     /**
      * Peta subject_id => daftar kelas (id => [id, name]) yang menjadi cakupan
-     * akses guru, diturunkan dari soal buatan guru. Dipakai form create/edit
+     * akses guru, diturunkan dari pivot penugasan. Dipakai form create/edit
      * soal dan dashboard agar pilihan kelas mengikuti mapel terpilih.
      *
      * @return array<int, array<int, array{id: int, name: string}>>
      */
     public function classScopeBySubject(): array
     {
-        $rows = $this->questionsQuery()
-            ->with(['classrooms' => fn ($q) => $q->orderBy('name')])
+        $rows = $this->assignments()
+            ->whereNotNull('classroom_id')
+            ->with(['classroom' => fn ($q) => $q->orderBy('name')])
             ->get();
 
         $map = [];
 
-        foreach ($rows as $question) {
-            foreach ($question->classrooms as $classroom) {
-                $map[(int) $question->subject_id][(int) $classroom->id] = [
-                    'id' => (int) $classroom->id,
-                    'name' => (string) $classroom->name,
-                ];
+        foreach ($rows as $assignment) {
+            if ($assignment->classroom === null) {
+                continue;
             }
+
+            $map[(int) $assignment->subject_id][(int) $assignment->classroom->id] = [
+                'id' => (int) $assignment->classroom->id,
+                'name' => (string) $assignment->classroom->name,
+            ];
         }
 
         foreach ($map as $subjectId => $classrooms) {
@@ -130,14 +127,5 @@ class GuruMapel extends Model
         }
 
         return $map;
-    }
-
-    /**
-     * Kueri dasar soal yang "dimiliki" guru ini (dibuat oleh user-nya),
-     * siap difilter lanjut per mapel.
-     */
-    private function questionsQuery()
-    {
-        return Question::query()->where('created_by_user_id', $this->user_id);
     }
 }

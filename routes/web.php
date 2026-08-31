@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ExamPeriodController;
 use App\Http\Controllers\Admin\ExamScheduleController;
 use App\Http\Controllers\Admin\GuruMapelController;
+use App\Http\Controllers\Admin\GuruMapelImportExportController;
 use App\Http\Controllers\Admin\LoginCardController;
 use App\Http\Controllers\Admin\PlainPasswordController;
 use App\Http\Controllers\Admin\QuestionController;
@@ -71,6 +72,13 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::resource('supervisors', SupervisorController::class)->except(['show']);
         Route::get('supervisors/{supervisor}', [SupervisorController::class, 'show'])->name('supervisors.show');
         Route::post('supervisors/bulk-delete', [SupervisorController::class, 'bulkDelete'])->name('supervisors.bulk-delete');
+        Route::controller(GuruMapelImportExportController::class)->prefix('guru-mapels')->name('guru-mapels.')->group(function () {
+            Route::get('/import-template', 'importTemplate')->name('import-template');
+            Route::post('/import-validate', 'importValidate')->name('import-validate');
+            Route::post('/import-confirm', 'importConfirm')->name('import-confirm');
+            Route::get('/import-failed/{file}', 'importFailed')->name('import-failed');
+        });
+
         Route::resource('guru-mapels', GuruMapelController::class);
         Route::post('guru-mapels/bulk-delete', [GuruMapelController::class, 'bulkDelete'])->name('guru-mapels.bulk-delete');
         Route::get('guru-mapels/{guru_mapel}/assignments', [GuruMapelController::class, 'editAssignments'])->name('guru-mapels.assignments.edit');

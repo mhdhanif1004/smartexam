@@ -23,14 +23,14 @@ class GuruMapelKbmTest extends TestCase
     use RefreshDatabase;
 
     /**
-     * Guru mapel yang mengampu satu mata pelajaran (mapel-only) pada satu
-     * kelas, lengkap dengan beberapa siswa di kelas itu. Bila $withScope true,
-     * dibuatkan sebuah soal milik guru untuk mapel tersebut yang menargetkan
-     * kelas — itulah yang membuka cakupan kelas untuk Nilai/Absensi.
+     * Guru mapel yang mengampu satu mata pelajaran pada satu kelas, lengkap
+     * dengan beberapa siswa di kelas itu. Cakupan kelas ditetapkan lewat
+     * classroom_id pada penugasan (pivot), sehingga kelas tersebut bisa
+     * menjadi target soal dan untuk input Nilai/Absensi.
      *
      * @return array{0: GuruMapel, 1: Subject, 2: Classroom, 3: Collection<int, Student>, 4: User}
      */
-    private function makeAmpuGuru(int $studentCount = 2, bool $withScope = false): array
+    private function makeAmpuGuru(int $studentCount = 2): array
     {
         $guru = GuruMapel::factory()->create();
         $subject = Subject::factory()->create();
@@ -39,23 +39,13 @@ class GuruMapelKbmTest extends TestCase
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $classroom->id,
         ]);
 
         $students = Student::factory()->count($studentCount)->create([
             'classroom_id' => $classroom->id,
             'class_name' => $classroom->name,
         ]);
-
-        if ($withScope) {
-            $question = Question::query()->create([
-                'subject_id' => $subject->id,
-                'type' => Question::TYPE_ESSAY,
-                'question_text' => 'Soal pembuka cakupan kelas',
-                'score_weight' => 10,
-                'created_by_user_id' => $guru->user_id,
-            ]);
-            $question->classrooms()->attach($classroom->id);
-        }
 
         return [$guru, $subject, $classroom, $students, $guru->user];
     }
@@ -412,7 +402,7 @@ class GuruMapelKbmTest extends TestCase
 
     public function test_guru_can_store_grades_for_ampu_class(): void
     {
-        [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(2, true);
+        [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(2);
 
         $this->actingAs($guru->user)
             ->post(route('guru_mapel.grades.store'), [
@@ -441,7 +431,7 @@ class GuruMapelKbmTest extends TestCase
 
     public function test_grade_rejects_score_out_of_range_or_invalid_format(): void
     {
-        [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(1, true);
+        [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(1);
 
         $this->actingAs($guru->user)
             ->post(route('guru_mapel.grades.store'), [
@@ -456,7 +446,7 @@ class GuruMapelKbmTest extends TestCase
 
     public function test_grade_rejects_input_for_non_ampu_class(): void
     {
-        [$guru, $subject] = $this->makeAmpuGuru(1, true);
+        [$guru, $subject] = $this->makeAmpuGuru(1);
         $otherClassroom = Classroom::factory()->create();
 
         $this->actingAs($guru->user)

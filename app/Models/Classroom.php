@@ -44,26 +44,33 @@ class Classroom extends Model
     }
 
     /**
-     * Ringkas daftar classroom_id jadi label singkat.
-     * Jika SEMUA kelas pada 1 tingkat tercakup → tampilkan tingkat saja (misal "XI").
-     * Sisa kelas individual tetap ditampilkan nama per kelas.
+     * Ringkas daftar classroom_id jadi list bagian (badge terstruktur).
+     * Jika SEMUA kelas pada 1 tingkat tercakup → bagian bertipe 'grade'
+     * (tingkat saja, misal "XI"). Kelas yang hanya sebagian tingkatnya
+     * terpilih tetap tampil per kelas (tipe 'class').
      *
-     * Contoh output:
+     * Contoh output (label):
      *   "X, XI"                         → X dan XI lengkap semua kelasnya
      *   "X, XI RPL 1, XI TKJ 1"        → X lengkap, tapi XI cuma sebagian
      *   "X AKL 1, X RPL 1, XI"         → X cuma sebagian, XI lengkap
      *   "X AKL 1, X AKL 2, XI RPL 1"   → tidak ada tingkat yang lengkap
      *
+     * Tingkat lengkap diurutkan X → XI → XII; kelas individual tetap
+     * mempertahankan urutan masuknya.
+     *
      * @param  iterable<int>  $classroomIds
+     * @return list<array{type: 'grade'|'class', label: string, count?: int}>
      */
-    public static function summarizeTargets(iterable $classroomIds): string
+    public static function summarizeTargetParts(iterable $classroomIds): array
     {
         $ids = is_array($classroomIds) ? $classroomIds : $classroomIds->all();
         if ($ids === []) {
-            return '';
+            return [];
         }
 
-        $allClassrooms = self::query()->whereIn('id', $ids)->get(['id', 'name']);
+        $allClassrooms = self::query()
+            ->whereIn('id', array_values(array_unique($ids)))
+            ->get(['id', 'name']);
 
         // Map: grade_level → [classroom_ids]
         $gradeMap = [];
@@ -75,27 +82,40 @@ class Classroom extends Model
 
         $allCounts = self::getGradeCounts();
 
-        $fullGrades = [];
+        $fullGradeParts = [];
         $remaining = [];
 
         foreach ($gradeMap as $level => $gradeIds) {
             $totalInDb = $allCounts[$level] ?? count($gradeIds);
             if (count($gradeIds) >= $totalInDb) {
-                $fullGrades[] = $level;
+                $fullGradeParts[] = ['type' => 'grade', 'label' => $level, 'count' => $totalInDb];
             } else {
                 foreach ($gradeIds as $id) {
-                    $remaining[$id] = $allClassrooms->firstWhere('id', $id)->name;
+                    $remaining[] = ['type' => 'class', 'label' => (string) $allClassrooms->firstWhere('id', $id)->name];
                 }
             }
         }
 
         // Sort tingkat: X → XI → XII → Lain
         $levelOrder = ['X' => 10, 'XI' => 11, 'XII' => 12];
-        usort($fullGrades, fn (string $a, string $b) => ($levelOrder[$a] ?? 99) <=> ($levelOrder[$b] ?? 99));
+        usort($fullGradeParts, fn (array $a, array $b) => ($levelOrder[$a['label']] ?? 99) <=> ($levelOrder[$b['label']] ?? 99));
 
-        $parts = array_merge($fullGrades, array_values($remaining));
+        return array_merge($fullGradeParts, $remaining);
+    }
 
-        return implode(', ', $parts);
+    /**
+     * Ringkas daftar classroom_id jadi label teks singkat (dipakai konteks
+     * teks biasa, mis. ringkasan kelompok soal admin). Hasil akhir sama
+     * dengan gabungan label dari summarizeTargetParts().
+     *
+     * @param  iterable<int>  $classroomIds
+     */
+    public static function summarizeTargets(iterable $classroomIds): string
+    {
+        return implode(', ', array_map(
+            fn (array $part): string => $part['label'],
+            self::summarizeTargetParts($classroomIds)
+        ));
     }
 
     /**

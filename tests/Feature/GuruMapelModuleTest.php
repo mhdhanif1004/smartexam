@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Classroom;
 use App\Models\GuruMapel;
-use App\Models\Question;
 use App\Models\Subject;
 use App\Models\TeacherSubjectClassAssignment;
 use App\Models\User;
@@ -316,20 +315,12 @@ class GuruMapelModuleTest extends TestCase
         $assigned = Classroom::create(['name' => 'XI RPL 1']);
         $unassigned = Classroom::create(['name' => 'XI TKJ 1']);
 
+        // Cakupan kelas read-only berasal dari classroom_id pada penugasan.
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $assigned->id,
         ]);
-
-        // Cakupan kelas read-only berasal dari soal guru yang menargetkan kelas.
-        $question = Question::query()->create([
-            'subject_id' => $subject->id,
-            'type' => Question::TYPE_ESSAY,
-            'question_text' => 'Soal pembuka cakupan',
-            'score_weight' => 10,
-            'created_by_user_id' => $guru->user_id,
-        ]);
-        $question->classrooms()->attach($assigned->id);
 
         $this->actingAs($this->admin)
             ->get(route('admin.guru-mapels.assignments.edit', $guru))
