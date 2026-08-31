@@ -1,4 +1,7 @@
 <x-layouts.admin :title="'Kelola - '.$examPeriod->name">
+    @php
+        $availableSupervisors = $activeSupervisors->filter(fn ($s) => ! in_array($s->id, $assignedSupervisorIds, true))->values();
+    @endphp
     <div x-data="{
         openRooms: {},
         toggleRoom(id) {
@@ -6,6 +9,72 @@
         },
         isOpen(id) {
             return Boolean(this.openRooms[id]);
+        },
+        editSupervisor: {
+            assignmentId: null,
+            currentSupervisorId: null,
+            supervisorId: '',
+            busy: false,
+            message: '',
+            open(assignmentId, currentSupervisorId) {
+                this.assignmentId = assignmentId;
+                this.currentSupervisorId = currentSupervisorId;
+                this.supervisorId = '';
+                this.message = '';
+                this.busy = false;
+                window.dispatchEvent(new CustomEvent('open-modal', { detail: 'edit-supervisor' }));
+            },
+            submit() {
+                if (!this.supervisorId) return;
+                this.busy = true;
+                this.message = '';
+                const url = '{{ route('admin.exam-periods.supervisor-assignments.update', [$examPeriod, '__ID__']) }}'.replace('__ID__', this.assignmentId);
+                fetch(url, {
+                    method: 'PATCH',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ supervisor_id: this.supervisorId }),
+                })
+                    .then(response => {
+                        if (response.ok) { window.location.reload(); return; }
+                        return response.json().then(data => {
+                            if (data.errors) {
+                                this.message = Object.values(data.errors).flat().join(' ');
+                            } else {
+                                this.message = data.message || 'Gagal memperbarui pengawas.';
+                            }
+                        });
+                    })
+                    .catch(() => { this.message = 'Terjadi kesalahan saat menyimpan.'; })
+                    .finally(() => { this.busy = false; });
+            },
+        },
+        resetAll: {
+            busy: false,
+            message: '',
+            open() {
+                this.message = '';
+                this.busy = false;
+                window.dispatchEvent(new CustomEvent('open-modal', { detail: 'reset-supervisors' }));
+            },
+            confirm() {
+                this.busy = true;
+                this.message = '';
+                fetch('{{ route('admin.exam-periods.supervisor-assignments.reset-all', $examPeriod) }}', {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                })
+                    .then(response => {
+                        if (response.ok) { window.location.reload(); return; }
+                        return response.json().then(data => { this.message = data.message || data.error || 'Gagal mereset penugasan pengawas.'; });
+                    })
+                    .catch(() => { this.message = 'Terjadi kesalahan saat mereset.'; })
+                    .finally(() => { this.busy = false; });
+            },
         },
     }" class="space-y-6">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -25,6 +94,12 @@
                     </svg>
                     Tambah Kelompok Ruangan
                 </a>
+                <button type="button" @click="resetAll.open()" class="inline-flex items-center justify-center gap-2 rounded-lg border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-50 dark:border-rose-700 dark:bg-gray-800 dark:text-rose-400 dark:hover:bg-rose-500/10">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                    </svg>
+                    Reset Pengawas
+                </button>
                 <form method="POST" action="{{ route('admin.exam-periods.supervisor-rotation', $examPeriod) }}" class="inline">
                     @csrf
                     <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500">
@@ -40,29 +115,37 @@
 
         @include('admin.partials.flash')
 
-        
-
         @forelse ($roomGroups as $group)
             <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-5 py-3 dark:border-gray-800">
-                    <button type="button" @click="toggleRoom(@js($group['room']?->id))" class="flex min-w-0 flex-1 items-center justify-between gap-3 text-left">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $group['room']?->display_name ?? 'Tanpa Ruangan' }}</h3>
-                            <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">{{ $group['schedules']->count() }} jadwal</span>
-                            <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">{{ $group['assignments']->count() }} siswa</span>
-                            @forelse ($group['supervisors'] as $supervisor)
-                                <span class="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">Pengawas: {{ $supervisor->user?->name }}</span>
-                            @empty
-                                <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700/60 dark:text-gray-400">Belum ada pengawas</span>
-                            @endforelse
-                        </div>
-                        <span class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                            <span class="max-w-[16rem] truncate">{{ $group['schedules']->first()?->class_name }}</span>
-                            <svg class="h-4 w-4 shrink-0 text-gray-400 transition-transform" :class="isOpen(@js($group['room']?->id)) ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                            </svg>
-                        </span>
-                    </button>
+                    <div class="flex min-w-0 flex-1 items-center gap-3">
+                        <button type="button" @click="toggleRoom(@js($group['room']?->id))" class="flex min-w-0 flex-1 items-center justify-between gap-3 text-left">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $group['room']?->display_name ?? 'Tanpa Ruangan' }}</h3>
+                                <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">{{ $group['schedules']->count() }} jadwal</span>
+                                <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">{{ $group['assignments']->count() }} siswa</span>
+                                @forelse ($group['supervisorRoomAssignments'] as $sra)
+                                    <span class="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">Pengawas: {{ $sra->supervisor?->user?->name }}</span>
+                                @empty
+                                    <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700/60 dark:text-gray-400">Belum ada pengawas</span>
+                                @endforelse
+                            </div>
+                            <span class="flex shrink-0 items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                <span class="max-w-[16rem] truncate">{{ $group['schedules']->first()?->class_name }}</span>
+                                <svg class="h-4 w-4 shrink-0 text-gray-400 transition-transform" :class="isOpen(@js($group['room']?->id)) ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                                </svg>
+                            </span>
+                        </button>
+                        @foreach ($group['supervisorRoomAssignments'] as $sra)
+                            <button type="button" @click="editSupervisor.open({{ $sra->id }}, {{ $sra->supervisor_id }})" class="inline-flex shrink-0 items-center gap-1 rounded-md bg-amber-50 px-2 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20" title="Ganti pengawas: {{ $sra->supervisor?->user?->name ?? '' }}">
+                                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                </svg>
+                                Ganti
+                            </button>
+                        @endforeach
+                    </div>
                     @if ($group['room'])
                         <a href="{{ route('admin.exam-periods.room-roster', [$examPeriod, $group['room']]) }}" class="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20">
                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -149,5 +232,88 @@
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Buat kelompok ruangan pertama dengan menekan tombol "Tambah Kelompok Ruangan".</p>
             </div>
         @endforelse
+
+        <x-modal name="edit-supervisor" maxWidth="md">
+        <div class="p-6">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Ganti Pengawas</h2>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Mengganti pengawas untuk penugasan ini.</p>
+                </div>
+                <button type="button" @click="$dispatch('close')" class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div class="mt-5">
+                <label for="supervisor_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Pilih Pengawas Pengganti</label>
+                <select id="supervisor_id" x-model="editSupervisor.supervisorId" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                    <option value="">-- Pilih Pengawas --</option>
+                    @foreach ($availableSupervisors as $supervisor)
+                        <option value="{{ $supervisor->id }}">{{ $supervisor->user?->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div x-show="editSupervisor.message !== ''" x-transition class="mt-4 flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-500/10 dark:text-rose-300">
+                <svg class="h-5 w-5 shrink-0 text-rose-500 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9.303 3.376c-.866 1.5.217 3.374 1.948 3.374H4.749c-1.73 0-2.813-1.874-1.948-3.374L10.052 3.378c.866-1.5 3.032-1.5 3.898 0l7.303 13.748zM12 15.75h.007v.008H12v-.008z"/></svg>
+                <p x-text="editSupervisor.message"></p>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <x-secondary-button x-on:click="$dispatch('close')">Batal</x-secondary-button>
+                <button
+                    type="button"
+                    @click="editSupervisor.submit()"
+                    :disabled="editSupervisor.busy || !editSupervisor.supervisorId"
+                    class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    <span x-show="editSupervisor.busy" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+                    Simpan
+                </button>
+            </div>
+        </div>
+    </x-modal>
+
+    <x-modal name="reset-supervisors" maxWidth="md">
+        <div class="p-6">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Reset Semua Pengawas</h2>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Hapus semua penugasan pengawas pada sesi ini.</p>
+                </div>
+                <button type="button" @click="$dispatch('close')" class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div class="mt-5">
+                <div class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                    <svg class="h-5 w-5 shrink-0 text-amber-500 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                    <div>
+                        <p class="font-semibold">Seluruh penugasan pengawas pada sesi ini akan dihapus permanen.</p>
+                        <p class="mt-1">Setelah direset, Anda bisa menekan tombol "Generate Rotasi Pengawas" untuk membuat penugasan baru dari awal.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="resetAll.message !== ''" x-transition class="mt-4 flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-500/10 dark:text-rose-300">
+                <p x-text="resetAll.message"></p>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <x-secondary-button x-on:click="$dispatch('close')">Batal</x-secondary-button>
+                <button
+                    type="button"
+                    @click="resetAll.confirm()"
+                    :disabled="resetAll.busy"
+                    class="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    <span x-show="resetAll.busy" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+                    Ya, Reset Semua
+                </button>
+            </div>
+        </div>
+    </x-modal>
     </div>
 </x-layouts.admin>
