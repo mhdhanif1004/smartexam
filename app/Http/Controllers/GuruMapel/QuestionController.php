@@ -95,6 +95,11 @@ class QuestionController extends Controller
         $this->authorizeQuestion($question, $guru);
         $data = $request->validated();
 
+        // Kunci mapel soal: subject_id tidak boleh diubah lewat edit. Dipaksa
+        // memakai nilai eksisting soal sehingga manipulasi payload tidak bisa
+        // memindahkan soal ke mapel lain.
+        $data['subject_id'] = $question->subject_id;
+
         $payload = $this->payload($data);
 
         if ($request->hasFile('image')) {

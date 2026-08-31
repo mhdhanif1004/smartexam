@@ -118,19 +118,6 @@ class ExamResultController extends Controller
         ));
     }
 
-    private function resolveAmpuSchedule($guru, int $scheduleId): ExamSchedule
-    {
-        $schedule = ExamSchedule::query()
-            ->with(['subject', 'examPeriod'])
-            ->findOrFail($scheduleId);
-
-        $classroomId = Classroom::query()->where('name', $schedule->class_name)->value('id');
-
-        abort_unless($classroomId !== null && $guru->isAmpu(subjectId: $schedule->subject_id, classroomId: $classroomId), 403);
-
-        return $schedule;
-    }
-
     private function formatStudentAnswer(Question $question, mixed $value): string
     {
         if ($value === null || $value === '' || $value === []) {

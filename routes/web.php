@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\SubjectController;
 use App\Http\Controllers\Admin\SupervisorController;
 use App\Http\Controllers\Admin\SupervisorImportExportController;
 use App\Http\Controllers\Admin\ViolationController;
+use App\Http\Controllers\GuruMapel\AttendanceController;
 use App\Http\Controllers\GuruMapel\DashboardController as GuruMapelDashboardController;
 use App\Http\Controllers\GuruMapel\ExamResultController;
 use App\Http\Controllers\GuruMapel\GradeController;
@@ -183,6 +184,11 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('/{schedule}', 'schedule')->name('schedule');
             Route::get('/{schedule}/{student}', 'student')->name('student');
+        });
+
+        Route::controller(AttendanceController::class)->prefix('attendances')->name('attendances.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/{schedule}', 'schedule')->name('schedule');
         });
     });
 

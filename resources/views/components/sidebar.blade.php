@@ -48,6 +48,7 @@
             ['label' => 'Soal', 'route' => 'guru_mapel.questions.index', 'icon' => 'question-mark'],
             ['label' => 'Nilai', 'route' => 'guru_mapel.grades.index', 'icon' => 'chart-bar'],
             ['label' => 'Hasil Ujian CBT', 'route' => 'guru_mapel.exam-results.index', 'icon' => 'eye'],
+            ['label' => 'Absensi Ujian', 'route' => 'guru_mapel.attendances.index', 'icon' => 'clipboard-check'],
         ],
         'peserta' => [
             ['label' => 'Dashboard', 'route' => 'peserta.dashboard', 'icon' => 'dashboard'],

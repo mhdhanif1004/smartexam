@@ -205,6 +205,75 @@ class GuruMapelKbmTest extends TestCase
         $this->assertDatabaseHas('questions', ['id' => $question->id]);
     }
 
+    public function test_guru_can_update_own_question_in_ampu_subject(): void
+    {
+        [$guru, $subject, $classroom] = $this->makeAmpuGuru();
+
+        $question = Question::query()->create([
+            'subject_id' => $subject->id,
+            'type' => Question::TYPE_ESSAY,
+            'question_text' => 'Soal asli',
+            'answer_key' => 'rubrik lama',
+            'score_weight' => 10,
+            'created_by_user_id' => $guru->user->id,
+        ]);
+        $question->classrooms()->attach($classroom->id);
+
+        $this->actingAs($guru->user)
+            ->put(route('guru_mapel.questions.update', $question), [
+                'subject_id' => $subject->id,
+                'type' => Question::TYPE_ESSAY,
+                'question_text' => 'Soal diperbarui',
+                'classroom_ids' => [$classroom->id],
+                'score_weight' => 12,
+                'essay_answer' => 'rubrik baru',
+            ])
+            ->assertRedirect(route('guru_mapel.questions.index'))
+            ->assertSessionHas('success');
+
+        $fresh = $question->fresh();
+        $this->assertSame('Soal diperbarui', $fresh->question_text);
+        $this->assertSame($subject->id, $fresh->subject_id);
+    }
+
+    public function test_guru_cannot_move_own_question_to_another_subject_on_update(): void
+    {
+        [$guru, $subjectA, $classroomA] = $this->makeAmpuGuru();
+
+        // Guru A ampu mapel kedua, sehingga ia sah mengurus keduanya.
+        $otherAmpuSubject = Subject::factory()->create();
+        TeacherSubjectClassAssignment::create([
+            'guru_mapel_id' => $guru->id,
+            'subject_id' => $otherAmpuSubject->id,
+            'classroom_id' => $classroomA->id,
+        ]);
+
+        $question = Question::query()->create([
+            'subject_id' => $subjectA->id,
+            'type' => Question::TYPE_ESSAY,
+            'question_text' => 'Soal di mapel ampu',
+            'answer_key' => 'rubrik',
+            'score_weight' => 10,
+            'created_by_user_id' => $guru->user->id,
+        ]);
+        $question->classrooms()->attach($classroomA->id);
+
+        $this->actingAs($guru->user)
+            ->put(route('guru_mapel.questions.update', $question), [
+                'subject_id' => $otherAmpuSubject->id,
+                'type' => Question::TYPE_ESSAY,
+                'question_text' => 'Soal yang dicoba dipindah mapel',
+                'classroom_ids' => [$classroomA->id],
+                'score_weight' => 10,
+                'essay_answer' => 'rubrik',
+            ])
+            ->assertSessionHasErrors('subject_id');
+
+        $fresh = $question->fresh();
+        $this->assertSame($subjectA->id, $fresh->subject_id);
+        $this->assertSame('Soal di mapel ampu', $fresh->question_text);
+    }
+
     // -----------------------------------------------------------------
     // NILAI
     // -----------------------------------------------------------------

@@ -3,6 +3,7 @@
 namespace App\Traits;
 
 use App\Models\Classroom;
+use App\Models\ExamSchedule;
 use App\Models\GuruMapel;
 use App\Models\Subject;
 use Illuminate\Database\Eloquent\Collection;
@@ -47,5 +48,25 @@ trait ScopesGuruMapel
             ->whereIn('id', $guru->ampuClassroomIds($subjectId))
             ->orderBy('name')
             ->get();
+    }
+
+    /**
+     * Satu-satunya jalur masuk ke halaman detail jadwal ujian guru (baik
+     * hasil CBT maupun absensi). Menjamin jadwal hanya dapat diakses bila
+     * guru benar-benar mengampu kombinasi (mapel, kelas) jadwal tersebut;
+     * selain itu aborsi 403. Dengan begini isolasi akses antar guru
+     * dipusatkan di satu helper, tidak diduplikasi per controller.
+     */
+    protected function resolveAmpuSchedule(GuruMapel $guru, int $scheduleId): ExamSchedule
+    {
+        $schedule = ExamSchedule::query()
+            ->with(['subject', 'examPeriod'])
+            ->findOrFail($scheduleId);
+
+        $classroomId = Classroom::query()->where('name', $schedule->class_name)->value('id');
+
+        abort_unless($classroomId !== null && $guru->isAmpu(subjectId: $schedule->subject_id, classroomId: $classroomId), 403);
+
+        return $schedule;
     }
 }

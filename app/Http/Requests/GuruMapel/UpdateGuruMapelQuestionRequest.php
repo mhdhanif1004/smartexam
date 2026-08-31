@@ -53,7 +53,7 @@ class UpdateGuruMapelQuestionRequest extends FormRequest
         $letters = Rule::in(Question::OPTION_LETTERS);
 
         return [
-            'subject_id' => ['required', 'integer'],
+            'subject_id' => ['required', 'integer', Rule::in([(int) ($this->route('question')?->subject_id)])],
             'type' => ['required', Rule::in(array_keys(Question::TYPES))],
             'question_text' => ['required', 'string'],
             'classroom_ids' => ['required', 'array', 'min:1'],
