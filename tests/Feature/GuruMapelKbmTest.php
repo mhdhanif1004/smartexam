@@ -13,7 +13,9 @@ use App\Models\Subject;
 use App\Models\TeacherSubjectClassAssignment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class GuruMapelKbmTest extends TestCase
@@ -101,6 +103,120 @@ class GuruMapelKbmTest extends TestCase
             ->assertSee('Tambah Soal')
             ->assertSee($subject->name)
             ->assertSee('Simpan Soal');
+    }
+
+    public function test_classroom_picker_on_create_only_shows_ampu_classrooms(): void
+    {
+        [$guru, $subject, $classroom] = $this->makeAmpuGuru();
+
+        // Kelas yang TIDAK diampu sama sekali sama sekali tidak boleh muncul.
+        $notAmpuClassroom = Classroom::factory()->create(['name' => 'XII IPA 1']);
+
+        // Mapel kedua yang juga diampu guru — kelasnya tetap tampil, dan
+        // membuktikan switch per-mapel tetap berfungsi.
+        $otherAmpuSubject = Subject::factory()->create();
+        $otherAmpuClassroom = Classroom::factory()->create();
+        TeacherSubjectClassAssignment::create([
+            'guru_mapel_id' => $guru->id,
+            'subject_id' => $otherAmpuSubject->id,
+            'classroom_id' => $otherAmpuClassroom->id,
+        ]);
+
+        $html = $this->actingAs($guru->user)
+            ->get(route('guru_mapel.questions.create'))
+            ->assertOk()
+            ->assertSee($classroom->name)
+            ->assertSee($otherAmpuClassroom->name)
+            ->assertDontSee($notAmpuClassroom->name)
+            ->getContent();
+
+        // Kelas yang tidak diampu tidak boleh bocor ke payload Alpine scoped.
+        $this->assertStringNotContainsString($notAmpuClassroom->name, $html);
+    }
+
+    public function test_guru_can_create_question_with_image(): void
+    {
+        Storage::fake('public');
+        [$guru, $subject, $classroom] = $this->makeAmpuGuru();
+
+        $this->actingAs($guru->user)
+            ->post(route('guru_mapel.questions.store'), $this->singleChoicePayload($subject->id, $classroom->id, [
+                'image' => UploadedFile::fake()->image('guru.png', 400, 300),
+            ]))
+            ->assertRedirect(route('guru_mapel.questions.index'))
+            ->assertSessionHas('success');
+
+        $question = Question::query()
+            ->where('created_by_user_id', $guru->user->id)
+            ->first();
+
+        $this->assertNotNull($question);
+        $this->assertNotNull($question->image_path);
+        Storage::disk('public')->assertExists($question->image_path);
+    }
+
+    public function test_guru_can_remove_question_image_on_update(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('question-images/guru-lama.png', 'dummy content');
+
+        [$guru, $subject, $classroom] = $this->makeAmpuGuru();
+
+        $question = Question::query()->create([
+            'subject_id' => $subject->id,
+            'type' => Question::TYPE_SINGLE_CHOICE,
+            'question_text' => 'Soal dengan gambar',
+            'options' => ['A' => 'Merah', 'B' => 'Biru'],
+            'answer_key' => 'A',
+            'score_weight' => 10,
+            'image_path' => 'question-images/guru-lama.png',
+            'created_by_user_id' => $guru->user->id,
+        ]);
+        $question->classrooms()->attach($classroom->id);
+
+        $this->actingAs($guru->user)
+            ->put(route('guru_mapel.questions.update', $question), $this->singleChoicePayload($subject->id, $classroom->id, [
+                'question_text' => 'Soal dengan gambar dihapus',
+                'remove_image' => '1',
+            ]))
+            ->assertRedirect(route('guru_mapel.questions.index'))
+            ->assertSessionHas('success');
+
+        $this->assertNull($question->fresh()->image_path);
+        Storage::disk('public')->assertMissing('question-images/guru-lama.png');
+    }
+
+    public function test_guru_can_replace_question_image_on_update(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('question-images/guru-lama.png', 'dummy content');
+
+        [$guru, $subject, $classroom] = $this->makeAmpuGuru();
+
+        $question = Question::query()->create([
+            'subject_id' => $subject->id,
+            'type' => Question::TYPE_SINGLE_CHOICE,
+            'question_text' => 'Soal dengan gambar lama',
+            'options' => ['A' => 'Merah', 'B' => 'Biru'],
+            'answer_key' => 'A',
+            'score_weight' => 10,
+            'image_path' => 'question-images/guru-lama.png',
+            'created_by_user_id' => $guru->user->id,
+        ]);
+        $question->classrooms()->attach($classroom->id);
+
+        $this->actingAs($guru->user)
+            ->put(route('guru_mapel.questions.update', $question), $this->singleChoicePayload($subject->id, $classroom->id, [
+                'question_text' => 'Soal dengan gambar baru',
+                'image' => UploadedFile::fake()->image('guru-baru.png', 400, 300),
+            ]))
+            ->assertRedirect(route('guru_mapel.questions.index'))
+            ->assertSessionHas('success');
+
+        $fresh = $question->fresh();
+        $this->assertNotSame('question-images/guru-lama.png', $fresh->image_path);
+        Storage::disk('public')->assertMissing('question-images/guru-lama.png');
+        Storage::disk('public')->assertExists($fresh->image_path);
     }
 
     public function test_guru_cannot_create_question_for_subject_or_classroom_outside_ampu(): void

@@ -55,10 +55,11 @@
             </div>
 
             {{-- Kelas Target --}}
-            @include('admin.questions.partials.classroom-picker', [
-                'classrooms' => $classrooms,
-                'selected' => old('classroom_ids', []),
-            ])
+            <x-questions.classroom-picker
+                mode="all"
+                :classrooms="$classrooms"
+                :selected="old('classroom_ids', [])"
+            />
 
             {{-- Gambar Soal --}}
             <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">

@@ -22,9 +22,13 @@
         type: @js(old('type', $question?->type ?? \App\Models\Question::TYPE_SINGLE_CHOICE)),
         subject: @js((string) $selectedSubjectId),
         selected: @js(array_map('intval', old('classroom_ids', $question?->classrooms?->pluck('id')->all() ?? []))),
-        groups: @js($classroomsBySubject),
         pairs: @js($matchingPairs),
-        img: { preview: '' },
+        img: {
+            preview: '',
+            hasExisting: @js((bool) ($question?->image_path ?? false)),
+            existingUrl: @js(isset($question) && $question->image_path ? asset('storage/'.$question->image_path) : ''),
+            remove() { this.hasExisting = false; this.preview = ''; },
+        },
     }"
 >
     @csrf
@@ -66,34 +70,17 @@
         </div>
     </div>
 
-    {{-- Kelas Target (hanya kelas yang diampu untuk mapel terpilih) --}}
-    <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-                <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Kelas Target</h3>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Pilih minimal satu kelas yang Anda ampu. Soal tanpa kelas target tidak akan muncul di ujian manapun.</p>
-            </div>
-            <button type="button" @click="selected = []" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">Bersihkan</button>
-        </div>
-        <div x-show="subject && groups[subject]" class="mt-5 grid gap-6">
-            <template x-for="classroom in groups[subject]" :key="classroom.id">
-                <label class="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" x-show="true" style="display: block">
-                    <input type="checkbox" name="classroom_ids[]" :value="classroom.id" x-model="selected" class="mr-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
-                    <span class="text-sm font-medium text-gray-800 dark:text-gray-200" x-text="classroom.name"></span>
-                </label>
-            </template>
-        </div>
-        <p x-show="!subject" class="mt-5 text-sm text-gray-400 dark:text-gray-500">Pilih mata pelajaran terlebih dahulu untuk melihat kelas target yang dapat dipilih.</p>
-        <template x-if="subject && groups[subject] && groups[subject].length === 0">
-            <p class="mt-5 text-sm text-amber-600 dark:text-amber-400">Tidak ada kelas yang diampu untuk mapel terpilih.</p>
-        </template>
-        <x-input-error :messages="$errors->get('classroom_ids')" class="mt-3" />
-    </div>
+    {{-- Kelas Target (mode scoped: hanya kelas yang diampu untuk mapel terpilih) --}}
+    <x-questions.classroom-picker
+        mode="scoped"
+        :classroomsBySubject="$classroomsBySubject"
+        :selected="old('classroom_ids', $question?->classrooms?->pluck('id')->all() ?? [])"
+    />
 
     {{-- Gambar Soal --}}
     <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
         <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Gambar Soal</h3>
-        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Opsional. Format jpg, jpeg, png, atau webp (maks 3 MB).</p>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Opsional. Gambar akan ditampilkan di bawah pertanyaan saat ujian berlangsung. Pilih file baru untuk mengganti, atau centang hapus untuk menghapusnya. Format jpg, jpeg, png, atau webp (maks 3 MB).</p>
         <div class="mt-5 flex flex-col gap-4 sm:flex-row sm:items-start">
             <div class="flex-1">
                 <input
@@ -103,19 +90,15 @@
                     @change="img.preview = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : ''"
                     class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20"
                 />
-                @if (isset($question) && $question->image_path)
-                    <label class="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                        <input type="checkbox" name="remove_image" value="1" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
-                        Hapus gambar yang sudah ada
-                    </label>
-                @endif
                 <x-input-error :messages="$errors->get('image')" class="mt-2" />
+                <label class="mt-3 flex w-fit items-center gap-2 text-sm font-medium text-rose-700 dark:text-rose-300" x-show="img.hasExisting">
+                    <input type="checkbox" name="remove_image" value="1" @change="img.remove()" class="h-4 w-4 rounded border-gray-300 text-rose-600 focus:ring-rose-500 dark:border-gray-600 dark:bg-gray-800" />
+                    Hapus gambar saat ini
+                </label>
             </div>
             <div class="flex-1">
-                @if (isset($question) && $question->imageUrl())
-                    <img src="{{ $question->imageUrl() }}" class="max-h-48 w-full rounded-lg border border-gray-200 object-contain dark:border-gray-700" alt="Gambar soal saat ini" />
-                @endif
-                <img x-show="img.preview" :src="img.preview" class="max-h-48 w-full rounded-lg border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau gambar" />
+                <img x-show="img.hasExisting && !img.preview" :src="img.existingUrl" class="max-h-48 w-full rounded-lg border border-gray-200 object-contain dark:border-gray-700" alt="Gambar saat ini" />
+                <img x-show="img.preview" :src="img.preview" class="max-h-48 w-full rounded-lg border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau gambar baru" />
             </div>
         </div>
     </div>
