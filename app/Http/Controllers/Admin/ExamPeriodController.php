@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreExamPeriodAutoGenerateRequest;
 use App\Http\Requests\Admin\StoreExamPeriodGroupsRequest;
 use App\Http\Requests\Admin\StoreExamPeriodRequest;
+use App\Http\Requests\Admin\UpdateSupervisorRoomAssignmentRequest;
 use App\Models\Classroom;
 use App\Models\ExamPeriod;
 use App\Models\ExamRoomAssignment;
@@ -314,9 +315,8 @@ class ExamPeriodController extends Controller
                 return [
                     'room' => $schedules->first()?->room,
                     'schedules' => $schedules,
-                    'supervisors' => $examPeriod->supervisorRoomAssignments
+                    'supervisorRoomAssignments' => $examPeriod->supervisorRoomAssignments
                         ->where('room_id', $roomId)
-                        ->map->supervisor
                         ->values(),
                     'assignments' => $examPeriod->roomAssignments
                         ->where('room_id', $roomId)
@@ -331,6 +331,12 @@ class ExamPeriodController extends Controller
             'examPeriod' => $examPeriod,
             'roomGroups' => $roomGroups,
             'statuses' => ExamSchedule::STATUSES,
+            'activeSupervisors' => Supervisor::query()
+                ->whereHas('user', fn ($q) => $q->where('is_active', true))
+                ->with('user')
+                ->orderBy('user_id')
+                ->get(),
+            'assignedSupervisorIds' => $examPeriod->supervisorRoomAssignments->pluck('supervisor_id')->all(),
         ]);
     }
 
@@ -509,6 +515,53 @@ class ExamPeriodController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    public function updateSupervisorAssignment(
+        UpdateSupervisorRoomAssignmentRequest $request,
+        ExamPeriod $examPeriod,
+        SupervisorRoomAssignment $supervisorRoomAssignment,
+    ): JsonResponse|RedirectResponse {
+        $supervisorRoomAssignment->update([
+            'supervisor_id' => $request->supervisor_id,
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Pengawas berhasil diperbarui.',
+                'supervisor_room_assignment' => [
+                    'id' => $supervisorRoomAssignment->id,
+                    'supervisor_id' => $supervisorRoomAssignment->supervisor_id,
+                    'supervisor_name' => $supervisorRoomAssignment->supervisor?->user?->name ?? '',
+                ],
+            ]);
+        }
+
+        return back()->with('success', 'Pengawas berhasil diperbarui.');
+    }
+
+    public function resetSupervisorAssignments(ExamPeriod $examPeriod, Request $request): JsonResponse|RedirectResponse
+    {
+        $deleted = SupervisorRoomAssignment::query()
+            ->where('exam_period_id', $examPeriod->id)
+            ->delete();
+
+        if ($deleted === 0) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Tidak ada penugasan pengawas yang perlu dihapus.']);
+            }
+
+            return back()->with('info', 'Tidak ada penugasan pengawas yang perlu dihapus.');
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => "{$deleted} penugasan pengawas berhasil dihapus. Anda dapat men generate ulang rotasi pengawas.",
+                'deleted' => $deleted,
+            ]);
+        }
+
+        return back()->with('success', "{$deleted} penugasan pengawas berhasil dihapus. Anda dapat men generate ulang rotasi pengawas.");
     }
 
     /**
@@ -868,16 +921,11 @@ class ExamPeriodController extends Controller
         $burden = $existing->groupBy('supervisor_id')->map->count();
         $assignedSupervisorIds = $existing->pluck('supervisor_id')->all();
 
-        $activeIds = $active->pluck('id');
+        $activeIds = $active->pluck('id')->all();
 
         // Supervisor pernah bertugas di ruangan apa saja pada TANGGAL ini
         // (lintas periode/gelombang), untuk mencegah ruangan sama di hari sama.
-        $roomHistoryOnDate = SupervisorRoomAssignment::query()
-            ->where('exam_date', $date)
-            ->whereIn('supervisor_id', $activeIds)
-            ->get()
-            ->groupBy('supervisor_id')
-            ->map(fn ($group) => $group->pluck('room_id')->all());
+        $roomHistoryOnDate = $this->roomHistoryOnDate($date, $activeIds);
 
         // Tanggal terakhir tiap pasangan (pengawas, ruangan) pernah bertugas,
         // untuk memprioritaskan pengawas yang paling lama tidak dapat ruangan itu.
@@ -949,5 +997,27 @@ class ExamPeriodController extends Controller
             'total_slots' => $totalSlots,
             'filled_slots' => $filledSlots,
         ];
+    }
+
+    /**
+     * Ambil riwayat ruangan per pengawas pada tanggal tertentu (lintas periode).
+     *
+     * @param  string  $date  Tanggal dalam format Y-m-d
+     * @param  array<int, int>  $supervisorIds  ID pengawas aktif
+     * @return array<int, array<int, int>> Key: supervisor_id, Value: array room_id
+     */
+    private function roomHistoryOnDate(string $date, array $supervisorIds): array
+    {
+        if ($supervisorIds === []) {
+            return [];
+        }
+
+        return SupervisorRoomAssignment::query()
+            ->where('exam_date', $date)
+            ->whereIn('supervisor_id', $supervisorIds)
+            ->get()
+            ->groupBy('supervisor_id')
+            ->map(fn ($group) => $group->pluck('room_id')->all())
+            ->all();
     }
 }

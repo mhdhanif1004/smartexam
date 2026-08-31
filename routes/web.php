@@ -106,6 +106,8 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::get('exam-periods/{examPeriod}/groups/create', [ExamPeriodController::class, 'groupsCreate'])->name('exam-periods.groups.create');
         Route::post('exam-periods/{examPeriod}/groups', [ExamPeriodController::class, 'groupsStore'])->name('exam-periods.groups.store');
         Route::post('exam-periods/{examPeriod}/supervisor-rotation', [ExamPeriodController::class, 'supervisorRotation'])->name('exam-periods.supervisor-rotation');
+        Route::delete('exam-periods/{examPeriod}/supervisor-assignments', [ExamPeriodController::class, 'resetSupervisorAssignments'])->name('exam-periods.supervisor-assignments.reset-all');
+        Route::patch('exam-periods/{examPeriod}/supervisor-assignments/{supervisorRoomAssignment}', [ExamPeriodController::class, 'updateSupervisorAssignment'])->name('exam-periods.supervisor-assignments.update');
         Route::get('exam-periods/{examPeriod}/rooms/{room}/roster', [ExamPeriodController::class, 'roomRoster'])->name('exam-periods.room-roster');
 
         Route::get('questions/by-subject/{subject}', [QuestionController::class, 'bySubject'])->name('questions.by-subject');
