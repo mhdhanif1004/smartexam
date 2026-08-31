@@ -23,6 +23,7 @@ use App\Http\Controllers\GuruMapel\AttendanceController;
 use App\Http\Controllers\GuruMapel\DashboardController as GuruMapelDashboardController;
 use App\Http\Controllers\GuruMapel\GradeController;
 use App\Http\Controllers\GuruMapel\QuestionController as GuruMapelQuestionController;
+use App\Http\Controllers\GuruMapel\QuestionImportExportController as GuruMapelQuestionImportExportController;
 use App\Http\Controllers\Pengawas\AttendanceController as PengawasAttendanceController;
 use App\Http\Controllers\Pengawas\DashboardController as PengawasDashboardController;
 use App\Http\Controllers\Pengawas\TokenController as PengawasTokenController;
@@ -169,6 +170,14 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::get('/dashboard', GuruMapelDashboardController::class)->name('dashboard');
 
         Route::resource('questions', GuruMapelQuestionController::class)->except(['show']);
+
+        Route::controller(GuruMapelQuestionImportExportController::class)->prefix('questions')->name('questions.')->group(function () {
+            Route::get('/export', 'export')->name('export');
+            Route::get('/import-template/{type}', 'importTemplate')->name('import-template');
+            Route::post('/import-validate', 'importValidate')->name('import-validate');
+            Route::post('/import-confirm', 'importConfirm')->name('import-confirm');
+            Route::get('/import-failed/{file}', 'importFailed')->name('import-failed');
+        });
 
         Route::controller(GradeController::class)->prefix('grades')->name('grades.')->group(function () {
             Route::get('/', 'index')->name('index');

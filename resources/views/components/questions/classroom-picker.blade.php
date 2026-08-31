@@ -4,6 +4,7 @@
     'classroomsBySubject' => [],
     'selected' => [],
     'description' => null,
+    'bind' => null,
 ])
 
 @php
@@ -106,20 +107,31 @@
         <x-input-error :messages="$errors->get('classroom_ids')" class="mt-3" />
     </div>
 @else
+    @php
+        // Bila $bind diisi (masuk ke mode 'all'), toggling & kliring dilakarkan
+        // pada array Alpine eksternal (mis. importState.classroomIds untuk
+        // modal import AJAX) alih-alih 'selected' internal. Tanpa $bind,
+        // perilaku tetap memakai state 'selected' milik komponen sendiri.
+        $bound = $bind !== null && $bind !== '';
+    @endphp
     <div
         class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900"
         x-data="{
-            selected: @js($selectedIds),
+            @if ($bound)
+                target: {{ $bind }},
+            @else
+                target: @js($selectedIds),
+            @endif
             groups: @js($levelGroups),
             toggleLevel(ids) {
                 ids.forEach(id => {
-                    if (! this.selected.includes(id)) {
-                        this.selected.push(id);
+                    if (! this.target.includes(id)) {
+                        this.target.push(id);
                     }
                 });
             },
             clear() {
-                this.selected.splice(0);
+                this.target.splice(0);
             },
         }"
     >
@@ -145,7 +157,7 @@
                     <div class="mt-2 space-y-2">
                         <template x-for="classroom in items" :key="classroom.id">
                             <label class="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
-                                <input type="checkbox" name="classroom_ids[]" :value="classroom.id" x-model="selected" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800" />
+                                <input type="checkbox" name="classroom_ids[]" :value="classroom.id" x-model="target" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800" />
                                 <span class="text-sm font-medium text-gray-800 dark:text-gray-200" x-text="classroom.name"></span>
                             </label>
                         </template>

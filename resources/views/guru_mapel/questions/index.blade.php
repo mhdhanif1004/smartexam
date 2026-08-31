@@ -1,22 +1,117 @@
 <x-layouts.guru_mapel title="Soal Saya">
-    <div class="space-y-6">
+    <div class="space-y-6" x-data="importState">
+        @php($importRouteTemplate = route('guru_mapel.questions.import-template', '__TYPE__'))
+        @php($importFailedTemplate = route('guru_mapel.questions.import-failed', '__FILE__'))
+        <script>
+            function importState() {
+                return {
+                    step: 1,
+                    type: '',
+                    file: null,
+                    classroomIds: [],
+                    busy: false,
+                    message: '',
+                    result: null,
+                    finished: null,
+                    onFileChange(e) {
+                        this.file = e.target.files[0];
+                        this.message = '';
+                        this.result = null;
+                        this.finished = null;
+                    },
+                    templateUrl() {
+                        if (!this.type) return '#';
+                        return @json($importRouteTemplate).replace('__TYPE__', this.type);
+                    },
+                    failedUrl() {
+                        return @json($importFailedTemplate).replace('__FILE__', encodeURIComponent(this.finished?.failed_file ?? ''));
+                    },
+                    validate() {
+                        if (!this.type) { this.message = 'Pilih jenis soal terlebih dahulu.'; return; }
+                        if (!this.file) { this.message = 'Pilih file Excel/CSV terlebih dahulu.'; return; }
+                        if (this.classroomIds.length === 0) { this.message = 'Pilih minimal satu kelas target untuk soal yang diimpor.'; return; }
+                        this.busy = true;
+                        this.message = '';
+                        const formData = new FormData();
+                        formData.append('type', this.type);
+                        formData.append('file', this.file);
+                        this.classroomIds.forEach((id) => formData.append('classroom_ids[]', id));
+                        fetch(@json(route('guru_mapel.questions.import-validate')), {
+                            method: 'POST',
+                            body: formData,
+                            headers: { 'X-CSRF-TOKEN': @json(csrf_token()), 'Accept': 'application/json' },
+                        })
+                            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+                            .then(({ ok, data }) => {
+                                if (!ok) {
+                                    const errors = Object.values(data.errors || {}).flat();
+                                    this.message = data.message || (errors.length ? errors.join(' ') : 'Terjadi kesalahan saat memvalidasi file.');
+                                    return;
+                                }
+                                this.result = data;
+                                this.step = 2;
+                            })
+                            .catch(() => { this.message = 'Terjadi kesalahan saat memvalidasi file.'; })
+                            .finally(() => { this.busy = false; });
+                    },
+                    confirm() {
+                        this.busy = true;
+                        this.message = '';
+                        fetch(@json(route('guru_mapel.questions.import-confirm')), {
+                            method: 'POST',
+                            headers: { 'X-CSRF-TOKEN': @json(csrf_token()), 'Accept': 'application/json' },
+                        })
+                            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+                            .then(({ ok, data }) => {
+                                if (!ok) { this.message = data.message || 'Terjadi kesalahan saat mengimpor.'; return; }
+                                this.finished = data;
+                                this.step = 3;
+                            })
+                            .catch(() => { this.message = 'Terjadi kesalahan saat mengimpor.'; })
+                            .finally(() => { this.busy = false; });
+                    },
+                    reset() {
+                        this.step = 1;
+                        this.type = '';
+                        this.file = null;
+                        this.classroomIds = [];
+                        this.busy = false;
+                        this.message = '';
+                        this.result = null;
+                        this.finished = null;
+                    },
+                };
+            }
+        </script>
+
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Soal</h2>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Kelola soal yang Anda buat. Soal hanya dapat diakses dan diedit oleh Anda, dan hanya untuk mapel yang Anda ampu.</p>
             </div>
-            <a href="{{ route('guru_mapel.questions.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-                Tambah Soal
-            </a>
+            <div class="flex flex-wrap items-center gap-2">
+                <button
+                    type="button"
+                    x-data="{}"
+                    @click="$dispatch('open-modal', 'import-questions')"
+                    class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+                    Import
+                </button>
+                <a href="{{ route('guru_mapel.questions.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    Tambah Soal
+                </a>
+            </div>
         </div>
 
         @include('admin.partials.flash')
 
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <form method="GET" action="{{ route('guru_mapel.questions.index') }}" class="flex flex-col gap-3 sm:flex-row">
+            <form method="GET" action="{{ route('guru_mapel.questions.index') }}" class="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div class="flex-1">
                     <input type="text" name="search" value="{{ request('search') }}" placeholder="Cari pertanyaan..." class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" />
                 </div>
@@ -29,6 +124,14 @@
                     </select>
                 </div>
                 <button type="submit" class="inline-flex items-center rounded-lg bg-gray-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-700 dark:bg-gray-200 dark:text-gray-900 dark:hover:bg-white">Filter</button>
+                <button type="submit" name="format" value="xlsx" formaction="{{ route('guru_mapel.questions.export') }}" class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+                    Export
+                </button>
+                <button type="submit" name="format" value="csv" formaction="{{ route('guru_mapel.questions.export') }}" class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+                    CSV
+                </button>
             </form>
         </div>
 
@@ -110,5 +213,7 @@
                 </div>
             @endif
         </div>
+
+        @include('guru_mapel.questions.partials.import-modal', ['classrooms' => $classrooms])
     </div>
 </x-layouts.guru_mapel>

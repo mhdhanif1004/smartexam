@@ -9,7 +9,6 @@ use App\Models\Question;
 use App\Models\Subject;
 use App\Traits\ScopesGuruMapel;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class DashboardController extends Controller

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\GuruMapel;
 
 use App\Exports\QuestionsExport;
 use App\Exports\QuestionsFailedImportExport;
@@ -10,6 +10,7 @@ use App\Imports\Questions\BaseTypeImport;
 use App\Models\Question;
 use App\Models\Subject;
 use App\Support\QuestionImportMap;
+use App\Traits\ScopesGuruMapel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,28 +21,31 @@ use Throwable;
 
 class QuestionImportExportController extends Controller
 {
+    use ScopesGuruMapel;
+
     public function export(Request $request): BinaryFileResponse
     {
+        $guru = $this->currentGuru();
+        $ampuSubjectIds = $guru->ampuSubjectIds();
         $extension = $request->string('format')->toString() === 'csv' ? 'csv' : 'xlsx';
 
-        $query = Question::query()->with(['subject', 'classrooms']);
+        $query = Question::query()
+            ->with(['subject', 'classrooms'])
+            ->ownedBy($request->user())
+            ->whereIn('subject_id', $ampuSubjectIds);
 
-        if ($request->string('scope')->toString() === 'selected') {
-            $ids = collect($request->input('ids', []))
-                ->map(fn ($id) => (int) $id)
-                ->filter(fn ($id) => $id > 0)
-                ->values();
-
-            $query->whereIn('id', $ids);
-        } else {
-            $query
-                ->when($request->filled('search'), fn ($query) => $query->where('question_text', 'like', '%'.$request->string('search')->trim().'%'))
-                ->when($request->filled('subject_id'), fn ($query) => $query->where('subject_id', $request->integer('subject_id')))
-                ->when($request->filled('type'), fn ($query) => $query->where('type', $request->string('type')))
-                ->when($request->filled('status'), function ($query) use ($request) {
-                    $request->string('status') === 'aktif' ? $query->where('is_active', true) : $query->where('is_active', false);
-                });
-        }
+        $query
+            ->when($request->filled('search'), fn ($query) => $query->where('question_text', 'like', '%'.$request->string('search')->trim().'%'))
+            ->when($request->filled('subject_id'), function ($query) use ($request, $ampuSubjectIds) {
+                $subjectId = (int) $request->integer('subject_id');
+                if ($ampuSubjectIds->contains($subjectId)) {
+                    $query->where('subject_id', $subjectId);
+                }
+            })
+            ->when($request->filled('type'), fn ($query) => $query->where('type', $request->string('type')))
+            ->when($request->filled('status'), function ($query) use ($request) {
+                $request->string('status') === 'aktif' ? $query->where('is_active', true) : $query->where('is_active', false);
+            });
 
         $rows = $query->orderByDesc('id')->get();
 
@@ -50,19 +54,24 @@ class QuestionImportExportController extends Controller
 
     public function importTemplate(string $type): BinaryFileResponse
     {
+        $guru = $this->currentGuru();
         $template = QuestionImportMap::templates()[$type] ?? null;
 
         if ($template === null) {
             abort(404);
         }
 
-        $subjects = Subject::query()->orderBy('name')->get();
+        $subjects = Subject::query()
+            ->whereIn('id', $guru->ampuSubjectIds())
+            ->orderBy('name')
+            ->get();
 
         return Excel::download(new $template['export']($subjects), $template['file']);
     }
 
     public function importValidate(ImportQuestionsRequest $request): JsonResponse
     {
+        $guru = $this->currentGuru();
         $template = QuestionImportMap::templates()[$request->string('type')->toString()] ?? null;
 
         if ($template === null) {
@@ -74,6 +83,8 @@ class QuestionImportExportController extends Controller
         /** @var BaseTypeImport $import */
         $import = new $template['import'];
         $import->applyClassroomIds = $request->validated()['classroom_ids'];
+        $import->createdByUserId = $request->user()->id;
+        $import->ampuSubjectIds = $guru->ampuSubjectIds()->all();
 
         try {
             Excel::import($import, $request->file('file'));

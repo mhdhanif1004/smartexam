@@ -43,8 +43,9 @@ class QuestionController extends Controller
             ->withQueryString();
 
         $subjects = $this->ampuSubjects($guru);
+        $classrooms = Classroom::query()->orderBy('name')->get(['id', 'name']);
 
-        return view('guru_mapel.questions.index', compact('guru', 'questions', 'subjects'));
+        return view('guru_mapel.questions.index', compact('guru', 'questions', 'subjects', 'classrooms'));
     }
 
     public function create(): View

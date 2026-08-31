@@ -66,6 +66,24 @@ abstract class BaseTypeImport implements ToCollection, WithEvents, WithHeadingRo
      */
     public array $applyClassroomIds = [];
 
+    /**
+     * ID pengguna yang tercatat sebagai pembuat seluruh soal hasil impor.
+     * Bila null (alur Admin), kolom created_by_user_id tidak diisi. Untuk
+     * Guru Mapel selalu diisi dari pengguna yang sedang login (auth), bukan
+     * dari data file — mencegah spoofing kepemilikan.
+     */
+    public ?int $createdByUserId = null;
+
+    /**
+     * ID mapel yang boleh diimpor. Bila null (alur Admin), tanpa batasan.
+     * Untuk Guru Mapel berisi mapel yang diampu; baris dengan "Mata
+     * Pelajaran" di luar daftar ini dialihkan ke baris gagal (invalid),
+     * bukan dibatalkan semua.
+     *
+     * @var list<int>|null
+     */
+    public ?array $ampuSubjectIds = null;
+
     abstract public function type(): string;
 
     /**
@@ -197,6 +215,23 @@ abstract class BaseTypeImport implements ToCollection, WithEvents, WithHeadingRo
                 continue;
             }
 
+            // Batasan ampuan mapel untuk Guru Mapel: baris valid secara sintaks
+            // tetapi mapelnya di luar daftar ampu dialihkan ke baris gagal,
+            // bukan membatalkan seluruh file.
+            if (! $this->isSubjectAmpu((int) $result['payload']['subject_id'])) {
+                $this->invalidRows[] = [
+                    'row' => $rowNumber,
+                    'data' => [
+                        'subject' => $result['subject'] ?? '-',
+                        'type' => $this->typeLabel(),
+                        'question_text' => ($result['question_text'] ?? '') !== '' ? $result['question_text'] : '-',
+                    ],
+                    'errors' => ["Mata pelajaran '{$result['subject']}' di luar mapel yang Anda ampu."],
+                ];
+
+                continue;
+            }
+
             $this->toCreate++;
             $this->validRows[] = [
                 'row' => $rowNumber,
@@ -224,6 +259,7 @@ abstract class BaseTypeImport implements ToCollection, WithEvents, WithHeadingRo
                     'answer_key' => $validRow['answer_key'],
                     'score_weight' => $validRow['score_weight'],
                     'is_active' => true,
+                    'created_by_user_id' => $this->createdByUserId,
                 ]);
 
                 $targetIds = array_values(array_unique($this->applyClassroomIds));
@@ -248,6 +284,19 @@ abstract class BaseTypeImport implements ToCollection, WithEvents, WithHeadingRo
         }
 
         return Subject::query()->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->first();
+    }
+
+    /**
+     * Cek apakah mapel valid (ada di master data) termasuk diampu guru.
+     * Selalu true bila daftar ampu null (alur Admin).
+     */
+    protected function isSubjectAmpu(int $subjectId): bool
+    {
+        if ($this->ampuSubjectIds === null) {
+            return true;
+        }
+
+        return in_array($subjectId, $this->ampuSubjectIds, true);
     }
 
     /**
