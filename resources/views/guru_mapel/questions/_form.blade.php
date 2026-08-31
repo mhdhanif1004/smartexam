@@ -1,4 +1,5 @@
 @php
+    $question ??= null;
     $selectedSubjectId = old('subject_id', $question?->subject_id);
     $matchingPairs = old('matching_left')
         ? collect(old('matching_left'))

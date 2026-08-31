@@ -91,6 +91,18 @@ class GuruMapelKbmTest extends TestCase
         ]);
     }
 
+    public function test_guru_can_access_question_create_page(): void
+    {
+        [$guru, $subject] = $this->makeAmpuGuru();
+
+        $this->actingAs($guru->user)
+            ->get(route('guru_mapel.questions.create'))
+            ->assertOk()
+            ->assertSee('Tambah Soal')
+            ->assertSee($subject->name)
+            ->assertSee('Simpan Soal');
+    }
+
     public function test_guru_cannot_create_question_for_subject_or_classroom_outside_ampu(): void
     {
         [$guru] = $this->makeAmpuGuru();

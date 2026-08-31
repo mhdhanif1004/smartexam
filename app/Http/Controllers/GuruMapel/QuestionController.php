@@ -52,8 +52,9 @@ class QuestionController extends Controller
         $types = Question::TYPES;
         $letters = Question::OPTION_LETTERS;
         $classroomsBySubject = $this->classroomsBySubject($guru);
+        $question = null;
 
-        return view('guru_mapel.questions.create', compact('subjects', 'types', 'letters', 'classroomsBySubject'));
+        return view('guru_mapel.questions.create', compact('subjects', 'types', 'letters', 'classroomsBySubject', 'question'));
     }
 
     public function store(StoreGuruMapelQuestionRequest $request): RedirectResponse
