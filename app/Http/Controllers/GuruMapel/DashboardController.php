@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\GuruMapel;
 
 use App\Http\Controllers\Controller;
+use App\Models\Classroom;
 use App\Models\Grade;
 use App\Models\Question;
+use App\Models\Subject;
 use App\Traits\ScopesGuruMapel;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -17,18 +20,39 @@ class DashboardController extends Controller
     {
         $guru = $this->currentGuru();
 
-        $guru->load(['assignments.subject', 'assignments.classroom.students']);
+        $subjectModels = Subject::query()
+            ->whereIn('id', $guru->ampuSubjectIds())
+            ->orderBy('name')
+            ->get()
+            ->keyBy('id');
 
-        $assignmentCount = $guru->assignments->count();
-        $subjectCount = $guru->assignments->pluck('subject_id')->unique()->count();
-        $classCount = $guru->assignments->pluck('classroom_id')->unique()->count();
+        // Cakupan kelas per mapel diturunkan live dari soal yang dibuat guru
+        // (kelas target pada pivot question_classroom). Baris penugasan =
+        // (mapel, kelas) beserta jumlah siswa; mapel tanpa soal tidak punya
+        // kelas sehingga tidak muncul.
+        $assignments = collect();
+        foreach ($guru->classScopeBySubject() as $subjectId => $rooms) {
+            $subject = $subjectModels->get($subjectId);
 
-        $assignments = $guru->assignments
-            ->map(fn ($assignment) => [
-                'subject' => $assignment->subject,
-                'classroom' => $assignment->classroom,
-                'student_count' => $assignment->classroom?->students?->count() ?? 0,
-            ]);
+            $classroomModels = Classroom::query()
+                ->whereIn('id', array_column($rooms, 'id'))
+                ->withCount('students')
+                ->get()
+                ->keyBy('id');
+
+            foreach ($rooms as $room) {
+                $classroom = $classroomModels->get($room['id']);
+                $assignments->push([
+                    'subject' => $subject,
+                    'classroom' => $classroom,
+                    'student_count' => $classroom?->students_count ?? 0,
+                ]);
+            }
+        }
+
+        $assignmentCount = $assignments->count();
+        $subjectCount = $assignments->pluck('subject.id')->filter()->unique()->count();
+        $classCount = $assignments->pluck('classroom.id')->filter()->unique()->count();
 
         $recentGrades = Grade::query()
             ->with(['classroom', 'subject', 'student.user'])

@@ -122,13 +122,12 @@ class DatabaseSeeder extends Seeder
 
         $guruUsers = User::factory()->guruMapel()->count(2)->create();
 
-        $guruUsers->each(function (User $user, int $index) use ($subjects, $demoClassroom) {
+        $guruUsers->each(function (User $user, int $index) use ($subjects) {
             $guru = $user->guruMapel()->create(['nip' => fake()->optional()->numerify('################')]);
 
             TeacherSubjectClassAssignment::create([
                 'guru_mapel_id' => $guru->id,
                 'subject_id' => $subjects->get($index === 0 ? 0 : 1)->id,
-                'classroom_id' => $demoClassroom,
             ]);
 
             $password = app(CredentialGenerator::class)->password();

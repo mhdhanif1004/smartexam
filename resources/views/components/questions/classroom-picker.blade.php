@@ -9,7 +9,7 @@
 @php
     $selectedIds = collect($selected)->map(fn ($id) => (int) $id)->values()->all();
     $defaultDescription = $mode === 'scoped'
-        ? 'Pilih minimal satu kelas yang Anda ampu untuk mapel terpilih. Soal tanpa kelas target tidak akan muncul di ujian manapun.'
+        ? 'Pilih minimal satu kelas target untuk mapel terpilih. Kelas yang Anda pilih di sini menentukan cakupan kelas untuk Nilai & Absensi Ujian. Soal tanpa kelas target tidak akan muncul di ujian manapun.'
         : 'Pilih kelas yang berhak menerima soal ini. Wajib minimal satu kelas — soal tanpa kelas target tidak akan pernah muncul di ujian manapun.';
     $description = $description ?? $defaultDescription;
 

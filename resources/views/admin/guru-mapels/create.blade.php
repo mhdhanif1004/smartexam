@@ -2,7 +2,7 @@
     <div class="space-y-6">
         <div>
             <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Tambah Guru Mapel</h2>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Akun pengguna ber-role guru mapel akan dibuat otomatis. Penugasan mapel-kelas dikelola setelah guru dibuat, lewat halaman Detail/Penugasan.</p>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Akun pengguna ber-role guru mapel akan dibuat otomatis. Penugasan mapel dikelola setelah guru dibuat, lewat halaman Detail/Penugasan.</p>
         </div>
 
         <form
@@ -11,7 +11,6 @@
             class="max-w-2xl space-y-6"
             x-data="{
                 subject: '',
-                classroomIds: [],
                 fillEmail() {
                     var name = document.getElementById('name');
                     var email = document.getElementById('email');
@@ -67,11 +66,11 @@
 
             <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Penugasan Awal (Opsional)</h3>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Langsung tentukan mapel dan kelas yang diampu saat guru dibuat. Lewati jika ingin di-assign belakangan lewat halaman Kelola Penugasan.</p>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Langsung tentukan mata pelajaran yang diampu guru saat dibuat. Kelas yang menjadi cakupan akses ditentukan secara otomatis dari soal yang nanti dibuat guru. Lewati jika ingin di-assign belakangan lewat halaman Kelola Penugasan.</p>
 
                 <div class="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-800/40">
                     <x-input-label for="subject_id" :value="__('Mata Pelajaran')" />
-                    <select id="subject_id" name="subject_id" x-model="subject" @change="classroomIds = []" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                    <select id="subject_id" name="subject_id" x-model="subject" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                         <option value="">-- Pilih Mapel (opsional) --</option>
                         @foreach ($subjects as $subject)
                             <option value="{{ $subject->id }}" @selected(old('subject_id') == $subject->id)>{{ $subject->name }}</option>
@@ -79,12 +78,6 @@
                     </select>
                     <x-input-error :messages="$errors->get('subject_id')" class="mt-2" />
                 </div>
-
-                @include('admin.questions.partials.classroom-picker', [
-                    'classrooms' => $classrooms,
-                    'bindTarget' => 'classroomIds',
-                    'description' => 'Pilih mapel di atas, lalu centang kelas yang langsung diampu guru ini. Wajib pilih mapel agar kelas bisa disimpan.',
-                ])
             </div>
 
             <div class="flex justify-end gap-3">

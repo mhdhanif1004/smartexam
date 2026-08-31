@@ -22,7 +22,7 @@
                 </div>
                 <div>
                     <dt class="text-sm text-gray-500 dark:text-gray-400">Mapel Pengampu</dt>
-                    <dd class="mt-1 text-lg font-bold text-gray-900 dark:text-gray-100">{{ $assignments->count() }} mapel</dd>
+                    <dd class="mt-1 text-lg font-bold text-gray-900 dark:text-gray-100">{{ $assignments->pluck('subject.id')->filter()->unique()->count() }} mapel</dd>
                 </div>
             </dl>
         </div>
@@ -30,7 +30,7 @@
         <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <div class="border-b border-gray-200 px-6 py-4 dark:border-gray-700">
                 <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Mata Pelajaran &amp; Guru Pengampu</h3>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Penugasan guru mapel pada kelas ini.</p>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Guru yang membuat soal untuk kelas ini (kelas target soal). Bersifat read-only.</p>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -46,13 +46,13 @@
                         @forelse ($assignments as $index => $assignment)
                             <tr class="transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
                                 <td class="px-6 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $index + 1 }}</td>
-                                <td class="px-6 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{{ $assignment->subject?->name ?? '-' }}</td>
-                                <td class="px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $assignment->guruMapel?->user?->name ?? '-' }}</td>
-                                <td class="px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $assignment->guruMapel?->nip ?? '-' }}</td>
+                                <td class="px-6 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{{ $assignment['subject']?->name ?? '-' }}</td>
+                                <td class="px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $assignment['guru']?->user?->name ?? '-' }}</td>
+                                <td class="px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $assignment['guru']?->nip ?? '-' }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada penugasan guru mapel pada kelas ini.</td>
+                                <td colspan="4" class="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada guru yang membuat soal untuk kelas ini.</td>
                             </tr>
                         @endforelse
                     </tbody>

@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreClassroomRequest;
 use App\Http\Requests\Admin\UpdateClassroomRequest;
 use App\Models\Classroom;
+use App\Models\Question;
 use App\Models\Student;
-use App\Models\TeacherSubjectClassAssignment;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -43,11 +43,19 @@ class ClassroomController extends Controller
             ->orderBy('nisn')
             ->get();
 
-        $assignments = TeacherSubjectClassAssignment::query()
-            ->with(['subject', 'guruMapel.user'])
-            ->where('classroom_id', $classroom->id)
+        // Guru pengampu kelas ini diturunkan dari soal yang menargetkan kelas
+        // tersebut (question_classroom), bukan lagi disimpan di pivot
+        // penugasan. Bersifat read-only dan mengikuti soal terkini.
+        $assignments = Question::query()
+            ->with(['subject', 'creator.guruMapel'])
+            ->whereHas('classrooms', fn ($query) => $query->whereKey($classroom->id))
+            ->whereNotNull('created_by_user_id')
             ->get()
-            ->sortBy(fn ($assignment) => $assignment->subject?->name)
+            ->map(fn (Question $question) => [
+                'subject' => $question->subject,
+                'guru' => $question->creator?->guruMapel,
+            ])
+            ->unique(fn ($row) => ($row['subject']?->id ?? 'null').'-'.($row['guru']?->id ?? 'null'))
             ->values();
 
         return view('admin.classrooms.show', compact('classroom', 'students', 'assignments'));

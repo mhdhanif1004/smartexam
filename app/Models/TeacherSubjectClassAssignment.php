@@ -10,7 +10,6 @@ class TeacherSubjectClassAssignment extends Model
     protected $fillable = [
         'guru_mapel_id',
         'subject_id',
-        'classroom_id',
     ];
 
     public function guruMapel(): BelongsTo
@@ -21,10 +20,5 @@ class TeacherSubjectClassAssignment extends Model
     public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class);
-    }
-
-    public function classroom(): BelongsTo
-    {
-        return $this->belongsTo(Classroom::class);
     }
 }

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Classroom;
 use App\Models\GuruMapel;
+use App\Models\Question;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\TeacherSubjectClassAssignment;
@@ -15,7 +16,7 @@ class AdminClassroomShowTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_can_view_classroom_detail_with_assignments_and_students(): void
+    public function test_admin_can_view_classroom_detail_with_guru_and_students(): void
     {
         $admin = User::factory()->admin()->create();
         $guru = GuruMapel::factory()->create();
@@ -25,8 +26,18 @@ class AdminClassroomShowTest extends TestCase
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
-            'classroom_id' => $classroom->id,
         ]);
+
+        // Guru "mengampu" kelas ini lewat soal yang dibuatnya dan menargetkan
+        // kelas tersebut — itulah sumber cakupan guru-per-kelas yang baru.
+        $question = Question::query()->create([
+            'subject_id' => $subject->id,
+            'type' => Question::TYPE_ESSAY,
+            'question_text' => 'Soal untuk kelas ini',
+            'score_weight' => 10,
+            'created_by_user_id' => $guru->user_id,
+        ]);
+        $question->classrooms()->attach($classroom->id);
 
         $student = Student::factory()->create([
             'classroom_id' => $classroom->id,

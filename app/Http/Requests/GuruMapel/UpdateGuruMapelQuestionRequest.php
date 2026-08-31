@@ -40,9 +40,10 @@ class UpdateGuruMapelQuestionRequest extends FormRequest
             return false;
         }
 
-        $ampuClassroomIds = $guru->ampuClassroomIds($subjectId);
-
-        return $classroomIds->every(fn (int $id) => $ampuClassroomIds->contains($id));
+        // Guru boleh mempertahankan/menetapkan kelas target manapun untuk
+        // mapel yang diampunya. Cakupan kelas untuk Nilai/Absensi diturunkan
+        // dari soal yang dibuatnya.
+        return true;
     }
 
     /**

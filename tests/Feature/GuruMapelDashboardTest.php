@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Classroom;
 use App\Models\Grade;
 use App\Models\GuruMapel;
+use App\Models\Question;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\TeacherSubjectClassAssignment;
@@ -18,12 +19,14 @@ class GuruMapelDashboardTest extends TestCase
     use RefreshDatabase;
 
     /**
-     * Guru mapel yang mengampu satu mapel pada satu kelas, lengkap dengan
-     * beberapa siswa di kelas itu.
+     * Guru mapel yang mengampu satu mapel (mapel-only) pada satu kelas.
+     * Menurut default guru sudah punya cakupan kelas (ada soal miliknya yang
+     * menargetkan kelas) sehingga rute dashboard/nilai/export bisa diakses,
+     * karena cakupan kelas kini diturunkan dari soal yang dibuat guru.
      *
      * @return array{0: GuruMapel, 1: Subject, 2: Classroom, 3: Collection<int, Student>, 4: User}
      */
-    private function makeAmpuGuru(int $studentCount = 2): array
+    private function makeAmpuGuru(int $studentCount = 2, bool $withScope = true): array
     {
         $guru = GuruMapel::factory()->create();
         $subject = Subject::factory()->create();
@@ -32,13 +35,23 @@ class GuruMapelDashboardTest extends TestCase
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
-            'classroom_id' => $classroom->id,
         ]);
 
         $students = Student::factory()->count($studentCount)->create([
             'classroom_id' => $classroom->id,
             'class_name' => $classroom->name,
         ]);
+
+        if ($withScope) {
+            $question = Question::query()->create([
+                'subject_id' => $subject->id,
+                'type' => Question::TYPE_ESSAY,
+                'question_text' => 'Soal pembuka cakupan kelas',
+                'score_weight' => 10,
+                'created_by_user_id' => $guru->user_id,
+            ]);
+            $question->classrooms()->attach($classroom->id);
+        }
 
         return [$guru, $subject, $classroom, $students, $guru->user];
     }

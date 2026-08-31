@@ -5,6 +5,7 @@ namespace App\Http\Controllers\GuruMapel;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GuruMapel\StoreGuruMapelQuestionRequest;
 use App\Http\Requests\GuruMapel\UpdateGuruMapelQuestionRequest;
+use App\Models\Classroom;
 use App\Models\ExamAnswer;
 use App\Models\GuruMapel;
 use App\Models\Question;
@@ -149,30 +150,28 @@ class QuestionController extends Controller
     }
 
     /**
-     * Peta subject_id => daftar kelas yang diampu guru untuk mapel itu.
-     * Dipakai form create/edit agar pilihan kelas mengikuti mapel terpilih.
+     * Peta subject_id => daftar SEMUA kelas yang bisa dipilih sebagai target
+     * soal untuk mapel itu. Kelas dibebaskan dari batasan ampu (guru boleh
+     * menargetkan kelas mana pun untuk mapel yang diampunya); cakupan akses
+     * Nilai/Absensi guru diturunkan dari kelas target soal yang dibuatnya.
      *
      * @return array<int, array<int, array{id: int, name: string}>>
      */
     private function classroomsBySubject(GuruMapel $guru): array
     {
-        $assignments = $guru->assignments()->with('classroom')->get();
+        $allClassrooms = Classroom::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
         $map = [];
-        foreach ($assignments as $assignment) {
-            $classroom = $assignment->classroom;
-            if ($classroom === null) {
-                continue;
-            }
-            $map[(int) $assignment->subject_id][(int) $classroom->id] = [
-                'id' => (int) $classroom->id,
-                'name' => (string) $classroom->name,
-            ];
-        }
-
-        foreach ($map as $subjectId => $classrooms) {
-            usort($classrooms, fn (array $a, array $b) => strcmp($a['name'], $b['name']));
-            $map[$subjectId] = array_values($classrooms);
+        foreach ($guru->ampuSubjectIds() as $subjectId) {
+            $map[(int) $subjectId] = $allClassrooms
+                ->map(fn ($classroom) => [
+                    'id' => (int) $classroom->id,
+                    'name' => (string) $classroom->name,
+                ])
+                ->values()
+                ->all();
         }
 
         return $map;
