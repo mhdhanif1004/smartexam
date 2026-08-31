@@ -24,8 +24,6 @@
                     <thead class="bg-gray-50 dark:bg-gray-800">
                         <tr>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">No</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Jenis Nilai</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Judul</th>
                             <th scope="col" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Skor</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Catatan</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Tanggal</th>
@@ -35,15 +33,13 @@
                         @forelse ($grades as $index => $grade)
                             <tr class="transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
                                 <td class="px-6 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $index + 1 }}</td>
-                                <td class="px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{{ \App\Models\Grade::TYPES[$grade->grade_type] ?? $grade->grade_type }}</td>
-                                <td class="px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $grade->title ?: '-' }}</td>
                                 <td class="px-6 py-3 text-right text-sm font-semibold text-indigo-600 dark:text-indigo-400">{{ number_format((float) $grade->score, 2) }}</td>
                                 <td class="px-6 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $grade->note ?: '-' }}</td>
                                 <td class="px-6 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $grade->created_at?->format('d/m/Y H:i') }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada nilai untuk siswa ini.</td>
+                                <td colspan="4" class="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada nilai untuk siswa ini.</td>
                             </tr>
                         @endforelse
                     </tbody>

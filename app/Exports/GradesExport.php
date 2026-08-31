@@ -30,7 +30,7 @@ class GradesExport implements FromCollection, WithColumnWidths, WithEvents, With
      */
     public function headings(): array
     {
-        return ['NISN', 'Nama Siswa', 'Kelas', 'Jenis Nilai', 'Judul', 'Skor', 'Tanggal'];
+        return ['NISN', 'Nama Siswa', 'Kelas', 'Skor', 'Tanggal'];
     }
 
     /**
@@ -43,8 +43,6 @@ class GradesExport implements FromCollection, WithColumnWidths, WithEvents, With
             $grade->student?->nisn ?? '-',
             $grade->student?->user?->name ?? '-',
             $grade->classroom?->name ?? '-',
-            Grade::TYPES[$grade->grade_type] ?? $grade->grade_type,
-            $grade->title ?: '-',
             (float) $grade->score,
             $grade->created_at?->format('d/m/Y') ?? '-',
         ];
@@ -59,10 +57,8 @@ class GradesExport implements FromCollection, WithColumnWidths, WithEvents, With
             'A' => 16,
             'B' => 28,
             'C' => 16,
-            'D' => 16,
-            'E' => 22,
-            'F' => 10,
-            'G' => 14,
+            'D' => 10,
+            'E' => 14,
         ];
     }
 }

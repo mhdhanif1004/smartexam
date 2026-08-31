@@ -50,8 +50,6 @@
                 <th style="width:11%">NISN</th>
                 <th style="width:22%">Nama Siswa</th>
                 <th style="width:12%">Kelas</th>
-                <th style="width:12%">Jenis Nilai</th>
-                <th style="width:18%">Judul</th>
                 <th class="right" style="width:8%">Skor</th>
                 <th class="center" style="width:10%">Tanggal</th>
             </tr>
@@ -63,14 +61,12 @@
                     <td>{{ $grade->student?->nisn ?? '-' }}</td>
                     <td>{{ $grade->student?->user?->name ?? '-' }}</td>
                     <td>{{ $grade->classroom?->name ?? '-' }}</td>
-                    <td>{{ \App\Models\Grade::TYPES[$grade->grade_type] ?? $grade->grade_type }}</td>
-                    <td>{{ $grade->title ?: '-' }}</td>
                     <td class="right">{{ number_format((float) $grade->score, 2) }}</td>
                     <td class="center">{{ $grade->created_at?->format('d/m/Y') ?? '-' }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="8" class="center">Tidak ada data nilai.</td>
+                    <td colspan="6" class="center">Tidak ada data nilai.</td>
                 </tr>
             @endforelse
         </tbody>

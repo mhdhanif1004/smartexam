@@ -8,7 +8,7 @@
         @include('admin.partials.flash')
 
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <form method="GET" action="{{ route('guru_mapel.grades.index') }}" class="grid gap-4 sm:grid-cols-4">
+            <form method="GET" action="{{ route('guru_mapel.grades.index') }}" class="grid gap-4 sm:grid-cols-2">
                 <div>
                     <x-input-label for="subject_id" :value="__('Mata Pelajaran')" />
                     <select id="subject_id" name="subject_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
@@ -27,19 +27,7 @@
                         @endforeach
                     </select>
                 </div>
-                <div>
-                    <x-input-label for="grade_type" :value="__('Jenis Nilai')" />
-                    <select id="grade_type" name="grade_type" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
-                        @foreach ($gradeTypes as $value => $label)
-                            <option value="{{ $value }}" @selected($gradeType === $value)>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <x-input-label for="title" :value="__('Judul (opsional)')" />
-                    <x-text-input id="title" name="title" type="text" class="mt-1 block w-full" :value="old('title', $title)" placeholder="cth: Tugas 1 / Bab 2" />
-                </div>
-                <div class="sm:col-span-4">
+                <div class="sm:col-span-2">
                     <button type="submit" class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">Tampilkan Daftar Siswa</button>
                 </div>
             </form>
@@ -50,28 +38,14 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400">Pilih mata pelajaran dan kelas yang valid untuk melihat daftar siswa.</p>
             </div>
         @else
-            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Ringkasan Nilai per Jenis Nilai</h3>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Rata-rata, tertinggi, dan terendah nilai manual pada mapel-kelas ini.</p>
-                <div class="mt-4 h-64">
-                    <canvas id="chart-grade-summary" aria-label="Ringkasan nilai per jenis" role="img"></canvas>
-                </div>
-                <p id="chart-grade-empty" class="mt-2 hidden text-center text-xs text-gray-400 dark:text-gray-500">Belum ada data nilai untuk grafik.</p>
-            </div>
-
             <form method="POST" action="{{ route('guru_mapel.grades.store') }}" class="space-y-6">
                 @csrf
                 <input type="hidden" name="subject_id" value="{{ $subjectId }}" />
                 <input type="hidden" name="classroom_id" value="{{ $classroomId }}" />
-                <input type="hidden" name="grade_type" value="{{ $gradeType }}" />
-                <input type="hidden" name="title" value="{{ $title }}" />
 
                 <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div class="border-b border-gray-200 px-6 py-4 dark:border-gray-700">
-                        <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ $gradeTypes[$gradeType] ?? $gradeType }} — {{ $students->count() }} siswa</h3>
-                        @if ($title !== '')
-                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $title }}</p>
-                        @endif
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Input Nilai — {{ $students->count() }} siswa</h3>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -131,48 +105,4 @@
             </form>
         @endif
     </div>
-
-    @if ($validSelection)
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                const canvas = document.getElementById('chart-grade-summary');
-                const empty = document.getElementById('chart-grade-empty');
-                const data = @json($chartData);
-
-                if (! canvas || ! window.Chart) return;
-
-                if (data.length === 0) {
-                    canvas.closest('div').classList.add('hidden');
-                    empty.classList.remove('hidden');
-                    return;
-                }
-
-                const isDark = () => document.documentElement.classList.contains('dark');
-                const tick = () => (isDark() ? '#9ca3af' : '#6b7280');
-                const grid = () => (isDark() ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)');
-                const legend = () => (isDark() ? '#d1d5db' : '#374151');
-
-                new Chart(canvas, {
-                    type: 'bar',
-                    data: {
-                        labels: data.map(d => d.type),
-                        datasets: [
-                            { label: 'Rata-rata', data: data.map(d => d.average), backgroundColor: 'rgba(79, 70, 229, 0.75)', borderRadius: 4 },
-                            { label: 'Tertinggi', data: data.map(d => d.highest), backgroundColor: 'rgba(16, 185, 129, 0.75)', borderRadius: 4 },
-                            { label: 'Terendah', data: data.map(d => d.lowest), backgroundColor: 'rgba(244, 63, 94, 0.75)', borderRadius: 4 },
-                        ],
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { labels: { color: legend() } } },
-                        scales: {
-                            x: { grid: { color: grid() }, ticks: { color: tick() } },
-                            y: { beginAtZero: true, max: 100, grid: { color: grid() }, ticks: { color: tick() } },
-                        },
-                    },
-                });
-            });
-        </script>
-    @endif
 </x-layouts.guru_mapel>

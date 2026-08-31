@@ -12,9 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -31,12 +29,9 @@ class GradeController extends Controller
 
         $subjectId = $request->filled('subject_id') ? (int) $request->integer('subject_id') : null;
         $classroomId = $request->filled('classroom_id') ? (int) $request->integer('classroom_id') : null;
-        $gradeType = $request->filled('grade_type') ? $request->string('grade_type')->toString() : Grade::TYPE_TUGAS;
-        $title = $request->string('title')->toString();
 
         $students = collect();
         $savedGrades = collect();
-        $chartData = [];
 
         $validSelection = $subjectId !== null
             && $classroomId !== null
@@ -53,28 +48,8 @@ class GradeController extends Controller
                 ->where('guru_mapel_id', $guru->id)
                 ->where('subject_id', $subjectId)
                 ->where('classroom_id', $classroomId)
-                ->where('grade_type', $gradeType)
-                ->where('title', $title !== '' ? $title : null)
                 ->get()
                 ->keyBy('student_id');
-
-            $typeAgg = Grade::query()
-                ->select('grade_type', DB::raw('AVG(score) as avg_score'), DB::raw('MAX(score) as max_score'), DB::raw('MIN(score) as min_score'))
-                ->where('guru_mapel_id', $guru->id)
-                ->where('subject_id', $subjectId)
-                ->where('classroom_id', $classroomId)
-                ->groupBy('grade_type')
-                ->orderBy('grade_type')
-                ->get();
-
-            foreach ($typeAgg as $row) {
-                $chartData[] = [
-                    'type' => Grade::TYPES[$row->grade_type] ?? $row->grade_type,
-                    'average' => round((float) $row->avg_score, 2),
-                    'highest' => round((float) $row->max_score, 2),
-                    'lowest' => round((float) $row->min_score, 2),
-                ];
-            }
         }
 
         $classrooms = collect();
@@ -82,12 +57,11 @@ class GradeController extends Controller
             $classrooms = $this->ampuClassrooms($guru, $subjectId);
         }
 
-        $gradeTypes = Grade::TYPES;
         $guruId = $guru->id;
 
         return view('guru_mapel.grades.index', compact(
             'guru', 'guruId', 'subjects', 'classrooms', 'subjectId', 'classroomId',
-            'gradeType', 'title', 'students', 'savedGrades', 'validSelection', 'gradeTypes', 'chartData',
+            'students', 'savedGrades', 'validSelection',
         ));
     }
 
@@ -98,15 +72,10 @@ class GradeController extends Controller
         $validated = $request->validate([
             'subject_id' => ['required', 'integer'],
             'classroom_id' => ['required', 'integer'],
-            'grade_type' => ['required', Rule::in(array_keys(Grade::TYPES))],
-            'title' => ['nullable', 'string', 'max:255'],
         ]);
 
         $subjectId = (int) $validated['subject_id'];
         $classroomId = (int) $validated['classroom_id'];
-        $gradeType = $validated['grade_type'];
-        $title = $request->filled('title') ? trim((string) $request->input('title')) : '';
-        $title = $title !== '' ? $title : null;
 
         if (! $guru->isAmpu(subjectId: $subjectId, classroomId: $classroomId)) {
             abort(403, 'Anda tidak mengampu kombinasi mapel-kelas ini.');
@@ -142,10 +111,8 @@ class GradeController extends Controller
                     'student_id' => (int) $studentId,
                     'subject_id' => $subjectId,
                     'classroom_id' => $classroomId,
-                    'grade_type' => $gradeType,
                 ],
                 [
-                    'title' => $title,
                     'score' => $score,
                     'note' => $notes[(int) $studentId] ?? null,
                 ]
@@ -210,7 +177,6 @@ class GradeController extends Controller
             ->where('guru_mapel_id', $guru->id)
             ->where('student_id', $studentId)
             ->where('subject_id', $subjectId)
-            ->orderByDesc('grade_type')
             ->orderByDesc('created_at')
             ->get();
 

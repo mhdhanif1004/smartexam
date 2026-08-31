@@ -6,7 +6,6 @@ use App\Models\Classroom;
 use App\Models\ExamAnswer;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
-use App\Models\Grade;
 use App\Models\GuruMapel;
 use App\Models\Question;
 use App\Models\Student;
@@ -286,8 +285,6 @@ class GuruMapelKbmTest extends TestCase
             ->post(route('guru_mapel.grades.store'), [
                 'subject_id' => $subject->id,
                 'classroom_id' => $classroom->id,
-                'grade_type' => Grade::TYPE_TUGAS,
-                'title' => 'Tugas 1',
                 'score' => [
                     $students[0]->id => '90',
                     $students[1]->id => '75.50',
@@ -301,8 +298,6 @@ class GuruMapelKbmTest extends TestCase
             'student_id' => $students[0]->id,
             'subject_id' => $subject->id,
             'classroom_id' => $classroom->id,
-            'grade_type' => Grade::TYPE_TUGAS,
-            'title' => 'Tugas 1',
             'score' => '90.00',
         ]);
         $this->assertDatabaseHas('grades', [
@@ -319,26 +314,11 @@ class GuruMapelKbmTest extends TestCase
             ->post(route('guru_mapel.grades.store'), [
                 'subject_id' => $subject->id,
                 'classroom_id' => $classroom->id,
-                'grade_type' => Grade::TYPE_UAS,
                 'score' => [$students[0]->id => '150'],
             ])
             ->assertSessionHasErrors('score.'.$students[0]->id);
 
         $this->assertDatabaseCount('grades', 0);
-    }
-
-    public function test_grade_rejects_invalid_grade_type(): void
-    {
-        [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(1);
-
-        $this->actingAs($guru->user)
-            ->post(route('guru_mapel.grades.store'), [
-                'subject_id' => $subject->id,
-                'classroom_id' => $classroom->id,
-                'grade_type' => 'quiz',
-                'score' => [$students[0]->id => '80'],
-            ])
-            ->assertSessionHasErrors('grade_type');
     }
 
     public function test_grade_rejects_input_for_non_ampu_class(): void
@@ -350,7 +330,6 @@ class GuruMapelKbmTest extends TestCase
             ->post(route('guru_mapel.grades.store'), [
                 'subject_id' => $subject->id,
                 'classroom_id' => $otherClassroom->id,
-                'grade_type' => Grade::TYPE_TUGAS,
                 'score' => [1 => '80'],
             ])
             ->assertForbidden();

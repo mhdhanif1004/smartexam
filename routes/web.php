@@ -21,7 +21,6 @@ use App\Http\Controllers\Admin\SupervisorImportExportController;
 use App\Http\Controllers\Admin\ViolationController;
 use App\Http\Controllers\GuruMapel\AttendanceController;
 use App\Http\Controllers\GuruMapel\DashboardController as GuruMapelDashboardController;
-use App\Http\Controllers\GuruMapel\ExamResultController;
 use App\Http\Controllers\GuruMapel\GradeController;
 use App\Http\Controllers\GuruMapel\QuestionController as GuruMapelQuestionController;
 use App\Http\Controllers\Pengawas\AttendanceController as PengawasAttendanceController;
@@ -178,12 +177,6 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
             Route::get('/student-history', 'studentHistory')->name('student-history');
             Route::get('/export-excel', 'exportExcel')->name('export-excel');
             Route::get('/export-pdf', 'exportPdf')->name('export-pdf');
-        });
-
-        Route::controller(ExamResultController::class)->prefix('exam-results')->name('exam-results.')->group(function () {
-            Route::get('/', 'index')->name('index');
-            Route::get('/{schedule}', 'schedule')->name('schedule');
-            Route::get('/{schedule}/{student}', 'student')->name('student');
         });
 
         Route::controller(AttendanceController::class)->prefix('attendances')->name('attendances.')->group(function () {

@@ -72,8 +72,6 @@ class GuruMapelDashboardTest extends TestCase
             'subject_id' => $subjectA->id,
             'classroom_id' => $classroomA->id,
             'student_id' => $studentsA[0]->id,
-            'grade_type' => Grade::TYPE_TUGAS,
-            'title' => 'Tugas Milik Guru A',
             'score' => '88.00',
         ]);
 
@@ -82,8 +80,6 @@ class GuruMapelDashboardTest extends TestCase
             'subject_id' => $subjectB->id,
             'classroom_id' => $classroomB->id,
             'student_id' => $studentsB[0]->id,
-            'grade_type' => Grade::TYPE_UTS,
-            'title' => 'UTS Milik Guru B',
             'score' => '50.00',
         ]);
 
@@ -147,8 +143,6 @@ class GuruMapelDashboardTest extends TestCase
             'subject_id' => $subjectA->id,
             'classroom_id' => $classroomA->id,
             'student_id' => $student->id,
-            'grade_type' => Grade::TYPE_TUGAS,
-            'title' => 'Tugas 1',
             'score' => '80.00',
         ]);
         Grade::create([
@@ -156,8 +150,6 @@ class GuruMapelDashboardTest extends TestCase
             'subject_id' => $subjectA->id,
             'classroom_id' => $classroomA->id,
             'student_id' => $student->id,
-            'grade_type' => Grade::TYPE_UTS,
-            'title' => 'UTS',
             'score' => '90.00',
         ]);
 
@@ -169,8 +161,6 @@ class GuruMapelDashboardTest extends TestCase
             ]))
             ->assertOk()
             ->assertSee($student->user->name)
-            ->assertSee('Tugas 1')
-            ->assertSee('UTS')
             ->assertSee(number_format(80.00, 2))
             ->assertSee(number_format(90.00, 2));
     }
@@ -199,8 +189,6 @@ class GuruMapelDashboardTest extends TestCase
             'subject_id' => $subjectB->id,
             'classroom_id' => $classroomB->id,
             'student_id' => $studentsA[0]->id,
-            'grade_type' => Grade::TYPE_UAS,
-            'title' => 'Rahasia Guru B',
             'score' => '99.00',
         ]);
 
@@ -211,7 +199,6 @@ class GuruMapelDashboardTest extends TestCase
                 'student_id' => $studentsA[0]->id,
             ]))
             ->assertOk()
-            ->assertDontSee('Rahasia Guru B')
             ->assertDontSee(number_format(99.00, 2));
     }
 
@@ -242,8 +229,6 @@ class GuruMapelDashboardTest extends TestCase
             'subject_id' => $subject->id,
             'classroom_id' => $classroom->id,
             'student_id' => $students[0]->id,
-            'grade_type' => Grade::TYPE_TUGAS,
-            'title' => 'Tugas Export',
             'score' => '78.00',
         ]);
 
@@ -265,8 +250,6 @@ class GuruMapelDashboardTest extends TestCase
             'subject_id' => $subject->id,
             'classroom_id' => $classroom->id,
             'student_id' => $students[0]->id,
-            'grade_type' => Grade::TYPE_TUGAS,
-            'title' => 'Tugas PDF',
             'score' => '85.00',
         ]);
 
@@ -289,8 +272,6 @@ class GuruMapelDashboardTest extends TestCase
             'subject_id' => $subjectB->id,
             'classroom_id' => $classroomB->id,
             'student_id' => $studentsB[0]->id,
-            'grade_type' => Grade::TYPE_UAS,
-            'title' => 'Sangat Rahasia',
             'score' => '95.00',
         ]);
 

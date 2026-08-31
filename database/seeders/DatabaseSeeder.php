@@ -142,7 +142,7 @@ class DatabaseSeeder extends Seeder
 
         // Data demo Fase 1: soal milik guru, absensi KBM, dan nilai. Setiap
         // guru mendapat beberapa soal untuk mapel yang diampunya, satu baris
-        // absensi untuk tiap siswa di kelas demo, dan nilai tugas.
+        // absensi untuk tiap siswa di kelas demo, dan satu nilai ujian per siswa.
         GuruMapel::query()->with('assignments')->get()->each(function (GuruMapel $guru) use ($demoClassroom) {
             $assignment = $guru->assignments->first();
 
@@ -166,10 +166,8 @@ class DatabaseSeeder extends Seeder
                         'student_id' => $student->id,
                         'subject_id' => $assignment->subject_id,
                         'classroom_id' => $demoClassroom,
-                        'grade_type' => Grade::TYPE_TUGAS,
                     ],
                     [
-                        'title' => 'Tugas 1',
                         'score' => fake()->numberBetween(60, 100),
                     ]
                 );
