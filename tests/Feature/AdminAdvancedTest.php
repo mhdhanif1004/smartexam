@@ -280,7 +280,7 @@ class AdminAdvancedTest extends TestCase
 
         $this->actingAs($this->admin)->get(route('admin.violations.index', ['violation_type' => 'tidak_ada']))
             ->assertOk()
-            ->assertSee('Tidak ada data.');
+            ->assertSee('Belum ada pelanggaran yang tercatat.');
     }
 
     public function test_dashboard_shows_real_stats_and_upcoming_schedules(): void

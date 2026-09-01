@@ -171,6 +171,58 @@ class AntiCheatModuleTest extends TestCase
         $this->assertSame(4, $session->violations()->count());
     }
 
+    public function test_fourth_violation_auto_locks_session_and_admin_can_unlock(): void
+    {
+        $session = $this->workingSession();
+
+        // Tiga pelanggaran mengisi ketiga flag, belum ada kunci otomatis.
+        foreach ([Violation::TYPE_TAB_SWITCH, Violation::TYPE_BLUR, Violation::TYPE_RESIZE] as $type) {
+            $this->actingAs($this->user)->postJson(route('peserta.exams.violation', $this->schedule->id), [
+                'violation_type' => $type,
+            ])->assertOk()->assertJson(['redirect' => true]);
+        }
+
+        $session->refresh();
+        $this->assertTrue($session->violation_flag_1);
+        $this->assertTrue($session->violation_flag_2);
+        $this->assertTrue($session->violation_flag_3);
+        $this->assertFalse($session->locked_by_admin);
+
+        // Pelanggaran ke-4 (flag sudah penuh) => sesi dikunci otomatis oleh sistem.
+        $this->actingAs($this->user)->postJson(route('peserta.exams.violation', $this->schedule->id), [
+            'violation_type' => Violation::TYPE_TAB_SWITCH,
+        ])->assertOk()->assertJson(['redirect' => true]);
+
+        $this->assertDatabaseHas('exam_sessions', [
+            'id' => $session->id,
+            'locked_by_admin' => true,
+            // null menandakan kunci otomatis sistem (bukan admin manual).
+            'locked_by_admin_by' => null,
+        ]);
+        $this->assertNotNull($session->fresh()->locked_by_admin_at);
+
+        // Peserta diblokir dengan pesan lock admin.
+        $this->actingAs($this->user)->get(route('peserta.exams.work', $this->schedule->id))
+            ->assertRedirect(route('peserta.dashboard'))
+            ->assertSessionHas('error', ExamController::ACCESS_ERROR_LOCKED_ADMIN);
+
+        // Status polling menandakan dikunci.
+        $this->actingAs($this->user)->getJson(route('peserta.exams.status', $this->schedule->id))
+            ->assertOk()
+            ->assertJson(['locked' => true]);
+
+        // Admin tetap bisa membuka kembali.
+        $this->actingAs($this->admin)
+            ->patch(route('admin.violations.lock', $session->id), ['locked' => false])
+            ->assertOk()
+            ->assertJson(['ok' => true, 'locked' => false]);
+
+        $this->assertDatabaseHas('exam_sessions', [
+            'id' => $session->id,
+            'locked_by_admin' => false,
+        ]);
+    }
+
     public function test_fullscreen_exit_is_recorded_without_disabling_session(): void
     {
         $session = $this->workingSession();
@@ -286,7 +338,9 @@ class AntiCheatModuleTest extends TestCase
             ->assertSee('Checklist Aktif')
             ->assertSee('Hentikan Paksa')
             ->assertSee('2 dari 3')
-            ->assertSee('Dikunci');
+            ->assertSee('Dikunci')
+            // locked_by_admin_by null => kunci otomatis sistem → badge khusus.
+            ->assertSee('Dikunci Otomatis');
     }
 
     public function test_pengawas_recent_payload_includes_flags_and_handled_marker(): void

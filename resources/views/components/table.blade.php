@@ -12,7 +12,7 @@
                     </tr>
                 </thead>
             @endif
-            <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900">
+            <tbody {{ $attributes->merge(['class' => 'divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900']) }}>
                 @if (trim($slot) === '')
                     <tr>
                         <td colspan="{{ max(count($headers), 1) }}" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">{{ $empty }}</td>

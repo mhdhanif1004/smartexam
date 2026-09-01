@@ -65,8 +65,23 @@ class ViolationController extends Controller
             return response()->json(['recorded' => true]);
         }
 
+        $flagCountBefore = (int) $session->activeViolationFlags();
+
         $session->activateNextViolationFlag();
         $session->update(['attendance_confirmed' => false]);
+
+        // Hentikan paksa otomatis pada pelanggaran ke-4: ketiga slot checklist
+        // sudah penuh dan masih ada satu pelanggaran lagi yang masuk.
+        // `locked_by_admin_by` dibiarkan null untuk menandai kunci berasal dari
+        // sistem, bukan admin. Admin tetap dapat membuka kembali lewat panel
+        // Riwayat Pelanggaran.
+        if ($flagCountBefore >= 3) {
+            $session->update([
+                'locked_by_admin' => true,
+                'locked_by_admin_at' => now(),
+                'locked_by_admin_by' => null,
+            ]);
+        }
 
         return response()->json([
             'redirect' => true,
