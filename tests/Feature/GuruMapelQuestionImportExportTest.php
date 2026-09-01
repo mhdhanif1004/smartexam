@@ -225,7 +225,11 @@ class GuruMapelQuestionImportExportTest extends TestCase
 
     public function test_import_template_lists_only_ampu_subjects(): void
     {
-        [$guru, $subject] = $this->makeGuru();
+        // Ampu subject diberi nama eksplisit agar deterministik dan tidak
+        // berpotensi bentrok dengan $notAmpu (factory random bisa ikut memilih
+        // nama "Fisika", yang membuat assertStringNotContainsString flaky).
+        $ampu = Subject::factory()->create(['name' => 'Matematika']);
+        [$guru, $subject] = $this->makeGuru($ampu);
         $notAmpu = Subject::factory()->create(['name' => 'Fisika']);
 
         $response = $this->actingAs($guru->user)

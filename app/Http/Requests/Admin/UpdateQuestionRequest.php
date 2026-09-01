@@ -3,7 +3,9 @@
 namespace App\Http\Requests\Admin;
 
 use App\Http\Requests\Admin\Concerns\ValidatesQuestionTypes;
+use App\Models\GuruMapel;
 use App\Models\Question;
+use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -26,6 +28,7 @@ class UpdateQuestionRequest extends FormRequest
 
         return [
             'subject_id' => ['required', 'integer', Rule::exists('subjects', 'id')],
+            'creator_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
             'type' => ['required', Rule::in(array_keys(Question::TYPES))],
             'question_text' => ['required', 'string'],
             'classroom_ids' => ['required', 'array', 'min:1'],
@@ -54,7 +57,67 @@ class UpdateQuestionRequest extends FormRequest
      */
     public function after(): array
     {
-        return $this->questionTypeRules();
+        return [
+            ...$this->questionTypeRules(),
+            $this->validateGuruAssignmentScope(),
+        ];
+    }
+
+    /**
+     * Ketika admin mengupload soal "atas nama guru" (creator_user_id diisi),
+     * kelas target wajib berada dalam cakupan penugasan guru tersebut
+     * (classroom_id pada teacher_subject_class_assignments yang sudah
+     * di-restore), dan mapel soal wajib diampu guru tsb. Ini penjaga backend
+     * yang tidak bisa dilewati hanya dengan manipulasi request.
+     */
+    private function validateGuruAssignmentScope(): \Closure
+    {
+        return function (Validator $validator) {
+            $creatorUserId = (int) $this->input('creator_user_id');
+
+            if ($creatorUserId === 0) {
+                return;
+            }
+
+            $guru = User::query()->find($creatorUserId)?->guruMapel;
+
+            if (! $guru instanceof GuruMapel) {
+                $validator->errors()->add('creator_user_id', 'Guru yang dipilih tidak valid atau belum memiliki profil guru mapel.');
+
+                return;
+            }
+
+            $subjectId = (int) $this->input('subject_id');
+
+            if ($subjectId !== 0 && ! $guru->ampuSubjectIds()->contains($subjectId)) {
+                $validator->errors()->add('subject_id', 'Guru tidak mengampu mata pelajaran yang dipilih.');
+
+                return;
+            }
+
+            if ($subjectId === 0) {
+                return;
+            }
+
+            $allowedClassroomIds = $guru->ampuClassroomIds($subjectId);
+
+            if ($allowedClassroomIds->isEmpty()) {
+                $validator->errors()->add('classroom_ids', 'Guru tidak memiliki penugasan kelas untuk mata pelajaran ini.');
+
+                return;
+            }
+
+            $submittedClassroomIds = collect($this->input('classroom_ids', []))
+                ->map(fn ($id) => (int) $id);
+
+            foreach ($submittedClassroomIds as $classroomId) {
+                if (! $allowedClassroomIds->contains($classroomId)) {
+                    $validator->errors()->add('classroom_ids', 'Soal atas nama guru hanya dapat ditargetkan ke kelas yang menjadi penugasan guru tersebut.');
+
+                    return;
+                }
+            }
+        };
     }
 
     /**

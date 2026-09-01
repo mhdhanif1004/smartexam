@@ -84,6 +84,8 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::get('guru-mapels/{guru_mapel}/assignments', [GuruMapelController::class, 'editAssignments'])->name('guru-mapels.assignments.edit');
         Route::post('guru-mapels/{guru_mapel}/assignments', [GuruMapelController::class, 'storeAssignment'])->name('guru-mapels.assignments.store');
         Route::delete('teacher-assignments/{assignment}', [GuruMapelController::class, 'destroyAssignment'])->name('guru-mapels.assignments.destroy');
+        Route::post('guru-mapels/{guru_mapel}/assignments/{subject}/classrooms', [GuruMapelController::class, 'updateAssignmentClassrooms'])->name('guru-mapels.assignments.classrooms');
+        Route::delete('guru-mapels/{guru_mapel}/assignments/{subject}', [GuruMapelController::class, 'destroySubjectAssignment'])->name('guru-mapels.assignments.destroy-subject');
         Route::resource('subjects', SubjectController::class)->except(['show']);
         Route::get('subjects/{subject}/delete-preview', [SubjectController::class, 'deletePreview'])->name('subjects.delete-preview');
         Route::patch('subjects/{subject}/name', [SubjectController::class, 'updateName'])->name('subjects.update-name');

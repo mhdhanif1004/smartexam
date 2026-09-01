@@ -24,6 +24,8 @@ class StoreGuruMapelRequest extends FormRequest
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
             'is_active' => ['sometimes', 'boolean'],
             'subject_id' => ['nullable', 'exists:subjects,id'],
+            'classroom_ids' => ['nullable', 'array'],
+            'classroom_ids.*' => ['integer', 'exists:classes,id'],
         ];
     }
 }

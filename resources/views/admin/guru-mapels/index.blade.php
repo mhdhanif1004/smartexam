@@ -181,6 +181,7 @@
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">No</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Nama</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Email</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Password</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Penugasan</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Status</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Aksi</th>
@@ -195,6 +196,7 @@
                                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $guruMapels->firstItem() + $index }}</td>
                                 <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $guru->user?->name }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $guru->user?->email }}</td>
+                                @include('admin.partials.password-cell', ['user' => $guru->user])
                                 <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
                                     <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">{{ $guru->assignments_count }} penugasan</span>
                                 </td>
@@ -211,7 +213,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Tidak ada data guru mapel.</td>
+                                <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Tidak ada data guru mapel.</td>
                             </tr>
                         @endforelse
                     </tbody>

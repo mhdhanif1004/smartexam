@@ -5,6 +5,8 @@
     'selected' => [],
     'description' => null,
     'bind' => null,
+    'exclusiveNotes' => [],
+    'exclusionsBySubject' => [],
 ])
 
 @php
@@ -113,6 +115,15 @@
         // modal import AJAX) alih-alih 'selected' internal. Tanpa $bind,
         // perilaku tetap memakai state 'selected' milik komponen sendiri.
         $bound = $bind !== null && $bind !== '';
+
+        // Dua sumber data kelas-eksklusif:
+        //  1. static $exclusiveNotes  → per-picker (halaman Kelola Mapel, satu
+        //     picker per mapel; map classroom_id => nama guru pemilik).
+        //  2. static $exclusionsBySubject → preload per-subject (halaman Tambah
+        //     Guru Mapel; map subject_id => [classroom_id => nama guru pemilik]).
+        //     Nilai "subject" di-resolve reaktif dari scope induk (X-model pada
+        //     dropdown mapel) sehingga exclusion berubah otomatis saat ganti mapel.
+        $preloaded = is_array($exclusionsBySubject) && count($exclusionsBySubject) > 0;
     @endphp
     <div
         class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900"
@@ -123,9 +134,11 @@
                 target: @js($selectedIds),
             @endif
             groups: @js($levelGroups),
-            toggleLevel(ids) {
+            notes: @js($exclusiveNotes),
+            excl: @js($exclusionsBySubject),
+            toggleLevel(ids, takenMap) {
                 ids.forEach(id => {
-                    if (! this.target.includes(id)) {
+                    if (! this.target.includes(id) && ! (takenMap || {})[id]) {
                         this.target.push(id);
                     }
                 });
@@ -142,7 +155,7 @@
             </div>
             <div class="flex flex-wrap gap-2">
                 <template x-for="(items, level) in groups" :key="level">
-                    <button type="button" @click="toggleLevel(ids = items.map(item => item.id))" class="inline-flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-500/50 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20">
+                    <button type="button" @click="toggleLevel(items.map(item => item.id), {{ $preloaded ? '(excl[subject] || {})' : 'notes' }})" class="inline-flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-500/50 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20">
                         Pilih Semua Tingkat<span x-text="' ' + level"></span>
                     </button>
                 </template>
@@ -156,9 +169,12 @@
                     <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400" x-text="'Tingkat ' + level"></p>
                     <div class="mt-2 space-y-2">
                         <template x-for="classroom in items" :key="classroom.id">
-                            <label class="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
-                                <input type="checkbox" name="classroom_ids[]" :value="classroom.id" x-model="target" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800" />
-                                <span class="text-sm font-medium text-gray-800 dark:text-gray-200" x-text="classroom.name"></span>
+                            <label class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
+                                <span class="flex items-center gap-3">
+                                    <input type="checkbox" name="classroom_ids[]" :value="classroom.id" x-model="target" {{ $preloaded ? ':disabled="!! ((excl[subject] || {})[classroom.id])"' : ':disabled="!! notes[classroom.id]"' }} class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800" />
+                                    <span class="text-sm font-medium text-gray-800 dark:text-gray-200" x-text="classroom.name"></span>
+                                </span>
+                                <span {{ $preloaded ? 'x-show="!! ((excl[subject] || {})[classroom.id])"' : 'x-show="!! notes[classroom.id]"' }} class="text-xs italic text-amber-600 dark:text-amber-400" x-text="'Sudah diampu ' + ({{ $preloaded ? '((excl[subject] || {})[classroom.id])' : 'notes[classroom.id]' }})"></span>
                             </label>
                         </template>
                     </div>
