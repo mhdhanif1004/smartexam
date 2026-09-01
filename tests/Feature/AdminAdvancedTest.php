@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ExamResult;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
+use App\Models\GuruMapel;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Supervisor;
@@ -106,6 +107,17 @@ class AdminAdvancedTest extends TestCase
         $this->actingAs($student->user)
             ->get(route('admin.users.plain-password', $student->user))
             ->assertForbidden();
+    }
+
+    public function test_admin_can_fetch_plain_password_of_guru_mapel_via_endpoint(): void
+    {
+        $guru = GuruMapel::factory()->create();
+        $guru->user->update(['plain_password' => 'rahasia123']);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.users.plain-password', $guru->user))
+            ->assertOk()
+            ->assertJson(['plain_password' => 'rahasia123']);
     }
 
     public function test_plain_password_is_stored_encrypted(): void

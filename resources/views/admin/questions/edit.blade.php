@@ -22,7 +22,7 @@
             action="{{ route('admin.questions.update', $question) }}"
             enctype="multipart/form-data"
             class="max-w-3xl space-y-6"
-            x-data="{ type: @js(old('type', $question->type)), pairs: @js($pairs), img: { preview: '', hasExisting: @js((bool) $question->image_path), existingUrl: @js($question->image_path ? asset('storage/'.$question->image_path) : ''), remove() { this.hasExisting = false; this.preview = ''; } } }"
+            x-data="{ type: @js(old('type', $question->type)), guru: @js((string) old('creator_user_id', $question->created_by_user_id ?? '')), pairs: @js($pairs), img: { preview: '', hasExisting: @js((bool) $question->image_path), existingUrl: @js($question->image_path ? asset('storage/'.$question->image_path) : ''), remove() { this.hasExisting = false; this.preview = ''; } } }"
         >
             @csrf
             @method('PUT')
@@ -49,6 +49,17 @@
                         <x-input-error :messages="$errors->get('type')" class="mt-2" />
                     </div>
                     <div class="sm:col-span-2">
+                        <x-input-label for="creator_user_id" :value="__('Atas Nama Guru (opsional)')" />
+                        <select id="creator_user_id" name="creator_user_id" x-model="guru" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                            <option value="">-- Milik Admin (bukan guru) --</option>
+                            @foreach ($gurus as $guruItem)
+                                <option value="{{ $guruItem->user_id }}" @selected(old('creator_user_id', $question->created_by_user_id) == $guruItem->user_id)>{{ $guruItem->user?->name }}</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Jika dipilih, soal akan muncul di halaman "Soal" guru tersebut dan kelas target dibatasi ke penugasan guru.</p>
+                        <x-input-error :messages="$errors->get('creator_user_id')" class="mt-2" />
+                    </div>
+                    <div class="sm:col-span-2">
                         <x-input-label for="question_text" :value="__('Pertanyaan')" />
                         <textarea id="question_text" name="question_text" rows="3" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" placeholder="Tulis pertanyaan...">{{ old('question_text', $question->question_text) }}</textarea>
                         <x-input-error :messages="$errors->get('question_text')" class="mt-2" />
@@ -62,11 +73,22 @@
             </div>
 
             {{-- Kelas Target --}}
-            <x-questions.classroom-picker
-                mode="all"
-                :classrooms="$classrooms"
-                :selected="old('classroom_ids', $question->classrooms->pluck('id')->all())"
-            />
+            @php($selectedGuruUserId = old('creator_user_id', $question->created_by_user_id) ? (int) old('creator_user_id', $question->created_by_user_id) : null)
+            @php($classroomsBySubjectForSelected = $selectedGuruUserId ? ($guruClassroomsBySubject[$selectedGuruUserId] ?? []) : [])
+            <template x-if="guru === ''">
+                <x-questions.classroom-picker
+                    mode="all"
+                    :classrooms="$classrooms"
+                    :selected="old('classroom_ids', $question->classrooms->pluck('id')->all())"
+                />
+            </template>
+            <template x-if="guru !== ''">
+                <x-questions.classroom-picker
+                    mode="scoped"
+                    :classroomsBySubject="$classroomsBySubjectForSelected"
+                    :selected="old('classroom_ids', $question->classrooms->pluck('id')->all())"
+                />
+            </template>
 
             {{-- Gambar Soal --}}
             <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">

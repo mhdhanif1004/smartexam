@@ -7,8 +7,10 @@ use App\Http\Requests\Admin\StoreQuestionRequest;
 use App\Http\Requests\Admin\UpdateQuestionRequest;
 use App\Models\Classroom;
 use App\Models\ExamAnswer;
+use App\Models\GuruMapel;
 use App\Models\Question;
 use App\Models\Subject;
+use App\Models\TeacherSubjectClassAssignment;
 use App\Traits\BuildsQuestionPayload;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -184,13 +186,20 @@ class QuestionController extends Controller
         $types = Question::TYPES;
         $letters = Question::OPTION_LETTERS;
         $classrooms = Classroom::query()->orderBy('name')->get();
+        [$gurus, $guruClassroomsBySubject] = $this->guruScopeData();
 
-        return view('admin.questions.create', compact('subjects', 'types', 'letters', 'classrooms'));
+        return view('admin.questions.create', compact(
+            'subjects', 'types', 'letters', 'classrooms', 'gurus', 'guruClassroomsBySubject'
+        ));
     }
 
     public function store(StoreQuestionRequest $request): RedirectResponse
     {
         $payload = $this->questionPayload($request->validated());
+
+        if ($request->filled('creator_user_id')) {
+            $payload['created_by_user_id'] = (int) $request->input('creator_user_id');
+        }
 
         if ($request->hasFile('image')) {
             $payload['image_path'] = $request->file('image')->store('question-images', 'public');
@@ -208,14 +217,21 @@ class QuestionController extends Controller
         $types = Question::TYPES;
         $letters = Question::OPTION_LETTERS;
         $classrooms = Classroom::query()->orderBy('name')->get();
+        [$gurus, $guruClassroomsBySubject] = $this->guruScopeData();
 
-        return view('admin.questions.edit', compact('question', 'subjects', 'types', 'letters', 'classrooms'));
+        return view('admin.questions.edit', compact(
+            'question', 'subjects', 'types', 'letters', 'classrooms', 'gurus', 'guruClassroomsBySubject'
+        ));
     }
 
     public function update(UpdateQuestionRequest $request, Question $question): RedirectResponse
     {
         $data = $request->validated();
         $payload = $this->questionPayload($data);
+
+        $payload['created_by_user_id'] = $request->filled('creator_user_id')
+            ? (int) $request->input('creator_user_id')
+            : null;
 
         if ($request->hasFile('image')) {
             $this->deleteImageFile($question->image_path);
@@ -229,6 +245,48 @@ class QuestionController extends Controller
         $question->classrooms()->sync($data['classroom_ids']);
 
         return redirect()->route('admin.questions.index')->with('success', 'Soal berhasil diperbarui.');
+    }
+
+    /**
+     * Data dropdown "Atas Nama Guru" beserta cakupan kelas penugasan per guru.
+     *
+     * @return array{0: Collection<int, GuruMapel>, 1: array<int, array<int, array<int, array{id: int, name: string}>>>}
+     */
+    private function guruScopeData(): array
+    {
+        $gurus = GuruMapel::query()
+            ->with('user')
+            ->get()
+            ->sortBy(fn (GuruMapel $guru) => mb_strtolower((string) $guru->user?->name));
+
+        $guruClassroomsBySubject = [];
+
+        $assignments = TeacherSubjectClassAssignment::query()
+            ->whereNotNull('classroom_id')
+            ->with(['classroom' => fn ($q) => $q->orderBy('name')])
+            ->get()
+            ->groupBy('guru_mapel_id');
+
+        foreach ($assignments as $guruMapelId => $rows) {
+            $guru = $gurus->firstWhere('id', $guruMapelId);
+
+            if ($guru === null) {
+                continue;
+            }
+
+            foreach ($rows as $assignment) {
+                if ($assignment->classroom === null) {
+                    continue;
+                }
+
+                $guruClassroomsBySubject[$guru->user_id][(int) $assignment->subject_id][] = [
+                    'id' => (int) $assignment->classroom->id,
+                    'name' => (string) $assignment->classroom->name,
+                ];
+            }
+        }
+
+        return [$gurus, $guruClassroomsBySubject];
     }
 
     public function destroy(Question $question): RedirectResponse

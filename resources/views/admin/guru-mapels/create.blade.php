@@ -66,7 +66,7 @@
 
             <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Penugasan Awal (Opsional)</h3>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Langsung tentukan mata pelajaran yang diampu guru saat dibuat. Kelas yang menjadi cakupan akses ditentukan secara otomatis dari soal yang nanti dibuat guru. Lewati jika ingin di-assign belakangan lewat halaman Kelola Penugasan.</p>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Tentukan mata pelajaran dan kelas yang diampu guru ini. Bisa diubah kapan saja lewat halaman Kelola Mapel. Lewati jika ingin di-assign belakangan.</p>
 
                 <div class="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-800/40">
                     <x-input-label for="subject_id" :value="__('Mata Pelajaran')" />
@@ -77,6 +77,16 @@
                         @endforeach
                     </select>
                     <x-input-error :messages="$errors->get('subject_id')" class="mt-2" />
+                </div>
+
+                <div x-show="subject !== ''" x-cloak class="mt-4">
+                    <x-questions.classroom-picker
+                        mode="all"
+                        :classrooms="$classrooms"
+                        :selected="old('classroom_ids', [])"
+                        :exclusions-by-subject="$exclusionsBySubject"
+                        description="Pilih kelas yang diampu guru ini untuk mapel terpilih. Bisa diubah nanti lewat halaman Kelola Mapel."
+                    />
                 </div>
             </div>
 
