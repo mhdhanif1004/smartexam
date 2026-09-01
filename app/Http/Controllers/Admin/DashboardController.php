@@ -106,10 +106,12 @@ class DashboardController extends Controller
                 ->take(5)
                 ->get(),
             'recentViolations' => Violation::query()
-                ->with(['examSession.student.user', 'examSession.examSchedule.subject'])
+                ->with(['examSession.student.user', 'examSession.examSchedule.subject', 'examSession.examSchedule.room'])
                 ->latest('occurred_at')
                 ->take(5)
-                ->get(),
+                ->get()
+                ->map(fn (Violation $violation) => Violation::panelPayload($violation))
+                ->values()->all(),
             'attendancePresentCount' => $presentCount,
             'attendanceAbsentCount' => $absentCount,
             'recentSupervisorAttendances' => $recentSupervisorAttendances,

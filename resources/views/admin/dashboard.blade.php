@@ -73,7 +73,7 @@
                     csrfUrl: '{{ route('csrf-token') }}',
                     userKey: '{{ auth()->user()->role . '-' . auth()->user()->id }}',
                     handleUrl: null,
-                    initialViolations: [],
+                    initialViolations: @js($recentViolations),
                 })"
                 class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900"
             >

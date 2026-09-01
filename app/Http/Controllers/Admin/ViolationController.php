@@ -136,26 +136,13 @@ class ViolationController extends Controller
 
         $violations = Violation::query()
             ->with(['examSession.student.user', 'examSession.examSchedule.subject', 'examSession.examSchedule.room'])
-            ->where('id', '>', $since)
-            ->latest('id')
+            ->latest('occurred_at')
             ->limit(50)
             ->get()
-            ->map(fn (Violation $v) => [
-                'id' => $v->id,
-                'student_name' => $v->examSession?->student?->user?->name ?? '-',
-                'class_name' => $v->examSession?->student?->class_name ?? '-',
-                'subject' => $v->examSession?->examSchedule?->subject?->name ?? '-',
-                'room_name' => $v->examSession?->examSchedule?->room?->display_name ?? '-',
-                'violation_type' => $v->violation_type,
-                'violation_label' => Violation::typeLabel($v->violation_type),
-                'occurred_at' => $v->occurred_at?->format('d M H:i'),
-                'handled' => (bool) $v->handled_by_supervisor,
-            ]);
+            ->map(fn (Violation $v) => Violation::panelPayload($v, $v->id > $since))
+            ->values();
 
-        $unhandledCount = Violation::query()
-            ->where('handled_by_supervisor', false)
-            ->where('id', '>', $since)
-            ->count();
+        $unhandledCount = $violations->where('handled', false)->count();
 
         return response()->json([
             'violations' => $violations,

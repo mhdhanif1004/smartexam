@@ -174,31 +174,49 @@ export function violationPolling(config) {
 
             if (!fresh || fresh.length === 0) return;
 
-            // Hanya pelanggaran yang BENAR-BENAR baru (id > lastSeenId) yang
-            // diproses; ini mencegah duplikasi/barang lama terpicu ulang.
-            const genuinelyNew = fresh.filter((v) => v.id > this.lastSeenId && !this.seenIds.has(v.id));
+            // SEMUA item yang dikirim server dirender ke daftar panel
+            // (dedupe by id, terbaru di atas, max 25). `since` di sisi server
+            // hanya menandai `new`, BUKAN menyaring apa yang boleh tampil.
+            this.mergeIntoPanel(fresh);
+
+            // HANYA yang benar-benar baru (new === true && id > lastSeenId &&
+            // belum pernah dilihat) yang memicu suara + notifikasi browser.
+            // Bila server menyediakan flag `new` (true/false), itu yang jadi
+            // penentu suara; fallback `id > lastSeenId` hanya untuk payload
+            // lama tanpa flag `new`.
+            const genuinelyNew = fresh.filter((v) => {
+                const sounds = typeof v.new === 'boolean' ? v.new === true : v.id > this.lastSeenId;
+                return sounds && !this.seenIds.has(v.id);
+            });
+
+            // Majukan lastSeenId ke ID tertinggi di antara SEMUA item yang
+            // dirender (mereka sudah "dilihat" lewat daftar panel).
+            const newMax = Math.max(this.lastSeenId, ...fresh.map((v) => v.id));
+            if (newMax > this.lastSeenId) {
+                this.lastSeenId = newMax;
+                // Persist lastSeenId ke localStorage (bertahan antar halaman)
+                writeLastSeenId(config.userKey, newMax);
+            }
+
             if (genuinelyNew.length === 0) return;
 
             genuinelyNew.forEach((v) => this.seenIds.add(v.id));
-
-            const newMax = Math.max(this.lastSeenId, ...genuinelyNew.map((v) => v.id));
-
-            if (this.hasPanel) {
-                // tambahkan ke daftar panel
-                this.violations = [...genuinelyNew, ...this.violations].slice(0, 25);
-            }
-
-            // Persist lastSeenId ke localStorage (bertahan antar halaman)
-            if (newMax > this.lastSeenId) {
-                this.lastSeenId = newMax;
-                writeLastSeenId(config.userKey, newMax);
-            }
 
             // Hanya satu instance (soundEmitter) yang bunyi + notify
             if (this === soundEmitter) {
                 this.playNotificationSound();
                 this.showBrowserNotification(genuinelyNew);
             }
+        },
+
+        mergeIntoPanel(items) {
+            const byId = new Map();
+            [...items, ...this.violations].forEach((v) => {
+                if (!byId.has(v.id)) byId.set(v.id, v);
+            });
+            this.violations = Array.from(byId.values())
+                .sort((a, b) => b.id - a.id)
+                .slice(0, 25);
         },
 
         playNotificationSound() {

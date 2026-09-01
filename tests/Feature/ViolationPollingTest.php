@@ -111,7 +111,7 @@ class ViolationPollingTest extends TestCase
         $this->assertContains($vB->id, $ids);
     }
 
-    public function test_since_parameter_excludes_old_violations(): void
+    public function test_since_only_marks_new_but_does_not_hide_old(): void
     {
         $old = $this->createViolation($this->scheduleA);
         $fresh = $this->createViolation($this->scheduleA);
@@ -121,11 +121,18 @@ class ViolationPollingTest extends TestCase
 
         $response->assertOk();
         $ids = $response->json('violations.*.id');
-        $this->assertNotContains($old->id, $ids);
+        // Pelanggaran lama (id <= since) TETAP muncul di daftar — since hanya
+        // menandai `new`, tidak menyaring apa yang boleh ditampilkan.
+        $this->assertContains($old->id, $ids);
         $this->assertContains($fresh->id, $ids);
+
+        $oldItem = collect($response->json('violations'))->firstWhere('id', $old->id);
+        $freshItem = collect($response->json('violations'))->firstWhere('id', $fresh->id);
+        $this->assertFalse($oldItem['new']);
+        $this->assertTrue($freshItem['new']);
     }
 
-    public function test_since_zero_returns_all_violations(): void
+    public function test_since_zero_returns_all_violations_and_all_new(): void
     {
         $v1 = $this->createViolation($this->scheduleA);
         $v2 = $this->createViolation($this->scheduleA);
@@ -137,6 +144,10 @@ class ViolationPollingTest extends TestCase
         $ids = $response->json('violations.*.id');
         $this->assertContains($v1->id, $ids);
         $this->assertContains($v2->id, $ids);
+
+        // since=0 → semua pelanggaran dianggap baru
+        $allNew = collect($response->json('violations'))->whereIn('id', $ids)->every(fn ($v) => $v['new'] === true);
+        $this->assertTrue($allNew);
     }
 
     public function test_polling_response_contains_required_fields(): void
@@ -172,7 +183,7 @@ class ViolationPollingTest extends TestCase
         $this->assertEquals($this->roomA->display_name, $item['room_name']);
     }
 
-    public function test_since_with_no_new_violations_returns_empty(): void
+    public function test_since_at_latest_returns_list_but_none_marked_new(): void
     {
         $violation = $this->createViolation($this->scheduleA);
 
@@ -180,7 +191,53 @@ class ViolationPollingTest extends TestCase
             ->getJson(route('pengawas.violations.polling', ['since' => $violation->id]));
 
         $response->assertOk();
-        $response->assertJsonCount(0, 'violations');
+        // Daftar TETAP diisi (tidak kosong) walau tidak ada yang "baru".
+        $this->assertNotEmpty($response->json('violations'));
+        $allNotNew = collect($response->json('violations'))->every(fn ($v) => $v['new'] === false);
+        $this->assertTrue($allNotNew);
+    }
+
+    public function test_badge_count_matches_unhandled_in_list(): void
+    {
+        $this->createViolation($this->scheduleA); // unhandled
+        $handled = $this->createViolation($this->scheduleA);
+        $handled->update(['handled_by_supervisor' => true]);
+
+        $response = $this->actingAs($this->pengawasA)
+            ->getJson(route('pengawas.violations.polling'));
+
+        $response->assertOk();
+        // Badge konsisten dengan daftar yang ditampilkan: 1 item belum ditangani.
+        $unhandledInList = collect($response->json('violations'))->where('handled', false)->count();
+        $this->assertSame(1, $response->json('unhandled_count'));
+        $this->assertSame($response->json('unhandled_count'), $unhandledInList);
+    }
+
+    public function test_pengawas_dashboard_renders_recent_violations_as_baseline(): void
+    {
+        $violation = $this->createViolation($this->scheduleA);
+
+        $response = $this->actingAs($this->pengawasA)->get(route('pengawas.dashboard'));
+
+        $response->assertOk();
+        $response->assertViewHas('recentViolations', function ($recent) {
+            return $recent instanceof \Illuminate\Support\Collection && $recent->isNotEmpty();
+        });
+        // Baseline dirender sebagai initialViolations di panel (bukan kosong).
+        $studentName = $violation->examSession->student->user->name;
+        $response->assertSee($studentName);
+    }
+
+    public function test_admin_dashboard_renders_recent_violations_as_baseline(): void
+    {
+        $violation = $this->createViolation($this->scheduleA);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.dashboard'));
+
+        $response->assertOk();
+        $response->assertViewHas('recentViolations', fn ($recent) => is_array($recent) && $recent !== []);
+        $studentName = $violation->examSession->student->user->name;
+        $response->assertSee($studentName);
     }
 
     public function test_unauthenticated_polling_returns_401(): void
