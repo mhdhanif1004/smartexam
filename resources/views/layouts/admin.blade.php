@@ -34,6 +34,7 @@
         handleUrl: null,
         initialViolations: [],
         isHistoryPage: @js(request()->routeIs('admin.violations.index')),
+        isAdmin: true,
     })" x-init></div>
     @stack('scripts')
 </body>

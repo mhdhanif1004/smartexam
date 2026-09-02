@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Peserta;
 use App\Http\Controllers\Controller;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
+use App\Events\ViolationCreated;
 use App\Models\Student;
 use App\Models\Violation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 
 class ViolationController extends Controller
 {
@@ -49,17 +51,37 @@ class ViolationController extends Controller
             return response()->json(['expired' => true], 422);
         }
 
+        // Rate limit: max 10 laporan/menit per sesi agar tidak spam & tidak spam broadcast
+        $rateKey = 'violation:'.$session->id.':'.($request->ip() ?? 'unknown');
+        if (RateLimiter::tooManyAttempts($rateKey, 10)) {
+            return response()->json(['error' => 'Terlalu banyak laporan pelanggaran. Coba lagi nanti.'], 429);
+        }
+        RateLimiter::hit($rateKey, 60);
+
         $type = $request->string('violation_type')->toString();
         if (! array_key_exists($type, Violation::AUTO_TYPES)) {
             $type = Violation::TYPE_TAB_SWITCH;
         }
 
-        Violation::create([
+        $violation = Violation::create([
             'exam_session_id' => $session->id,
             'violation_type' => $type,
             'occurred_at' => now(),
             'reported_by' => null,
         ]);
+
+        // Broadcast realtime ke pengawas ruangan (private channel). Polling
+        // tetap jadi fallback bila Reverb down — event ini best-effort.
+        try {
+            $violation->loadMissing(['examSession.student.user', 'examSession.examSchedule.subject', 'examSession.examSchedule.room']);
+            $payload = Violation::panelPayload($violation, true);
+            $roomId = (int) ($schedule->room_id ?? 0);
+            if ($roomId > 0) {
+                broadcast(new ViolationCreated($violation, $roomId, $payload))->toOthers();
+            }
+        } catch (\Throwable $e) {
+            // jangan gagalkan laporan bila broadcast error (Reverb down)
+        }
 
         if ($type === Violation::TYPE_FULLSCREEN_EXIT) {
             return response()->json(['recorded' => true]);

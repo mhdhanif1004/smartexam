@@ -118,6 +118,7 @@
                 userKey: '{{ auth()->user()->role . '-' . auth()->user()->id }}',
                 handleUrl: '{{ route('pengawas.violations.handle', '__ID__') }}',
                 initialViolations: @js($recentViolations instanceof \Illuminate\Support\Collection ? $recentViolations->values()->all() : $recentViolations),
+                roomId: {{ $room?->id ?? 'null' }},
             })"
             class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900"
         >

@@ -21,6 +21,8 @@
         "@hotwired/turbo": "^8.0.23",
         "chart.js": "^4.5.1",
         "instant.page": "^5.2.0",
-        "pdfjs-dist": "^6.2.108"
+        "laravel-echo": "^2.4.0",
+        "pdfjs-dist": "^6.2.108",
+        "pusher-js": "^8.6.0"
     }
 }

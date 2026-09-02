@@ -4,10 +4,15 @@ const POLL_INTERVAL = 10000;
 // audio baru yang ditaruh di public/audios/
 const NOTIFICATION_SOUND_PATH = '/audios/mixkit-software-interface-back-2575.wav';
 
+// Preload audio sekali agar tidak decode tiap pelanggaran (fallback tetap buat baru bila gagal)
+let cachedAudio = null;
+try {
+    cachedAudio = new Audio(NOTIFICATION_SOUND_PATH);
+    cachedAudio.preload = 'auto';
+    cachedAudio.volume = 0.7;
+} catch (e) { /* lewati */ }
+
 // localStorage key untuk melacak "pelanggaran terakhir yang sudah dilihat"
-// user ini. Scope per user (role + id) supaya admin A & pengawas B saling
-// independen. Nilai disimpan sebagai ID pelanggaran tertinggi yang sudah
-// pernah diberitakan — bertahan antar halaman/refresh.
 function seenKey(userKey) {
     return `smartexam.last-seen.${userKey}`;
 }
@@ -29,12 +34,20 @@ function writeLastSeenId(userKey, id) {
     }
 }
 
-// --- Singleton Web Worker ---
+// --- Singleton Web Worker (fallback polling) ---
 let sharedWorker = null;
 let sharedConfig = null;
 let sharedListeners = [];
 let panelOwnerSet = false;
 let soundEmitter = null;
+let sharedCsrfInterval = null;
+let workerPollingActive = false;
+
+// --- Singleton Reverb state ---
+let sharedReverbChannel = null;
+let sharedReverbChannelName = null;
+let sharedReverbConnected = false;
+let sharedReverbRetryTimer = null;
 
 function initWorker(config) {
     if (!sharedWorker) {
@@ -61,8 +74,6 @@ function initWorker(config) {
 
     sharedConfig = config;
 
-    // Baca lastSeenId PERSISTEN dari localStorage (bukan hardcode 0),
-    // lalu beri tahu Worker sampai ID berapa yang sudah pernah dilihat.
     const lastSeenId = readLastSeenId(config.userKey);
 
     sharedWorker.postMessage({
@@ -73,15 +84,138 @@ function initWorker(config) {
         lastSeenId,
         pollInterval: POLL_INTERVAL,
     });
+    workerPollingActive = true;
 
-    // Sinkronkan CSRF dari meta tag secara berkala
-    setInterval(() => {
-        const meta = document.querySelector('meta[name="csrf-token"]');
-        if (meta && sharedConfig && meta.content !== sharedConfig.csrf) {
-            sharedConfig.csrf = meta.content;
-            sharedWorker.postMessage({ type: 'updateCsrf', csrf: meta.content });
+    if (sharedCsrfInterval === null) {
+        sharedCsrfInterval = setInterval(() => {
+            const meta = document.querySelector('meta[name="csrf-token"]');
+            if (meta && sharedConfig && meta.content !== sharedConfig.csrf) {
+                sharedConfig.csrf = meta.content;
+                if (sharedWorker) sharedWorker.postMessage({ type: 'updateCsrf', csrf: meta.content });
+            }
+        }, 5 * 60 * 1000);
+    }
+}
+
+function pauseWorkerPolling() {
+    if (sharedWorker && workerPollingActive) {
+        try { sharedWorker.postMessage({ type: 'stop' }); } catch (e) {}
+        workerPollingActive = false;
+    }
+}
+
+function resumeWorkerPolling(config) {
+    if (!sharedWorker) {
+        initWorker(config);
+        return;
+    }
+    if (workerPollingActive) return;
+    const lastSeenId = readLastSeenId(config.userKey);
+    try {
+        sharedWorker.postMessage({
+            type: 'init',
+            endpoint: config.endpoint,
+            csrf: config.csrf,
+            csrfUrl: config.csrfUrl || '/csrf-token',
+            lastSeenId,
+            pollInterval: POLL_INTERVAL,
+        });
+        workerPollingActive = true;
+    } catch (e) {}
+}
+
+function tryInitReverb(config) {
+    // Guard: Reverb harus enabled & Echo tersedia
+    if (!window.SMARTEXAM_REVERB_ENABLED || !window.Echo) return false;
+    // Sudah subscribe channel yang sama — tidak perlu lagi
+    const isAdmin = !!config.isAdmin;
+    const roomId = config.roomId ?? null;
+    let channelName = null;
+    if (isAdmin) {
+        channelName = 'violations.admin';
+    } else if (roomId) {
+        channelName = `violations.room.${roomId}`;
+    } else {
+        return false; // tidak tahu channel mana, tetap polling
+    }
+
+    if (sharedReverbChannel && sharedReverbChannelName === channelName) {
+        return true;
+    }
+
+    try {
+        const channel = window.Echo.private(channelName);
+        sharedReverbChannel = channel;
+        sharedReverbChannelName = channelName;
+
+        channel.listen('.ViolationCreated', (e) => {
+            const payload = e.violation ?? e;
+            if (!payload || !payload.id) return;
+            const fresh = [payload];
+            // Broadcast ke semua listener (sama seperti Worker)
+            // unhandled_count tidak ada di event -> biarkan listener refresh badge jika perlu
+            sharedListeners.forEach((fn) => fn({ type: 'newViolations', violations: fresh, unhandled_count: null }));
+        });
+
+        // Deteksi koneksi: saat terhubung → pause polling, saat putus → resume
+        const pusher = window.Echo.connector?.pusher;
+        if (pusher && pusher.connection) {
+            pusher.connection.bind('connected', () => {
+                sharedReverbConnected = true;
+                pauseWorkerPolling();
+                if (sharedReverbRetryTimer) { clearTimeout(sharedReverbRetryTimer); sharedReverbRetryTimer = null; }
+            });
+            pusher.connection.bind('disconnected', () => {
+                sharedReverbConnected = false;
+                // jangan spam resume, tunggu 1s
+                if (!sharedReverbRetryTimer) {
+                    sharedReverbRetryTimer = setTimeout(() => {
+                        resumeWorkerPolling(sharedConfig || config);
+                        sharedReverbRetryTimer = null;
+                    }, 1000);
+                }
+            });
+            pusher.connection.bind('failed', () => {
+                sharedReverbConnected = false;
+                resumeWorkerPolling(sharedConfig || config);
+            });
+            pusher.connection.bind('unavailable', () => {
+                sharedReverbConnected = false;
+                resumeWorkerPolling(sharedConfig || config);
+            });
+
+            // Jika sudah connected saat init, langsung pause polling
+            if (pusher.connection.state === 'connected') {
+                sharedReverbConnected = true;
+                pauseWorkerPolling();
+            }
+        } else {
+            // Fallback: anggap Reverb siap, pause polling
+            pauseWorkerPolling();
         }
-    }, 5 * 60 * 1000);
+
+        // Error subscription → fallback polling
+        channel.error(() => {
+            sharedReverbConnected = false;
+            resumeWorkerPolling(sharedConfig || config);
+        });
+
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+function teardownReverbIfLastListener() {
+    if (sharedListeners.length === 0 && sharedReverbChannel) {
+        try {
+            const name = sharedReverbChannelName;
+            if (name) window.Echo.leave(name.replace('private-', ''));
+        } catch (e) {}
+        sharedReverbChannel = null;
+        sharedReverbChannelName = null;
+        sharedReverbConnected = false;
+    }
 }
 
 export function violationPolling(config) {
@@ -121,8 +255,12 @@ export function violationPolling(config) {
             };
             sharedListeners.push(this._listener);
 
-            // Init Worker (instance pertama membuat Worker, berikutnya berbagi)
+            // Fallback polling via Worker (selalu aktif dulu)
             initWorker(config);
+
+            // Coba Reverb realtime — jika berhasil, polling auto-pause saat connected
+            // Jika Reverb down / kredensial kosong / channel tidak diketahui, tetap polling
+            tryInitReverb(config);
 
             if (this.hasPanel) {
                 this.refreshBadgeFromServer();
@@ -130,8 +268,6 @@ export function violationPolling(config) {
 
             // Auto mark-seen: kalau halaman ini adalah halaman Riwayat
             // Pelanggaran, tandai semua sebagai sudah dilihat & reset badge.
-            // (Pelanggaran yang diterima Worker di halaman ini dikonsumsi
-            //  senyap — tanpa suara — dan lastSeenId ikut maju.)
             if (config.isHistoryPage) {
                 this.markAllSeen();
             }
@@ -221,6 +357,15 @@ export function violationPolling(config) {
 
         playNotificationSound() {
             try {
+                if (cachedAudio) {
+                    cachedAudio.currentTime = 0;
+                    cachedAudio.play().catch(() => {
+                        const a = new Audio(NOTIFICATION_SOUND_PATH);
+                        a.volume = 0.7;
+                        a.play().catch(() => {});
+                    });
+                    return;
+                }
                 const audio = new Audio(NOTIFICATION_SOUND_PATH);
                 audio.volume = 0.7;
                 audio.play().catch(() => {});
@@ -310,6 +455,16 @@ export function violationPolling(config) {
             sharedListeners = sharedListeners.filter((fn) => fn !== this._listener);
             if (soundEmitter === this) soundEmitter = null;
             if (this.hasPanel && panelOwnerSet) panelOwnerSet = false;
+            // Jika tidak ada listener tersisa: bersihkan Reverb & worker
+            teardownReverbIfLastListener();
+            if (sharedListeners.length === 0) {
+                if (sharedWorker && workerPollingActive) {
+                    try { sharedWorker.postMessage({ type: 'stop' }); } catch (e) {}
+                    workerPollingActive = false;
+                }
+                if (sharedCsrfInterval) { clearInterval(sharedCsrfInterval); sharedCsrfInterval = null; }
+                if (sharedReverbRetryTimer) { clearTimeout(sharedReverbRetryTimer); sharedReverbRetryTimer = null; }
+            }
         },
     };
 }

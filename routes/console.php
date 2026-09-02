@@ -10,6 +10,6 @@ Artisan::command('inspire', function () {
 
 Schedule::command('exam-schedules:sync-status')->everyMinute()->withoutOverlapping();
 
-Schedule::command('tokens:rotate')->everyMinute();
+Schedule::command('tokens:rotate')->everyMinute()->withoutOverlapping();
 
 Schedule::command('sessions:cleanup-stuck')->everyFiveMinutes()->withoutOverlapping();
