@@ -114,4 +114,40 @@ class Violation extends Model
             'exam_schedule_id'
         );
     }
+
+    /**
+     * Bentuk payload konsisten untuk panel notifikasi pelanggaran (dashboard
+     * pengawas & admin) dan endpoint polling. Struktur tunggal ini menjaga
+     * agar daftar yang ditampilkan di panel selalu sama bentuknya dengan data
+     * awal (initialViolations) dari server.
+     *
+     * `$new` menandai apakah pelanggaran ini lewat `since` (id > lastSeenId).
+     * `new = true` hanya dipakai client untuk memicu suara/notifikasi; SEMUA
+     * item tetap dirender ke daftar panel.
+     */
+    public static function panelPayload(self $violation, bool $new = false): array
+    {
+        $schedule = $violation->examSession?->examSchedule;
+        $student = $violation->examSession?->student;
+
+        return [
+            'id' => $violation->id,
+            'session_id' => $violation->exam_session_id,
+            'student_name' => $student?->user?->name ?? '-',
+            'class_name' => $student?->class_name ?? '-',
+            'subject' => $schedule?->subject?->name ?? '-',
+            'room_name' => $schedule?->room?->display_name ?? '-',
+            'violation_type' => $violation->violation_type,
+            'violation_label' => self::typeLabel($violation->violation_type),
+            'occurred_at' => $violation->occurred_at?->format('d M H:i'),
+            'flags' => [
+                (int) ($violation->examSession?->violation_flag_1 ?? 0),
+                (int) ($violation->examSession?->violation_flag_2 ?? 0),
+                (int) ($violation->examSession?->violation_flag_3 ?? 0),
+            ],
+            'flag_count' => $violation->examSession?->activeViolationFlags() ?? 0,
+            'handled' => (bool) $violation->handled_by_supervisor,
+            'new' => $new,
+        ];
+    }
 }

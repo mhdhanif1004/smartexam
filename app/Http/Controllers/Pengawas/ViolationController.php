@@ -40,33 +40,21 @@ class ViolationController extends Controller
         $since = (int) $request->query('since', 0);
 
         if ($room === null) {
-            return response()->json(['violations' => []]);
+            return response()->json(['violations' => [], 'unhandled_count' => 0]);
         }
 
         $violations = Violation::query()
             ->with(['examSession.student.user', 'examSession.examSchedule.subject', 'examSession.examSchedule.room'])
             ->whereHas('examSession.examSchedule', fn ($query) => $query->where('room_id', $room->id))
-            ->where('id', '>', $since)
-            ->latest('id')
+            ->latest('occurred_at')
             ->limit(20)
             ->get()
-            ->map(fn (Violation $v) => [
-                'id' => $v->id,
-                'student_name' => $v->examSession?->student?->user?->name ?? '-',
-                'class_name' => $v->examSession?->student?->class_name ?? '-',
-                'subject' => $v->examSession?->examSchedule?->subject?->name ?? '-',
-                'room_name' => $v->examSession?->examSchedule?->room?->display_name ?? '-',
-                'violation_type' => $v->violation_type,
-                'violation_label' => Violation::typeLabel($v->violation_type),
-                'occurred_at' => $v->occurred_at?->format('d M H:i'),
-                'handled' => (bool) $v->handled_by_supervisor,
-            ]);
+            ->map(fn (Violation $v) => Violation::panelPayload($v, $v->id > $since))
+            ->values();
 
-        $unhandledCount = Violation::query()
-            ->whereHas('examSession.examSchedule', fn ($query) => $query->where('room_id', $room->id))
-            ->where('handled_by_supervisor', false)
-            ->where('id', '>', $since)
-            ->count();
+        // Badge bersumber dari jumlah item BELUM ditangani dalam daftar yang
+        // ditampilkan — konsisten dengan panel, tidak pernah >0 saat daftar kosong.
+        $unhandledCount = $violations->where('handled', false)->count();
 
         return response()->json([
             'violations' => $violations,

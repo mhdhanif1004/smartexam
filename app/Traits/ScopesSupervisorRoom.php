@@ -239,27 +239,11 @@ trait ScopesSupervisorRoom
     protected function roomViolations(Room $room, int $limit = 5): Collection
     {
         return Violation::query()
-            ->with(['examSession.student.user', 'examSession.examSchedule.subject'])
+            ->with(['examSession.student.user', 'examSession.examSchedule.subject', 'examSession.examSchedule.room'])
             ->whereHas('examSession.examSchedule', fn ($query) => $query->where('room_id', $room->id))
             ->latest('occurred_at')
             ->limit($limit)
             ->get()
-            ->map(fn (Violation $violation) => [
-                'id' => $violation->id,
-                'session_id' => $violation->exam_session_id,
-                'student_name' => $violation->examSession?->student?->user?->name ?? '-',
-                'class_name' => $violation->examSession?->student?->class_name ?? '-',
-                'subject' => $violation->examSession?->examSchedule?->subject?->name ?? '-',
-                'violation_type' => $violation->violation_type,
-                'violation_label' => Violation::typeLabel($violation->violation_type),
-                'occurred_at' => $violation->occurred_at?->format('d M H:i'),
-                'flags' => [
-                    (int) $violation->examSession?->violation_flag_1,
-                    (int) $violation->examSession?->violation_flag_2,
-                    (int) $violation->examSession?->violation_flag_3,
-                ],
-                'flag_count' => $violation->examSession?->activeViolationFlags() ?? 0,
-                'handled' => (bool) $violation->handled_by_supervisor,
-            ]);
+            ->map(fn (Violation $violation) => Violation::panelPayload($violation));
     }
 }

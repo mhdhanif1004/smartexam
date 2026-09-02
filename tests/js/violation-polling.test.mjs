@@ -114,6 +114,64 @@ test('halaman Riwayat Pelanggaran: konsumsi data senyap + reset badge', () => {
     assert.equal(vm.badgeCount, 0);
 });
 
+test('initialViolations dirender sebagai baseline panel saat dibuka', () => {
+    const baseline = [
+        { id: 70, student_name: 'A', new: false },
+        { id: 71, student_name: 'B', new: false },
+    ];
+    const vm = violationPolling({ ...config, initialViolations: baseline });
+    assert.equal(vm.violations.length, 2);
+    assert.equal(vm.violations[0].id, 70);
+    assert.equal(vm.violations[1].id, 71);
+});
+
+test('pelanggaran lama (id <= lastSeenId) tetap dirender panel tapi tidak berbunyi', () => {
+    localStorage.setItem(STORE_KEY('admin-1'), '50');
+    const vm = violationPolling(config);
+    vm.hasPanel = true;
+    let sounds = 0;
+    vm.playNotificationSound = () => { sounds += 1; };
+    vm.handleNewViolations([{ id: 40, new: false }], 0);
+    // TERENDER ke daftar panel...
+    assert.ok(vm.violations.some((v) => v.id === 40), 'item lama harus muncul di panel');
+    // ...tapi tidak memicu suara
+    assert.equal(sounds, 0);
+    assert.equal(vm.badgeCount, 0);
+    assert.equal(Number(localStorage.getItem(STORE_KEY('admin-1'))), 50);
+});
+
+test('pelanggaran baru (new=true) dirender ke panel dan dianggap baru (maju lastSeenId)', () => {
+    const vm = violationPolling(config);
+    vm.hasPanel = true;
+    let sounds = 0;
+    vm.playNotificationSound = () => { sounds += 1; };
+    // soundEmitter belum diset → suara tidak dibunyikan, tapi item lolos gate "baru".
+    vm.handleNewViolations([{ id: 5, new: true }, { id: 3, new: false }], 2);
+    // keduanya dirender, item baru di atas
+    assert.ok(vm.violations.some((v) => v.id === 5), 'item baru harus dirender');
+    assert.ok(vm.violations.some((v) => v.id === 3), 'item lama juga harus dirender');
+    assert.equal(vm.violations[0].id, 5, 'item baru harus di atas daftar');
+    assert.equal(Number(localStorage.getItem(STORE_KEY('admin-1'))), 5);
+    assert.equal(sounds, 0);
+});
+
+test('item baru ditambahkan DI ATAS daftar baseline yang sudah ada (tidak menggantikan)', () => {
+    const baseline = [{ id: 70, student_name: 'lama', new: false }];
+    const vm = violationPolling({ ...config, initialViolations: baseline });
+    vm.handleNewViolations([{ id: 71, student_name: 'baru', new: true }], 1);
+    assert.equal(vm.violations.length, 2);
+    assert.equal(vm.violations[0].id, 71);
+    assert.equal(vm.violations[1].id, 70);
+});
+
+test('badge konsisten: unhandled_count dari server, daftar tidak kosong', () => {
+    const vm = violationPolling(config);
+    vm.hasPanel = true;
+    vm.handleNewViolations([{ id: 5, new: true }], 1);
+    assert.equal(vm.badgeCount, 1);
+    assert.ok(vm.violations.some((v) => v.id === 5));
+});
+
 // --- rintisan (skip) ---
 
 resetMockEnv();
