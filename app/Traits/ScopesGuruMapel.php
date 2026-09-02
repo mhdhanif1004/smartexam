@@ -4,6 +4,7 @@ namespace App\Traits;
 
 use App\Models\Classroom;
 use App\Models\ExamSchedule;
+use App\Models\ExamSession;
 use App\Models\GuruMapel;
 use App\Models\Subject;
 use Illuminate\Database\Eloquent\Collection;
@@ -63,9 +64,17 @@ trait ScopesGuruMapel
             ->with(['subject', 'examPeriod'])
             ->findOrFail($scheduleId);
 
-        $classroomId = Classroom::query()->where('name', $schedule->class_name)->value('id');
+        $ampuClassroomIds = $guru->ampuClassroomIds(subjectId: $schedule->subject_id);
 
-        abort_unless($classroomId !== null && $guru->isAmpu(subjectId: $schedule->subject_id, classroomId: $classroomId), 403);
+        // Jadwal boleh diakses guru bila melibatkan sesi siswa dari salah
+        // satu kelas yang diampu guru untuk mapel jadwal. class_name tidak
+        // dipakai karena sering kosong pada jadwal produksi.
+        $hasAmpuStudentSession = ExamSession::query()
+            ->where('exam_schedule_id', $schedule->id)
+            ->whereHas('student', fn ($q) => $q->whereIn('classroom_id', $ampuClassroomIds))
+            ->exists();
+
+        abort_unless($hasAmpuStudentSession, 403, 'Anda tidak mengampu kombinasi mapel-kelas jadwal ini.');
 
         return $schedule;
     }

@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\GuruMapel;
 
 use App\Http\Controllers\Controller;
-use App\Models\Classroom;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
+use App\Models\Student;
 use App\Traits\ScopesGuruMapel;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -34,13 +34,16 @@ class AttendanceController extends Controller
             && $guru->isAmpu(subjectId: $subjectId, classroomId: $classroomId);
 
         if ($validSelection) {
-            $className = Classroom::query()->whereKey($classroomId)->value('name');
+            $classStudentIds = Student::query()
+                ->where('classroom_id', $classroomId)
+                ->pluck('id');
 
+            // Jadwal mapel ini yang memiliki sesi dari siswa kelas yang diampu.
+            // class_name tidak dipakai karena sering kosong pada jadwal produksi.
             $schedules = ExamSchedule::query()
                 ->with(['subject', 'examPeriod'])
                 ->where('subject_id', $subjectId)
-                ->when($className !== null, fn ($q) => $q->where('class_name', $className))
-                ->whereHas('examSessions')
+                ->whereHas('examSessions', fn ($q) => $q->whereIn('student_id', $classStudentIds))
                 ->orderByDesc('exam_date')
                 ->orderBy('start_time')
                 ->get();

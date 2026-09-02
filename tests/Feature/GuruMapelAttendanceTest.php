@@ -182,4 +182,43 @@ class GuruMapelAttendanceTest extends TestCase
         $response->assertSee($students[0]->user->name)
             ->assertDontSee($outsider->user->name);
     }
+
+    public function test_attendance_index_lists_schedule_with_empty_class_name(): void
+    {
+        [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(1);
+
+        $room = Room::factory()->create();
+
+        // Jadwal produksi sering memakai class_name kosong; tetap harus
+        // muncul karena ada sesi siswa dari kelas yang diampu guru.
+        $schedule = ExamSchedule::factory()->create([
+            'subject_id' => $subject->id,
+            'room_id' => $room->id,
+            'class_name' => '',
+            'exam_date' => now()->toDateString(),
+        ]);
+
+        Student::query()->whereKey($students->pluck('id'))->update(['room_id' => $room->id]);
+
+        $session = ExamSession::factory()->create([
+            'student_id' => $students[0]->id,
+            'exam_schedule_id' => $schedule->id,
+            'status' => ExamSession::STATUS_COMPLETED,
+            'attendance_status' => ExamSession::ATTENDANCE_PRESENT,
+        ]);
+
+        $this->actingAs($guru->user)
+            ->get(route('guru_mapel.attendances.index', [
+                'subject_id' => $subject->id,
+                'classroom_id' => $classroom->id,
+            ]))
+            ->assertOk()
+            ->assertSee(route('guru_mapel.attendances.schedule', $schedule->id));
+
+        // Detail jadwal juga tetap dapat diakses guru ampu (resolveAmpuSchedule).
+        $this->actingAs($guru->user)
+            ->get(route('guru_mapel.attendances.schedule', $schedule->id))
+            ->assertOk()
+            ->assertSee($students[0]->user->name);
+    }
 }
