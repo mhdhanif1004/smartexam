@@ -19,7 +19,8 @@ class GuruMapelQuestionImportExportTest extends TestCase
     use RefreshDatabase;
 
     /**
-     * Guru yang mengampu mapel tunggal (mapel-only) untuk satu kelas.
+     * Guru yang mengampu mapel untuk satu kelas (assignment kelas eksplisit,
+     * agar snapshot kelas target dari assignment bermakna).
      *
      * @return array{0: GuruMapel, 1: Subject, 2: Classroom, 3: User}
      */
@@ -32,6 +33,7 @@ class GuruMapelQuestionImportExportTest extends TestCase
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $classroom->id,
         ]);
 
         return [$guru, $subject, $classroom, $guru->user];
@@ -142,7 +144,6 @@ class GuruMapelQuestionImportExportTest extends TestCase
             ->post(route('guru_mapel.questions.import-validate'), [
                 'type' => Question::TYPE_SINGLE_CHOICE,
                 'file' => $this->csvFile($csv),
-                'classroom_ids' => [$classroom->id],
             ])
             ->assertOk()
             ->assertJson(['ok' => true, 'valid' => 1, 'invalid' => 0]);
@@ -157,6 +158,11 @@ class GuruMapelQuestionImportExportTest extends TestCase
             'subject_id' => $subject->id,
             'created_by_user_id' => $guru->user->id,
         ]);
+
+        // Kelas target soal hasil import di-snapshot dari assignment guru untuk
+        // mapel baris tsb (bukan input form / bukan pilihan manual).
+        $question = Question::query()->where('question_text', 'Halo 1+1?')->firstOrFail();
+        $this->assertSame([$classroom->id], $question->classrooms->pluck('id')->sort()->values()->all());
     }
 
     // -----------------------------------------------------------------
@@ -178,7 +184,6 @@ class GuruMapelQuestionImportExportTest extends TestCase
             ->post(route('guru_mapel.questions.import-validate'), [
                 'type' => Question::TYPE_SINGLE_CHOICE,
                 'file' => $this->csvFile($csv),
-                'classroom_ids' => [$classroom->id],
             ])
             ->assertOk()
             ->assertJson([
@@ -211,7 +216,6 @@ class GuruMapelQuestionImportExportTest extends TestCase
             ->post(route('guru_mapel.questions.import-validate'), [
                 'type' => Question::TYPE_SINGLE_CHOICE,
                 'file' => $this->csvFile($csv),
-                'classroom_ids' => [$classroom->id],
             ])
             ->assertOk()
             ->assertJson(['ok' => true, 'valid' => 0, 'invalid' => 1]);
@@ -260,13 +264,12 @@ class GuruMapelQuestionImportExportTest extends TestCase
     }
 
     // -----------------------------------------------------------------
-    // UI — modal import & classroom-picker terikat ke importState
+    // UI — modal import (tanpa picker kelas target)
     // -----------------------------------------------------------------
 
-    public function test_index_renders_import_modal_with_bound_classroom_picker(): void
+    public function test_index_renders_import_modal_without_class_picker(): void
     {
-        [$guru, $subject, $classroom] = $this->makeGuru();
-        $extra = Classroom::factory()->create(['name' => 'XI MIPA 1']);
+        [$guru] = $this->makeGuru();
 
         $html = $this->actingAs($guru->user)
             ->get(route('guru_mapel.questions.index'))
@@ -275,40 +278,39 @@ class GuruMapelQuestionImportExportTest extends TestCase
             ->getContent();
 
         // Root scope memakai factory-call agar state tersarang di bawah
-        // `importState.*` (bukan properti tingkat-atas), sehingga seluruh
-        // x-if/x-show di dalam modal merender konten langkah 1 secara penuh.
+        // `importState.*` (bukan properti tingkat-atas).
         $this->assertStringContainsString('x-data="importState()"', $html);
         $this->assertStringContainsString('importState: {', $html);
 
-        // Modal memakai komponen classroom-picker mode 'all' yang terikat ke
-        // importState.classroomIds untuk alur AJAX (bukan form POST).
-        $this->assertStringContainsString('target: importState.classroomIds', $html);
-        $this->assertStringContainsString('x-model="target"', $html);
-        $this->assertStringContainsString('guru_mapel\/questions\/import-validate', $html);
-        $this->assertStringContainsString($classroom->name, $html);
-        $this->assertStringContainsString($extra->name, $html);
+        // Tidak ada picker "Kelas Target" / input classroom_ids pada modal
+        // import guru — kelas di-snapshot dari assignment guru. (Kolom tabel
+        // "Kelas Target" tetap ada sebagai tampilan read-only soal.)
+        $this->assertStringNotContainsString('target: importState.classroomIds', $html);
+        $this->assertStringNotContainsString('classroom_ids[]', $html);
 
         // Konten lengkap langkah 1: pilihan jenis, unduh template, upload
         // file, dan tombol validasi. Wajib ada — mencegah modal "kosong".
         $this->assertStringContainsString('Jenis Soal', $html);
         $this->assertStringContainsString('Unduh Template', $html);
         $this->assertStringContainsString('file:mr-4', $html);
-        $this->assertStringContainsString('classroom_ids[]', $html);
+        $this->assertStringContainsString('guru_mapel\/questions\/import-validate', $html);
         $this->assertStringContainsString('Validasi & Lanjutkan', $html);
     }
 
-    public function test_default_create_uses_internal_scoped_picker_not_bind(): void
+    public function test_create_page_has_no_class_picker(): void
     {
-        [$guru, $subject, $classroom] = $this->makeGuru();
+        [$guru, $subject] = $this->makeGuru();
 
         $html = $this->actingAs($guru->user)
             ->get(route('guru_mapel.questions.create'))
             ->assertOk()
+            ->assertSee($subject->name)
             ->getContent();
 
-        // Mode scoped (create) sama sekali tidak terpengaruh prop :bind: tetap
-        // memakai state 'selected' internal, tanpa icu importState.
-        $this->assertStringContainsString('x-model="selected"', $html);
+        // Form create guru tanpa scoped picker kelas: tidak ada `selected`,
+        // `importState.classroomIds`, atau label "Kelas Target".
+        $this->assertStringNotContainsString('x-model="selected"', $html);
         $this->assertStringNotContainsString('importState.classroomIds', $html);
+        $this->assertStringNotContainsString('Kelas Target', $html);
     }
 }

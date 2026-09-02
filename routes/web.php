@@ -194,6 +194,8 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::controller(GradeController::class)->prefix('grades')->name('grades.')->group(function () {
             Route::get('/', 'index')->name('index');
             Route::post('/', 'store')->name('store');
+            Route::get('/detail', 'detail')->name('detail');
+            Route::post('/detail/scores', 'saveScores')->name('save-scores');
             Route::get('/students', 'students')->name('students');
             Route::get('/student-history', 'studentHistory')->name('student-history');
             Route::get('/export-excel', 'exportExcel')->name('export-excel');

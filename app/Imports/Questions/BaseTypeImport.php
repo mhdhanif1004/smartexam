@@ -67,6 +67,17 @@ abstract class BaseTypeImport implements ToCollection, WithEvents, WithHeadingRo
     public array $applyClassroomIds = [];
 
     /**
+     * Peta subject_id => daftar id kelas untuk snapshot target soal per mapel.
+     * Bila diisi (alur Guru Mapel), tiap baris soal memakai kelas dari mapel
+     * baris tsb (dari assignment guru) — bukan satu daftar seragam. Sumber
+     * kebenaran tetap assignment guru; tidak pernah dihitung ulang belakangan
+     * (snapshot saat import).
+     *
+     * @var array<int, list<int>>
+     */
+    public array $classroomsBySubjectId = [];
+
+    /**
      * ID pengguna yang tercatat sebagai pembuat seluruh soal hasil impor.
      * Bila null (alur Admin), kolom created_by_user_id tidak diisi. Untuk
      * Guru Mapel selalu diisi dari pengguna yang sedang login (auth), bukan
@@ -262,7 +273,11 @@ abstract class BaseTypeImport implements ToCollection, WithEvents, WithHeadingRo
                     'created_by_user_id' => $this->createdByUserId,
                 ]);
 
-                $targetIds = array_values(array_unique($this->applyClassroomIds));
+                $targetIds = $this->classroomsBySubjectId !== []
+                    ? ($this->classroomsBySubjectId[(int) $validRow['subject_id']] ?? [])
+                    : $this->applyClassroomIds;
+
+                $targetIds = array_values(array_unique(array_map('intval', $targetIds)));
 
                 if (! empty($targetIds)) {
                     $question->classrooms()->sync($targetIds);

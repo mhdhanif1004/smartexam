@@ -11,7 +11,6 @@
             'subjects' => $subjects,
             'types' => $types,
             'letters' => $letters,
-            'classroomsBySubject' => $classroomsBySubject,
             'question' => $question,
             'action' => route('guru_mapel.questions.update', $question),
             'method' => 'PUT',

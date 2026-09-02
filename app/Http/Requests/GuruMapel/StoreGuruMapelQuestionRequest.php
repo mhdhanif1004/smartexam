@@ -21,15 +21,9 @@ class StoreGuruMapelQuestionRequest extends FormRequest
             return false;
         }
 
-        $classroomIds = collect($this->input('classroom_ids', []))->map('intval');
-
-        if ($classroomIds->isEmpty()) {
-            return false;
-        }
-
-        // Guru boleh menargetkan kelas manapun untuk mapel yang diampunya.
-        // Cakupan kelas untuk Nilai/Absensi diturunkan dari soal yang dibuat,
-        // sehingga batas kelas ditentukan oleh soal itu sendiri.
+        // Kelas target soal TIDAK lagi dipilih manual oleh guru. Saat create,
+        // relasi question_classroom di-snapshot dari cakupan kelas yang di-assign
+        // admin untuk mapel ini (lihat QuestionController::store).
         return true;
     }
 
@@ -44,8 +38,6 @@ class StoreGuruMapelQuestionRequest extends FormRequest
             'subject_id' => ['required', 'integer'],
             'type' => ['required', Rule::in(array_keys(Question::TYPES))],
             'question_text' => ['required', 'string'],
-            'classroom_ids' => ['required', 'array', 'min:1'],
-            'classroom_ids.*' => ['required', 'integer'],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:3072'],
             'score_weight' => ['required', 'numeric', 'min:0', 'max:100'],
             'single_options' => ['array'],
@@ -81,8 +73,6 @@ class StoreGuruMapelQuestionRequest extends FormRequest
             'type.required' => 'Jenis soal wajib dipilih.',
             'type.in' => 'Jenis soal tidak valid.',
             'subject_id.required' => 'Mata pelajaran wajib dipilih.',
-            'classroom_ids.required' => 'Pilih minimal satu kelas target untuk soal ini.',
-            'classroom_ids.min' => 'Soal wajib memiliki minimal satu kelas target.',
             'image.image' => 'File yang diunggah harus berupa gambar.',
             'image.mimes' => 'Format gambar harus jpg, jpeg, png, atau webp.',
             'image.max' => 'Ukuran gambar maksimal 3 MB.',

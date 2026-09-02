@@ -14,12 +14,14 @@ class Grade extends Model
         'student_id',
         'score',
         'note',
+        'is_override',
     ];
 
     protected function casts(): array
     {
         return [
             'score' => 'decimal:2',
+            'is_override' => 'boolean',
         ];
     }
 

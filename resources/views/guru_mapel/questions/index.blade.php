@@ -9,7 +9,6 @@
                         step: 1,
                         type: '',
                         file: null,
-                        classroomIds: [],
                         busy: false,
                         message: '',
                         result: null,
@@ -30,13 +29,11 @@
                         validate() {
                             if (!this.type) { this.message = 'Pilih jenis soal terlebih dahulu.'; return; }
                             if (!this.file) { this.message = 'Pilih file Excel/CSV terlebih dahulu.'; return; }
-                            if (this.classroomIds.length === 0) { this.message = 'Pilih minimal satu kelas target untuk soal yang diimpor.'; return; }
                             this.busy = true;
                             this.message = '';
                             const formData = new FormData();
                             formData.append('type', this.type);
                             formData.append('file', this.file);
-                            this.classroomIds.forEach((id) => formData.append('classroom_ids[]', id));
                             fetch(@json(route('guru_mapel.questions.import-validate')), {
                                 method: 'POST',
                                 body: formData,
@@ -75,7 +72,6 @@
                             this.step = 1;
                             this.type = '';
                             this.file = null;
-                            this.classroomIds = [];
                             this.busy = false;
                             this.message = '';
                             this.result = null;
@@ -223,6 +219,6 @@
             @endif
         </div>
 
-        @include('guru_mapel.questions.partials.import-modal', ['classrooms' => $classrooms])
+        @include('guru_mapel.questions.partials.import-modal')
     </div>
 </x-layouts.guru_mapel>

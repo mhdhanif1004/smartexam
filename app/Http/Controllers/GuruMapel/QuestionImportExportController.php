@@ -5,7 +5,7 @@ namespace App\Http\Controllers\GuruMapel;
 use App\Exports\QuestionsExport;
 use App\Exports\QuestionsFailedImportExport;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\ImportQuestionsRequest;
+use App\Http\Requests\GuruMapel\ImportGuruMapelQuestionRequest;
 use App\Imports\Questions\BaseTypeImport;
 use App\Models\Question;
 use App\Models\Subject;
@@ -69,7 +69,7 @@ class QuestionImportExportController extends Controller
         return Excel::download(new $template['export']($subjects), $template['file']);
     }
 
-    public function importValidate(ImportQuestionsRequest $request): JsonResponse
+    public function importValidate(ImportGuruMapelQuestionRequest $request): JsonResponse
     {
         $guru = $this->currentGuru();
         $template = QuestionImportMap::templates()[$request->string('type')->toString()] ?? null;
@@ -80,9 +80,16 @@ class QuestionImportExportController extends Controller
             ], 422);
         }
 
+        // Snapshot kelas target per mapel dari cakupan kelas yang di-assign
+        // guru saat ini. Setiap baris soal memakai kelas dari mapel baris tsb.
+        $classroomsBySubjectId = [];
+        foreach ($guru->ampuSubjectIds() as $subjectId) {
+            $classroomsBySubjectId[(int) $subjectId] = $guru->ampuClassroomIds($subjectId)->values()->all();
+        }
+
         /** @var BaseTypeImport $import */
         $import = new $template['import'];
-        $import->applyClassroomIds = $request->validated()['classroom_ids'];
+        $import->classroomsBySubjectId = $classroomsBySubjectId;
         $import->createdByUserId = $request->user()->id;
         $import->ampuSubjectIds = $guru->ampuSubjectIds()->all();
 

@@ -434,4 +434,35 @@ class QuestionModuleTest extends TestCase
             ->assertSee('Soal untuk kelas X?')
             ->assertDontSee('Soal untuk kelas XI?');
     }
+
+    public function test_create_question_page_renders_without_leaked_code(): void
+    {
+        $html = $this->actingAs($this->admin)
+            ->get(route('admin.questions.create'))
+            ->assertOk()
+            ->getContent();
+
+        // Pola BOCOR bila atribut Alpine pecah (x-data ditutup prematur lalu
+        // sisa body fungsi muncul sebagai teks) — tidak boleh ada. Pemeriksaan
+        // berbasis DOM: kutip literal di dalam atribut double-quoted hanya
+        // terbukti bocor setelah parser HTML dijalankan.
+        $this->assertNoAlpineAttributeLeak($html);
+        // Regresi langsung perbaikan: @click TIDAK lagi memuat argumen kedua
+        // hasil injeksi ekspresi Blade ke atribut Alpine.
+        $this->assertStringNotContainsString('toggleLevel(items.map(item => item.id), ', $html);
+    }
+
+    public function test_edit_question_page_renders_without_leaked_code(): void
+    {
+        $subject = Subject::factory()->create();
+        $question = Question::factory()->create(['subject_id' => $subject->id]);
+
+        $html = $this->actingAs($this->admin)
+            ->get(route('admin.questions.edit', $question))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertNoAlpineAttributeLeak($html);
+        $this->assertStringNotContainsString('toggleLevel(items.map(item => item.id), ', $html);
+    }
 }

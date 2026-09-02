@@ -21,7 +21,6 @@
     x-data="{
         type: @js(old('type', $question?->type ?? \App\Models\Question::TYPE_SINGLE_CHOICE)),
         subject: @js((string) $selectedSubjectId),
-        selected: @js(array_map('intval', old('classroom_ids', $question?->classrooms?->pluck('id')->all() ?? []))),
         pairs: @js($matchingPairs),
         img: {
             preview: '',
@@ -70,12 +69,9 @@
         </div>
     </div>
 
-    {{-- Kelas Target (mode scoped: hanya kelas yang diampu untuk mapel terpilih) --}}
-    <x-questions.classroom-picker
-        mode="scoped"
-        :classroomsBySubject="$classroomsBySubject"
-        :selected="old('classroom_ids', $question?->classrooms?->pluck('id')->all() ?? [])"
-    />
+    {{-- Kelas target soal otomatis disusun dari cakupan kelas yang di-assign
+         admin untuk mapel terpilih (snapshot saat create, rekalkulasi saat
+         edit). Guru tidak lagi memilih kelas target secara manual. --}}
 
     {{-- Gambar Soal --}}
     <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">

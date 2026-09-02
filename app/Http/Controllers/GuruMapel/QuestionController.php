@@ -5,7 +5,6 @@ namespace App\Http\Controllers\GuruMapel;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GuruMapel\StoreGuruMapelQuestionRequest;
 use App\Http\Requests\GuruMapel\UpdateGuruMapelQuestionRequest;
-use App\Models\Classroom;
 use App\Models\ExamAnswer;
 use App\Models\GuruMapel;
 use App\Models\Question;
@@ -43,9 +42,8 @@ class QuestionController extends Controller
             ->withQueryString();
 
         $subjects = $this->ampuSubjects($guru);
-        $classrooms = Classroom::query()->orderBy('name')->get(['id', 'name']);
 
-        return view('guru_mapel.questions.index', compact('guru', 'questions', 'subjects', 'classrooms'));
+        return view('guru_mapel.questions.index', compact('guru', 'questions', 'subjects'));
     }
 
     public function create(): View
@@ -55,10 +53,9 @@ class QuestionController extends Controller
         $subjects = $this->ampuSubjects($guru);
         $types = Question::TYPES;
         $letters = Question::OPTION_LETTERS;
-        $classroomsBySubject = $this->classroomsBySubject($guru);
         $question = null;
 
-        return view('guru_mapel.questions.create', compact('subjects', 'types', 'letters', 'classroomsBySubject', 'question'));
+        return view('guru_mapel.questions.create', compact('subjects', 'types', 'letters', 'question'));
     }
 
     public function store(StoreGuruMapelQuestionRequest $request): RedirectResponse
@@ -74,7 +71,10 @@ class QuestionController extends Controller
         }
 
         $question = Question::create($payload);
-        $question->classrooms()->sync($data['classroom_ids']);
+
+        // Kelas target di-snapshot dari cakupan kelas yang di-assign admin untuk
+        // mapel ini (guru tidak lagi memilih manual saat create).
+        $this->syncClassroomsFromAssignment($question, $guru);
 
         return redirect()->route('guru_mapel.questions.index')
             ->with('success', 'Soal berhasil ditambahkan.');
@@ -88,10 +88,9 @@ class QuestionController extends Controller
         $subjects = $this->ampuSubjects($guru);
         $types = Question::TYPES;
         $letters = Question::OPTION_LETTERS;
-        $classroomsBySubject = $this->classroomsBySubject($guru);
         $question->load('classrooms');
 
-        return view('guru_mapel.questions.edit', compact('question', 'subjects', 'types', 'letters', 'classroomsBySubject'));
+        return view('guru_mapel.questions.edit', compact('question', 'subjects', 'types', 'letters'));
     }
 
     public function update(UpdateGuruMapelQuestionRequest $request, Question $question): RedirectResponse
@@ -116,7 +115,10 @@ class QuestionController extends Controller
         }
 
         $question->update($payload);
-        $question->classrooms()->sync($data['classroom_ids']);
+
+        // Saat edit, cakupan kelas direkalkulasi ulang dari assignment terbaru
+        // guru untuk mapel soal ini (keputusan desain).
+        $this->syncClassroomsFromAssignment($question, $guru);
 
         return redirect()->route('guru_mapel.questions.index')
             ->with('success', 'Soal berhasil diperbarui.');
@@ -151,31 +153,16 @@ class QuestionController extends Controller
     }
 
     /**
-     * Peta subject_id => daftar SEMUA kelas yang bisa dipilih sebagai target
-     * soal untuk mapel itu. Kelas dibebaskan dari batasan ampu (guru boleh
-     * menargetkan kelas mana pun untuk mapel yang diampunya); cakupan akses
-     * Nilai/Absensi guru diturunkan dari kelas target soal yang dibuatnya.
-     *
-     * @return array<int, array<int, array{id: int, name: string}>>
+     * Sinkronkan relasi question_classroom dari cakupan kelas yang saat ini
+     * di-assign guru untuk mapel soal. Sumber kebenaran tunggal target soal
+     * adalah pivot penugasan (bukan input form, karena guru tidak lagi memilih
+     * kelas target manual).
      */
-    private function classroomsBySubject(GuruMapel $guru): array
+    private function syncClassroomsFromAssignment(Question $question, GuruMapel $guru): void
     {
-        $allClassrooms = Classroom::query()
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $classroomIds = $guru->ampuClassroomIds($question->subject_id)->values()->all();
 
-        $map = [];
-        foreach ($guru->ampuSubjectIds() as $subjectId) {
-            $map[(int) $subjectId] = $allClassrooms
-                ->map(fn ($classroom) => [
-                    'id' => (int) $classroom->id,
-                    'name' => (string) $classroom->name,
-                ])
-                ->values()
-                ->all();
-        }
-
-        return $map;
+        $question->classrooms()->sync($classroomIds);
     }
 
     private function deleteImageFile(?string $path): void

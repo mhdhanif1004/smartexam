@@ -26,10 +26,10 @@
                             <option value="{{ $classroom->id }}" @selected((string) $classroomId === (string) $classroom->id)>{{ $classroom->name }}</option>
                         @endforeach
                     </select>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Pilih mapel, lalu klik "Tampilkan Jadwal" untuk melihat kelas yang Anda ampu.</p>
                 </div>
                 <div class="flex items-end">
-                    <button type="submit" class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">Tampilkan Jadwal</button>
-                </div>
+                    <button type="submit" class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">Tampilkan Jadwal</button>                </div>
             </form>
         </div>
 

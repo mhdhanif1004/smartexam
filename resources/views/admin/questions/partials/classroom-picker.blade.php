@@ -5,7 +5,12 @@
         $level = preg_match('/^[A-Z]+/', (string) $classroom->name, $matches) ? $matches[0] : 'Lainnya';
         $groups[$level][] = ['id' => (int) $classroom->id, 'name' => (string) $classroom->name];
     }
-    $bindTarget = $bind ?? null;
+    // $bind dipakai untuk menulis ke array Alpine eksternal (mis. importState.classroomIds,
+    // groupEdit.classroomIds) lewat indirection. WAJIB hanya identifier JS aman
+    // (huruf/angka/titik/underscore) — apa pun di luar pola ini diabaikan agar tidak ada
+    // fragmen Blade arbitrer yang ikut tersuntik ke atribut x-data (hardening kebocoran JS).
+    $rawBind = $bind ?? null;
+    $bindTarget = (is_string($rawBind) && preg_match('/^[A-Za-z0-9_.]+$/', $rawBind)) ? $rawBind : null;
     $description = $description ?? 'Pilih kelas yang berhak menerima soal ini. Wajib minimal satu kelas — soal tanpa kelas target tidak akan pernah muncul di ujian manapun.';
 @endphp
 

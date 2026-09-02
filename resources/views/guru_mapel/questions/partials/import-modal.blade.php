@@ -37,15 +37,6 @@
                     </div>
                 </div>
 
-                <div>
-                    <x-questions.classroom-picker
-                        mode="all"
-                        :classrooms="$classrooms"
-                        bind="importState.classroomIds"
-                        description="Berlaku untuk semua soal dalam file ini. Wajib minimal satu kelas — soal tanpa kelas target tidak akan muncul di ujian manapun."
-                    />
-                </div>
-
                 <div class="rounded-lg border-2 border-dashed border-gray-300 p-6 text-center dark:border-gray-600">
                     <input
                         type="file"
@@ -53,7 +44,7 @@
                         @change="importState.onFileChange($event)"
                         class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:text-indigo-300 dark:hover:file:bg-indigo-500/20"
                     />
-                    <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">Format: .xlsx, .xls, atau .csv (maks 5 MB). Baris contoh pada template otomatis dilewati saat impor.</p>
+                    <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">Format: .xlsx, .xls, atau .csv (maks 5 MB). Baris contoh pada template otomatis dilewati saat impor. Kelas target soal ditentukan otomatis dari cakupan kelas yang di-assign untuk mapel bersangkutan.</p>
                 </div>
             </div>
         </template>
@@ -120,7 +111,7 @@
         <div class="mt-6 flex justify-end gap-3">
             <x-secondary-button x-on:click="$dispatch('close')">Batal</x-secondary-button>
             <template x-if="importState.step === 1">
-                <button type="button" @click="importState.validate()" :disabled="importState.busy || !importState.file || importState.classroomIds.length === 0" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">
+                <button type="button" @click="importState.validate()" :disabled="importState.busy || !importState.file" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">
                     <span x-show="importState.busy" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
                     Validasi & Lanjutkan
                 </button>

@@ -622,10 +622,16 @@ class GuruMapelModuleTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        // Payload exclusion untuk mapel tsb berisi nama guru pemilik kelas yang
-        // sudah terambil, dan checkbox-nya dirender disabled oleh komponen.
-        $this->assertStringContainsString('notes: '.json_encode([$taken->id => $guruA->user->name]), $html);
-        $this->assertStringContainsString('disabled', $html);
+        // Payload exclusion untuk mapel tsb dibawa lewat @js (keluaran Laravel 12:
+        // JSON.parse('...\u0022...') — bukan inline JSON polos). Nama pemilik kelas
+        // yang sudah diambil dikirim agar bisa dirender sebagai label "Sudah diampu".
+        $this->assertStringContainsString('notes: JSON.parse(', $html);
+        $this->assertStringContainsString('\\u0022'.$taken->id.'\\u0022:\\u0022'.$guruA->user->name.'\\u0022', $html);
+        // Komponen memakai helper noteFor(id) yang aman (tidak pernah merender
+        // literal "undefined") untuk disable, x-show, dan label.
+        $this->assertStringContainsString('noteFor(id)', $html);
+        $this->assertStringContainsString('noteFor(classroom.id) !== \'\'', $html);
+        $this->assertStringContainsString("'Sudah diampu ' + noteFor(classroom.id)", $html);
     }
 
     public function test_assignments_page_does_not_exclude_current_teachers_own_class(): void
@@ -670,11 +676,18 @@ class GuruMapelModuleTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        // Data preload exclusion (subject => [classroom => nama pemilik]) dikirim
-        // ke view sebagai state Alpine, dan binding disable eksklusif terpasang.
-        $this->assertStringContainsString($subject->id.':{', $html);
-        $this->assertStringContainsString('"'.$taken->id.'":"'.$guruA->user->name.'"', $html);
-        $this->assertStringContainsString('excl[subject]', $html);
+        // Payload preload exclusion (subject => [classroom => nama pemilik]) dikirim
+        // lewat @js (Laravel 12: JSON.parse('...\u0022...')), dan binding disable
+        // eksklusif dipasang lewat help guru `noteFor`. Pemisahan sumber map kini
+        // lewat metode bersama `takenMapFor` (bukan penyuntikan `excl[subject]`
+        // mentah ke atribut @click).
+        $this->assertStringContainsString('excl: JSON.parse(', $html);
+        $this->assertStringContainsString('\\u0022'.$subject->id.'\\u0022:', $html);
+        $this->assertStringContainsString('\\u0022'.$taken->id.'\\u0022:\\u0022'.$guruA->user->name.'\\u0022', $html);
+        $this->assertStringContainsString('this.excl[this.subject]', $html);
+        // Tidak ada lagi pemanggilan toggleLevel ber-argumen kedua hasil injeksi
+        // ekspresi Blade ke atribut Alpine.
+        $this->assertStringNotContainsString('toggleLevel(items.map(item => item.id), ', $html);
     }
 
     public function test_exclusivity_violation_returns_short_one_line_error(): void
@@ -713,5 +726,79 @@ class GuruMapelModuleTest extends TestCase
         $this->assertStringContainsString('Sebagian kelas yang dipilih sudah diampu guru lain', $message);
         $this->assertStringNotContainsString('X AKL 1', $message);
         $this->assertStringNotContainsString('X AKL 2', $message);
+    }
+
+    public function test_assignments_page_renders_without_leaked_code(): void
+    {
+        $guru = GuruMapel::factory()->create();
+        $subject = Subject::create(['code' => 'MTK', 'name' => 'Matematika', 'default_duration_minutes' => 90]);
+        $taken = Classroom::create(['name' => 'X MIPA "A"']);
+        $otherGuru = GuruMapel::factory()->create();
+
+        // Kelas yang sudah diambil guru lain → memicu path "Sudah diampu"
+        // (exclusive-notes). Nama pemilik sengaja dibuat adversarial (apostrof,
+        // ampersand) untuk memastikan tidak ada bocor teks JS.
+        $otherGuru->user->update(['name' => "Santi D'Oro & Co"]);
+        TeacherSubjectClassAssignment::create([
+            'guru_mapel_id' => $otherGuru->id,
+            'subject_id' => $subject->id,
+            'classroom_id' => $taken->id,
+        ]);
+
+        // Assignment milik guru yang diedit agar classroom-picker aktif.
+        TeacherSubjectClassAssignment::create([
+            'guru_mapel_id' => $guru->id,
+            'subject_id' => $subject->id,
+        ]);
+
+        $html = $this->actingAs($this->admin)
+            ->get(route('admin.guru-mapels.assignments.edit', $guru))
+            ->assertOk()
+            ->getContent();
+
+        // Pola BOCOR bila atribut Alpine pecah (x-data ditutup prematur lalu
+        // sisa body fungsi muncul sebagai teks) — tidak boleh ada. Pemeriksaan
+        // berbasis DOM (bukan string mentah): kutip literal di dalam atribut
+        // double-quoted hanya terlihat bocor setelah parser HTML dijalankan.
+        $this->assertNoAlpineAttributeLeak($html);
+        // Regresi langsung perbaikan: @click TIDAK lagi memuat argumen kedua
+        // hasil injeksi ekspresi Blade (dulu `, (excl[subject] || {})` / `, notes`).
+        $this->assertStringNotContainsString('toggleLevel(items.map(item => item.id), ', $html);
+        $this->assertStringNotContainsString('toggleLevel(items.map(item => item.id), notes', $html);
+        $this->assertStringNotContainsString('toggleLevel(items.map(item => item.id), (excl[subject] || {})', $html);
+        // Nama pemilik dengan apostrof & ampersand harus ter-escape aman
+        // (dikirim lewat @js → JSON.parse('...\u0027...')), bukan teks mentah.
+        $this->assertStringNotContainsString("Santi D'Oro & Co", $html);
+        // Label "Sudah diampu" tetap dirender untuk kelas milik guru lain.
+        $this->assertStringContainsString('Sudah diampu', $html);
+        // noteFor/toggleLevel kini memakai metode bersama takenMapFor (bukan
+        // penyuntikan ekspresi Blade di atribut @click).
+        $this->assertStringContainsString('takenMapFor()', $html);
+    }
+
+    public function test_create_guru_mapel_page_renders_without_leaked_code(): void
+    {
+        $guruA = GuruMapel::factory()->create();
+        $subject = Subject::create(['code' => 'MTK', 'name' => 'Matematika', 'default_duration_minutes' => 90]);
+        $taken = Classroom::create(['name' => 'X MIPA "B"']);
+
+        TeacherSubjectClassAssignment::create([
+            'guru_mapel_id' => $guruA->id,
+            'subject_id' => $subject->id,
+            'classroom_id' => $taken->id,
+        ]);
+
+        $html = $this->actingAs($this->admin)
+            ->get(route('admin.guru-mapels.create'))
+            ->assertOk()
+            ->getContent();
+
+        // Untuk `preloaded` (exclusionsBySubject), @click TIDAK lagi menyisipkan
+        // `excl[subject] || {}` mentah — tidak ada polabel bocor / argumen kedua
+        // hasil injeksi ekspresi Blade di atribut Alpine.
+        $this->assertNoAlpineAttributeLeak($html);
+        // Payload exclusion tetap dikirim lewat @js (JSON.parse) & metode bersama.
+        $this->assertStringContainsString('excl: JSON.parse(', $html);
+        $this->assertStringContainsString('takenMapFor()', $html);
     }
 }
