@@ -30,7 +30,7 @@ class SupervisorsExport implements FromCollection, WithColumnWidths, WithEvents,
      */
     public function headings(): array
     {
-        return ['Nama', 'Email', 'Password', 'Ruangan Penugasan'];
+        return ['Nama', 'Username', 'Password', 'Ruangan Penugasan'];
     }
 
     /**
@@ -49,7 +49,7 @@ class SupervisorsExport implements FromCollection, WithColumnWidths, WithEvents,
 
         return [
             $supervisor->user?->name ?? '-',
-            $supervisor->user?->email ?? '-',
+            $supervisor->user?->username ?? '-',
             $supervisor->user?->plain_password ?? '-',
             $rooms->isEmpty() ? ($supervisor->room?->display_name ?? '-') : $rooms->implode(', '),
         ];

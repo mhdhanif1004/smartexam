@@ -60,8 +60,8 @@
             <td class="val">{{ $supervisor->user?->name ?? '-' }}</td>
         </tr>
         <tr>
-            <td class="lbl">Email</td>
-            <td class="val">{{ $supervisor->user?->email ?? '-' }}</td>
+            <td class="lbl">Username</td>
+            <td class="val">{{ $supervisor->user?->username ?? '-' }}</td>
         </tr>
         <tr>
             <td class="lbl">Password</td>

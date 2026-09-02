@@ -128,13 +128,15 @@ class AdminCrudTest extends TestCase
     {
         $this->actingAs($this->admin)->post('/admin/supervisors', [
             'name' => 'Pak Guru',
-            'email' => 'guru@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
             'is_active' => '1',
         ])->assertRedirect(route('admin.supervisors.index'));
 
-        $this->assertDatabaseHas('users', ['email' => 'guru@example.com', 'role' => 'pengawas']);
+        $user = User::where('name', 'Pak Guru')->where('role', 'pengawas')->first();
+        $this->assertNotNull($user);
+        $this->assertNull($user->email);
+        $this->assertNotNull($user->username);
         $this->assertDatabaseHas('supervisors', ['room_id' => null]);
     }
 
@@ -145,7 +147,6 @@ class AdminCrudTest extends TestCase
 
         $this->actingAs($this->admin)->put("/admin/supervisors/{$supervisor->id}", [
             'name' => 'Pak Guru Baru',
-            'email' => 'guru-baru@example.com',
             'is_active' => '1',
         ])->assertRedirect(route('admin.supervisors.index'));
 
@@ -157,12 +158,12 @@ class AdminCrudTest extends TestCase
     {
         $this->actingAs($this->admin)->post('/admin/supervisors', [
             'name' => 'Bu Rina',
-            'email' => 'rina@example.com',
             'is_active' => '1',
         ])->assertRedirect(route('admin.supervisors.index'));
 
-        $user = User::where('email', 'rina@example.com')->first();
+        $user = User::where('name', 'Bu Rina')->where('role', 'pengawas')->first();
         $this->assertNotNull($user);
+        $this->assertNotNull($user->username);
         $this->assertNotNull($user->plain_password);
         $this->assertTrue(strlen($user->plain_password) >= 8);
         $this->assertTrue(password_verify($user->plain_password, $user->password));

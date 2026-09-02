@@ -17,11 +17,6 @@
                         <x-input-error :messages="$errors->get('name')" class="mt-2" />
                     </div>
                     <div>
-                        <x-input-label for="email" :value="__('Email')" />
-                        <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" value="{{ old('email') }}" required />
-                        <x-input-error :messages="$errors->get('email')" class="mt-2" />
-                    </div>
-                    <div>
                         <x-input-label for="password" :value="__('Password')" />
                         <div class="mt-1 flex gap-2">
                             <div class="relative flex-1">
@@ -33,11 +28,12 @@
                         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Opsional. Jika dikosongkan, password akan dibuat otomatis oleh sistem.</p>
                         <x-input-error :messages="$errors->get('password')" class="mt-2" />
                     </div>
-                    <div class="sm:col-span-2">
+                    <div>
                         <x-input-label for="password_confirmation" :value="__('Konfirmasi Password')" />
                         <x-text-input id="password_confirmation" name="password_confirmation" type="password" class="mt-1 block w-full" autocomplete="new-password" />
                     </div>
                 </div>
+                <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">Username untuk login akan dibuat otomatis oleh sistem (tidak dapat diubah).</p>
                 <label class="mt-5 flex w-fit items-center gap-2">
                     <input type="checkbox" name="is_active" value="1" @checked(old('is_active', true)) class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
                     <span class="text-sm text-gray-700 dark:text-gray-300">Akun aktif</span>
