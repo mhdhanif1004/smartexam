@@ -20,8 +20,8 @@ export function examApp(config) {
         current: 0,
         remaining: Math.max(0, config.deadline - Math.floor(Date.now() / 1000)),
         remainingSesi: Math.max(0, config.remainingSession || 0),
+        remainingGrace: Math.max(0, config.remainingGrace || 0),
         totalSessionSeconds: config.totalSessionSeconds || 0,
-        graceSeconds: config.graceSeconds || 0,
         isFinalMapel: config.isFinalMapel || false,
         saving: false,
         saveQueued: false,
@@ -50,9 +50,8 @@ export function examApp(config) {
         graceWarningShown: false,
 
         get inGracePeriod() {
-            return this.graceSeconds > 0
-                && this.remainingSesi > 0
-                && this.remainingSesi <= this.graceSeconds;
+            // Tahap 2: waktu resmi (periodEnd) habis, tapi masa toleransi (grace) masih berjalan.
+            return this.remainingSesi <= 0 && this.remainingGrace > 0;
         },
 
         init() {
@@ -70,9 +69,11 @@ export function examApp(config) {
             this.started = true;
             this.remaining = Math.max(0, config.deadline - Math.floor(Date.now() / 1000));
             this.remainingSesi = Math.max(0, config.remainingSession || 0);
+            this.remainingGrace = Math.max(0, config.remainingGrace || 0);
             this.timer = setInterval(() => {
                 this.remaining -= 1;
                 this.remainingSesi = Math.max(0, this.remainingSesi - 1);
+                this.remainingGrace = Math.max(0, this.remainingGrace - 1);
 
                 if (this.remaining === 300 && !this.isFinalMapel && !this.mapelWarningShown) {
                     this.mapelWarningShown = true;
@@ -88,7 +89,8 @@ export function examApp(config) {
                     this.showToast('Waktu resmi sudah berakhir. Anda dalam masa toleransi.');
                 }
 
-                if (this.remainingSesi <= 0) {
+                // Auto-submit hanya saat waktu resmi (periodEnd) DAN masa toleransi (grace) sama-sama habis.
+                if (this.remainingSesi <= 0 && this.remainingGrace <= 0) {
                     this.submit(true);
                 }
             }, 1000);
@@ -263,10 +265,17 @@ export function examApp(config) {
                     this.isFinalMapel = data.mapel.is_final;
                 }
                 if (data.sesi) {
-                    const serverSesi = data.sesi.remaining_seconds;
-                    const sesiDrift = Math.abs(this.remainingSesi - serverSesi);
-                    if (sesiDrift > 3) {
-                        this.remainingSesi = serverSesi;
+                    // Tahap 1: sisa waktu resmi (periodEnd). Server mengirim nilai mentah (bisa negatif saat grace).
+                    const serverPeriod = data.sesi.remaining_seconds;
+                    if (Math.abs(this.remainingSesi - serverPeriod) > 3) {
+                        this.remainingSesi = Math.max(0, serverPeriod);
+                    }
+                    // Tahap 2: sisa masa toleransi.
+                    if (typeof data.sesi.remaining_grace === 'number') {
+                        const serverGrace = data.sesi.remaining_grace;
+                        if (Math.abs(this.remainingGrace - serverGrace) > 3) {
+                            this.remainingGrace = Math.max(0, serverGrace);
+                        }
                     }
                 }
             } catch (e) {
