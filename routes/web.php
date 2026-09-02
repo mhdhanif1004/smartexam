@@ -153,7 +153,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         });
 
         Route::get('/violations', [ViolationController::class, 'index'])->name('violations.index');
-        Route::get('/violations/polling', [ViolationController::class, 'polling'])->name('violations.polling');
+        Route::get('/violations/polling', [ViolationController::class, 'polling'])->middleware('throttle:60,1')->name('violations.polling');
         Route::patch('/violations/{examSession}/lock', [ViolationController::class, 'toggleLock'])->name('violations.lock');
     });
 
@@ -161,10 +161,10 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::get('/dashboard', PengawasDashboardController::class)->name('dashboard');
 
         Route::controller(PengawasViolationController::class)->prefix('violations')->name('violations.')->group(function () {
-            Route::get('/latest', 'recent')->name('latest');
-            Route::get('/recent', 'recent')->name('recent');
-            Route::get('/polling', 'polling')->name('polling');
-            Route::patch('/{violation}/handle', 'handle')->name('handle');
+            Route::get('/latest', 'recent')->middleware('throttle:60,1')->name('latest');
+            Route::get('/recent', 'recent')->middleware('throttle:60,1')->name('recent');
+            Route::get('/polling', 'polling')->middleware('throttle:60,1')->name('polling');
+            Route::patch('/{violation}/handle', 'handle')->middleware('throttle:30,1')->name('handle');
         });
 
         Route::controller(PengawasAttendanceController::class)->prefix('attendance')->name('attendance.')->group(function () {
@@ -214,17 +214,17 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
 
         Route::controller(PesertaExamController::class)->prefix('exams')->name('exams.')->group(function () {
             Route::get('/{schedule}/token', 'token')->name('token');
-            Route::post('/{schedule}/token', 'validateToken')->name('token.validate');
+            Route::post('/{schedule}/token', 'validateToken')->middleware('throttle:20,1')->name('token.validate');
             Route::get('/{schedule}/work', 'work')->name('work');
-            Route::get('/{schedule}/status', 'status')->name('status');
-            Route::post('/{schedule}/save-answer', 'saveAnswer')->name('save-answer');
-            Route::post('/{schedule}/questions/{question}/toggle-doubtful', 'toggleDoubtful')->name('questions.toggle-doubtful');
-            Route::post('/{schedule}/submit', 'submit')->name('submit');
+            Route::get('/{schedule}/status', 'status')->middleware('throttle:60,1')->name('status');
+            Route::post('/{schedule}/save-answer', 'saveAnswer')->middleware('throttle:60,1')->name('save-answer');
+            Route::post('/{schedule}/questions/{question}/toggle-doubtful', 'toggleDoubtful')->middleware('throttle:60,1')->name('questions.toggle-doubtful');
+            Route::post('/{schedule}/submit', 'submit')->middleware('throttle:10,1')->name('submit');
             Route::get('/{schedule}/finished', 'finished')->name('finished');
         });
 
         Route::controller(PesertaViolationController::class)->prefix('exams')->name('exams.')->group(function () {
-            Route::post('/{schedule}/violation', 'store')->name('violation');
+            Route::post('/{schedule}/violation', 'store')->middleware('throttle:30,1')->name('violation');
         });
     });
 

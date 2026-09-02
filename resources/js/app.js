@@ -1,4 +1,5 @@
 import './bootstrap';
+import './echo';
 
 // instant.page: prefetch link saat hover agar navigasi antar halaman terasa
 // instan (tanpa reload/pertukaran DOM, murni pre-cache HTML target).

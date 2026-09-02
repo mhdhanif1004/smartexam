@@ -39,14 +39,16 @@ class ReportController extends Controller
     {
         [$query] = $this->buildQuery($request);
 
-        return Excel::download(new ExamResultsExport($query->get()), 'laporan-hasil-ujian.xlsx');
+        // Streaming berbasis query (cursor) agar tidak load semua baris ke memori sekaligus
+        return Excel::download(new ExamResultsExport($query), 'laporan-hasil-ujian.xlsx');
     }
 
     public function exportPdf(Request $request): Response
     {
         [$query, $filters] = $this->buildQuery($request);
 
-        $rows = $query->get();
+        // Cursor untuk hindari OOM — PDF tetap butuh semua baris tapi tidak via get() eager sekaligus
+        $rows = $query->cursor()->collect();
         $summary = $this->summary($rows->whereNotNull('total_score'), $rows);
 
         $pdf = Pdf::loadView('admin.reports.print', compact('rows', 'summary', 'filters'))
