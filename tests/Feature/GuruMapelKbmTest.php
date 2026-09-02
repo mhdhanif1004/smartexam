@@ -107,27 +107,38 @@ class GuruMapelKbmTest extends TestCase
             ->assertSee('Simpan Soal');
     }
 
-    public function test_classroom_picker_on_create_shows_all_classrooms(): void
+    public function test_create_page_no_longer_has_kelas_target_picker(): void
     {
         [$guru, $subject, $classroom] = $this->makeAmpuGuru();
 
-        // Kelas yang TIDAK diampu sekalipun tetap boleh dipilih sebagai kelas
-        // target — kelas yang dipilih di soal inilah yang membuka cakupan
-        // kelas untuk Nilai/Absensi Ujian.
-        $notAmpuClassroom = Classroom::factory()->create(['name' => 'XII IPA 1']);
-        $anotherClassroom = Classroom::factory()->create(['name' => 'X MIPA 2']);
+        // Kelas yang TIDAK diampu ada di master data, tapi sejak picker "Kelas
+        // Target" dihapus dari form soal guru, halaman create TIDAK boleh lagi
+        // menampilkan section pemilih kelas atau daftar kelas apa pun.
+        Classroom::factory()->create(['name' => 'XII IPA 1']);
 
         $html = $this->actingAs($guru->user)
             ->get(route('guru_mapel.questions.create'))
             ->assertOk()
-            ->assertSee($classroom->name)
-            ->assertSee($notAmpuClassroom->name)
-            ->assertSee($anotherClassroom->name)
+            ->assertSee('Tambah Soal')
             ->getContent();
 
-        // Semua kelas harus tersedia di payload Alpine scoped picker.
-        $this->assertStringContainsString($notAmpuClassroom->name, $html);
-        $this->assertStringContainsString($anotherClassroom->name, $html);
+        $this->assertStringNotContainsString('Kelas Target', $html);
+        $this->assertStringNotContainsString('classroom-picker', $html);
+        $this->assertStringNotContainsString('name="classroom_ids', $html);
+    }
+
+    public function test_picker_removed_but_snapshot_areas_intact(): void
+    {
+        [$guru, $subject, $classroom] = $this->makeAmpuGuru();
+
+        // Form create tetap punya input mapel/jenis/pertanyaan (tanpa picker),
+        // dan tidak mewajibkan kiriman classroom_ids.
+        $this->actingAs($guru->user)
+            ->get(route('guru_mapel.questions.create'))
+            ->assertOk()
+            ->assertSee('Mata Pelajaran')
+            ->assertSee('Jenis Soal')
+            ->assertSee('Pertanyaan');
     }
 
     public function test_guru_can_create_question_with_image(): void

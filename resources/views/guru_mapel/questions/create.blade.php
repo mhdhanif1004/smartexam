@@ -11,7 +11,6 @@
             'subjects' => $subjects,
             'types' => $types,
             'letters' => $letters,
-            'classroomsBySubject' => $classroomsBySubject,
             'action' => route('guru_mapel.questions.store'),
             'submitLabel' => 'Simpan Soal',
         ])
