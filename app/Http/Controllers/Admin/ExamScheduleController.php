@@ -24,7 +24,7 @@ class ExamScheduleController extends Controller
     public function index(Request $request): View
     {
         $dates = $this->applySearchFilters(ExamSchedule::query(), $request)
-            ->selectRaw('exam_date, count(*) as total')
+            ->selectRaw('exam_date, count(distinct subject_id) as total')
             ->groupBy('exam_date')
             ->orderBy('exam_date', 'desc')
             ->paginate(10)

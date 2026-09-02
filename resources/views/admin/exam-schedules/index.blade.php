@@ -42,7 +42,7 @@
                         <tr>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">No</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Tanggal</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Jumlah Jadwal</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Jumlah Mapel</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Aksi</th>
                         </tr>
                     </thead>
@@ -62,7 +62,9 @@
                                         {{ $date->exam_date->locale('id')->translatedFormat('l, d F Y') }}
                                     </a>
                                 </td>
-                                <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $date->total }} jadwal</td>
+                                <td class="px-4 py-3 text-sm">
+                                    <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">{{ $date->total }} mapel</span>
+                                </td>
                                 <td class="px-4 py-3 text-sm">
                                     <a href="{{ $dateLink }}" class="rounded-md bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20">Lihat Jadwal</a>
                                 </td>

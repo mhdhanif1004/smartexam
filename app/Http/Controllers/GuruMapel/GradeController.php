@@ -9,6 +9,7 @@ use App\Models\ExamAnswer;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\Grade;
+use App\Models\Question;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Traits\ScopesGuruMapel;
@@ -162,9 +163,11 @@ class GradeController extends Controller
     }
 
     /**
-     * Detail jawaban siswa: seluruh jawaban per soal pada sesi ujian terakhir
-     * untuk mapel-kelas yang diampu. Soal essay dengan skor null ditandai
-     * "Belum dinilai" dan guru dapat mengoreksi/menilai dari halaman ini.
+     * Detail jawaban siswa: seluruh soal pada sesi ujian terakhir untuk
+     * mapel-kelas yang diampu — termasuk soal yang TIDAK dijawab. Query
+     * dimulai dari SEMUA soal (via question_classroom pivot), lalu LEFT
+     * JOIN ke exam_answers milik siswa. Soal tak terjawab mendapat stub
+     * ExamAnswer (score=0) supaya form koreksi guru tetap jalan.
      */
     public function detail(Request $request): View
     {
@@ -197,7 +200,7 @@ class GradeController extends Controller
         $session = null;
         if ($scheduleIds->isNotEmpty()) {
             $session = ExamSession::query()
-                ->with(['examAnswers.question', 'examSchedule.subject'])
+                ->with(['examSchedule.subject'])
                 ->where('student_id', $studentId)
                 ->whereIn('exam_schedule_id', $scheduleIds)
                 ->whereIn('status', [ExamSession::STATUS_COMPLETED, ExamSession::STATUS_TIMED_OUT])
@@ -212,17 +215,56 @@ class GradeController extends Controller
             ->where('classroom_id', $classroomId)
             ->first();
 
+        // === Sumber kebenaran: SEMUA soal yang relevan untuk mapel+kelas ===
+        $allQuestions = Question::query()
+            ->where('subject_id', $subjectId)
+            ->targetingClassroom($classroomId)
+            ->orderBy('id')
+            ->get();
+
+        // Map jawaban siswa berdasarkan question_id
+        $answersByQuestion = collect();
+        if ($session) {
+            $answersByQuestion = ExamAnswer::query()
+                ->where('exam_session_id', $session->id)
+                ->whereIn('question_id', $allQuestions->pluck('id'))
+                ->get()
+                ->keyBy('question_id');
+        }
+
+        // Untuk soal yang TIDAK dijawab: buat objek ExamAnswer IN-MEMORY
+        // SAJA (bukan `::create`) supaya form koreksi guru tetap jalan tanpa
+        // menulis row ke database. Stub baru hanya disimpan saat guru benar-
+        // benar klik "Simpan Skor & Nilai".
+        if ($session) {
+            foreach ($allQuestions as $question) {
+                if (! $answersByQuestion->has($question->id)) {
+                    $stub = new ExamAnswer([
+                        'exam_session_id' => $session->id,
+                        'question_id' => $question->id,
+                        'student_answer' => null,
+                        'score' => 0,
+                    ]);
+                    $stub->setRelation('question', $question);
+                    // exists tetap false → view bisa bedakan dari jawaban asli
+                    $answersByQuestion->put($question->id, $stub);
+                }
+            }
+        }
+
         return view('guru_mapel.grades.detail', compact(
             'guru', 'student', 'classroom', 'subject', 'session', 'grade',
-            'subjectId', 'classroomId', 'studentId',
+            'subjectId', 'classroomId', 'studentId', 'allQuestions',
         ));
     }
 
     /**
-     * Simpan koreksi skor per jawaban dari halaman detail. Hanya skor yang
-     * boleh diubah (jawaban siswa tetap read-only). Total nilai siswa dihitung
-     * ulang dari seluruh skor per soal sesi tersebut (termasuk essay yang baru
-     * dinilai) lalu disimpan sebagai nilai resmi di tabel grades (is_override).
+     * Simpan koreksi skor per jawaban dari halaman detail. Dua input terpisah:
+     * - `scores[answer_id]`: update skor jawaban yang SUDAH ada di DB.
+     * - `new_scores[question_id]`: buat ExamAnswer BARU untuk soal yang tidak
+     *   dijawab siswa — row baru hanya tercipta saat guru benar-benar mengisi
+     *   koreksi dan klik Simpan (bukan saat halaman dibuka).
+     * Total nilai dihitung ulang dari seluruh skor per soal sesi tersebut.
      */
     public function saveScores(Request $request): RedirectResponse
     {
@@ -234,7 +276,8 @@ class GradeController extends Controller
             'student_id' => ['required', 'integer'],
             'session_id' => ['required', 'integer'],
             'note' => ['nullable', 'string', 'max:255'],
-            'scores' => ['required', 'array'],
+            'scores' => ['nullable', 'array'],
+            'new_scores' => ['nullable', 'array'],
         ]);
 
         $subjectId = (int) $validated['subject_id'];
@@ -268,14 +311,16 @@ class GradeController extends Controller
 
         abort_unless($sessionMatches, 403, 'Sesi ujian tidak sesuai dengan mapel-kelas siswa ini.');
 
+        // --- 1. Validasi & simpan skor jawaban YANG SUDAH ADA ---
         $answers = $session->examAnswers->keyBy('id');
         $scores = $request->input('scores', []);
 
         $validator = Validator::make($request->all(), [
             'scores.*' => ['nullable', 'numeric', 'min:0'],
+            'new_scores.*' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        $validator->after(function ($validator) use ($scores, $answers) {
+        $validator->after(function ($validator) use ($scores, $answers, $request, $subjectId, $student) {
             foreach ($scores as $answerId => $value) {
                 $answer = $answers->get((int) $answerId);
 
@@ -295,14 +340,78 @@ class GradeController extends Controller
                     $validator->errors()->add('scores.'.$answerId, 'Skor maksimal adalah '.$max.' untuk soal ini.');
                 }
             }
+
+            // Validasi new_scores: question_id harus valid untuk sesi ini
+            $newScores = $request->input('new_scores', []);
+            $existingQuestionIds = $answers->pluck('question_id')->toArray();
+
+            foreach ($newScores as $questionId => $value) {
+                $questionIdInt = (int) $questionId;
+
+                // Sudah ada jawaban asli → jangan proses sebagai new_scores
+                if (in_array($questionIdInt, $existingQuestionIds, true)) {
+                    $validator->errors()->add('new_scores.'.$questionId, 'Soal ini sudah memiliki jawaban di database.');
+
+                    return;
+                }
+
+                // Pastikan soal benar milik sesi ini
+                $questionExists = Question::query()
+                    ->where('id', $questionIdInt)
+                    ->where('subject_id', $subjectId)
+                    ->targetingClassroom((int) $student->classroom_id)
+                    ->exists();
+
+                if (! $questionExists) {
+                    $validator->errors()->add('new_scores.'.$questionId, 'Soal tidak ditemukan untuk sesi ini.');
+
+                    return;
+                }
+
+                if ($value === null || $value === '') {
+                    continue;
+                }
+
+                // Cari bobot maksimal soal
+                $question = Question::find($questionIdInt);
+                $max = $question ? (float) $question->score_weight : 0;
+
+                if ((float) $value > $max) {
+                    $validator->errors()->add('new_scores.'.$questionId, 'Skor maksimal adalah '.$max.' untuk soal ini.');
+                }
+            }
         })->validate();
 
+        // Update skor jawaban yang sudah ada
+        $scores = $request->input('scores', []);
         foreach ($scores as $answerId => $value) {
             ExamAnswer::query()
                 ->whereKey((int) $answerId)
                 ->where('exam_session_id', $session->id)
                 ->update(['score' => $value === null || $value === '' ? null : (float) $value]);
         }
+
+        // --- 2. Buat ExamAnswer BARU hanya untuk new_scores (koreksi guru
+        //     untuk soal yang tidak dijawab siswa) ---
+        $newScores = $request->input('new_scores', []);
+        $classroomIdForQuestion = (int) $session->examSchedule->classroom_id;
+
+        foreach ($newScores as $questionId => $value) {
+            $scoreValue = ($value === null || $value === '') ? null : (float) $value;
+
+            // Hanya buat row jika guru benar-benar mengisi skor (bukan kosong)
+            if ($scoreValue !== null) {
+                ExamAnswer::create([
+                    'exam_session_id' => $session->id,
+                    'question_id' => (int) $questionId,
+                    'student_answer' => null,
+                    'score' => $scoreValue,
+                ]);
+            }
+        }
+
+        // Reload examAnswers setelah insert baru
+        $session->load('examAnswers');
 
         $total = (float) $session->examAnswers()->sum('score');
 
