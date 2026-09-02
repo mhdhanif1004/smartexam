@@ -27,15 +27,30 @@ class ExamPeriodDeletePreviewTest extends TestCase
 
     public function test_index_page_renders_without_leaked_code(): void
     {
-        $period = ExamPeriod::factory()->create();
+        $period = ExamPeriod::factory()->create([
+            'exam_date' => '2026-08-10',
+            'name' => 'Sesi Pagi',
+        ]);
 
         $response = $this->actingAs($this->admin)->get(route('admin.exam-periods.index'));
         $response->assertOk();
 
         $html = $response->content();
         $this->assertStringNotContainsString('document.body.appendChild(form)', $html);
-        $this->assertStringContainsString('periodDelete', $html);
-        $this->assertStringContainsString($period->name, $html);
+        // Halaman utama mengelompokkan per tanggal -> tidak memuat nama sesi maupun modal delete
+        $this->assertStringContainsString('10 Agustus 2026', $html);
+        $this->assertStringNotContainsString('Sesi Pagi', $html);
+        $this->assertStringNotContainsString('periodDelete', $html);
+
+        // Detail per tanggal memuat modal delete (periodDelete) dan nama sesi
+        $detail = $this->actingAs($this->admin)
+            ->get(route('admin.exam-periods.by-date', ['date' => '2026-08-10']))
+            ->assertOk();
+
+        $detailHtml = $detail->content();
+        $this->assertStringContainsString('periodDelete', $detailHtml);
+        $this->assertStringContainsString('Sesi Pagi', $detailHtml);
+        $this->assertStringNotContainsString('document.body.appendChild(form)', $detailHtml);
     }
 
     // ── deletePreview ──────────────────────────────────────────────

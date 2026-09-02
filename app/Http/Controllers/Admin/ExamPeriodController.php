@@ -28,15 +28,40 @@ use Illuminate\View\View;
 
 class ExamPeriodController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
+        $dates = ExamPeriod::query()
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $search = $request->string('search')->trim();
+                $query->where('exam_date', 'like', "%{$search}%");
+            })
+            ->selectRaw('exam_date, count(*) as total')
+            ->groupBy('exam_date')
+            ->orderBy('exam_date', 'desc')
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('admin.exam-periods.index', ['dates' => $dates]);
+    }
+
+    public function byDate(Request $request): View
+    {
+        $validated = $request->validate([
+            'date' => ['required', 'date'],
+        ]);
+
+        $date = $validated['date'];
+
         $periods = ExamPeriod::query()
             ->withCount('schedules')
-            ->orderBy('exam_date', 'desc')
+            ->whereDate('exam_date', $date)
             ->orderBy('start_time')
             ->get();
 
-        return view('admin.exam-periods.index', compact('periods'));
+        return view('admin.exam-periods.by-date', [
+            'examDate' => $date,
+            'periods' => $periods,
+        ]);
     }
 
     public function create(): View

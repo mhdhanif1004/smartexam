@@ -102,6 +102,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::post('exam-schedules/bulk-delete', [ExamScheduleController::class, 'bulkDelete'])->name('exam-schedules.bulk-delete');
 
         Route::get('exam-periods/{examPeriod}/delete-preview', [ExamPeriodController::class, 'deletePreview'])->name('exam-periods.delete-preview');
+        Route::get('exam-periods/by-date', [ExamPeriodController::class, 'byDate'])->name('exam-periods.by-date');
         Route::resource('exam-periods', ExamPeriodController::class)->except(['edit', 'update']);
         Route::get('exam-periods/auto-generate/create', [ExamPeriodController::class, 'autoGenerateCreate'])->name('exam-periods.auto-generate.create');
         Route::post('exam-periods/auto-generate', [ExamPeriodController::class, 'autoGenerateStore'])->name('exam-periods.auto-generate.store');
