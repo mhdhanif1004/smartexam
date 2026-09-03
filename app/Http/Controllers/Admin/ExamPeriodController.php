@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreExamPeriodAutoGenerateRequest;
 use App\Http\Requests\Admin\StoreExamPeriodGroupsRequest;
 use App\Http\Requests\Admin\StoreExamPeriodRequest;
+use App\Http\Requests\Admin\StoreSupervisorRoomAssignmentRequest;
 use App\Http\Requests\Admin\UpdateSupervisorRoomAssignmentRequest;
 use App\Models\Classroom;
 use App\Models\ExamPeriod;
@@ -563,6 +564,36 @@ class ExamPeriodController extends Controller
         }
 
         return back()->with('success', 'Pengawas berhasil diperbarui.');
+    }
+
+    public function storeSupervisorAssignment(
+        StoreSupervisorRoomAssignmentRequest $request,
+        ExamPeriod $examPeriod,
+    ): JsonResponse|RedirectResponse {
+        $roomId = (int) $request->input('room_id');
+
+        $assignment = SupervisorRoomAssignment::create([
+            'exam_period_id' => $examPeriod->id,
+            'exam_date' => $examPeriod->exam_date->toDateString(),
+            'supervisor_id' => $request->supervisor_id,
+            'room_id' => $roomId,
+            'rotation_index' => SupervisorRoomAssignment::query()
+                ->where('supervisor_id', $request->supervisor_id)
+                ->count() + 1,
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Pengawas berhasil ditugaskan.',
+                'supervisor_room_assignment' => [
+                    'id' => $assignment->id,
+                    'supervisor_id' => $assignment->supervisor_id,
+                    'supervisor_name' => $assignment->supervisor?->user?->name ?? '',
+                ],
+            ]);
+        }
+
+        return back()->with('success', 'Pengawas berhasil ditugaskan.');
     }
 
     public function resetSupervisorAssignments(ExamPeriod $examPeriod, Request $request): JsonResponse|RedirectResponse
