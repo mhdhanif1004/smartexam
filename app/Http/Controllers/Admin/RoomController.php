@@ -167,13 +167,14 @@ class RoomController extends Controller
             'supervisor_count' => $newSupervisorCount,
         ]);
 
-        $assignedIds = $request->input('assign_supervisor_ids', []);
-        Supervisor::where('room_id', $room->id)
-            ->whereNotIn('id', $assignedIds)
-            ->update(['room_id' => null]);
-
         if ($request->has('assign_supervisor_ids')) {
-            Supervisor::whereIn('id', $request->input('assign_supervisor_ids'))
+            $assignedIds = $request->input('assign_supervisor_ids');
+
+            Supervisor::where('room_id', $room->id)
+                ->whereNotIn('id', $assignedIds)
+                ->update(['room_id' => null]);
+
+            Supervisor::whereIn('id', $assignedIds)
                 ->whereNull('room_id')
                 ->update(['room_id' => $room->id]);
         }
