@@ -28,8 +28,13 @@
                     </select>
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Pilih mapel, lalu klik "Tampilkan Jadwal" untuk melihat kelas yang Anda ampu.</p>
                 </div>
-                <div class="flex items-end">
-                    <button type="submit" class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">Tampilkan Jadwal</button>                </div>
+                <div>
+                    <x-input-label value="&#160;" class="invisible" />
+                    <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178zM15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        Tampilkan Jadwal
+                    </button>
+                </div>
             </form>
         </div>
 

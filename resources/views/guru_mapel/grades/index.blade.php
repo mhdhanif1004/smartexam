@@ -81,10 +81,16 @@
                                         @endif
                                     </td>
                                     <td class="px-6 py-3">
-                                        <a href="{{ route('guru_mapel.grades.detail', ['subject_id' => $subjectId, 'classroom_id' => $classroomId, 'student_id' => $student->id]) }}"
-                                           class="inline-flex items-center rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20">
-                                            Lihat Jawaban
-                                        </a>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <a href="{{ route('guru_mapel.grades.detail', ['subject_id' => $subjectId, 'classroom_id' => $classroomId, 'student_id' => $student->id]) }}"
+                                               class="inline-flex items-center rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20">
+                                                Lihat Jawaban
+                                            </a>
+                                            <a href="{{ route('guru_mapel.grades.student-history', ['subject_id' => $subjectId, 'classroom_id' => $classroomId, 'student_id' => $student->id]) }}"
+                                               class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                                                Riwayat
+                                            </a>
+                                        </div>
                                     </td>
                                 </tr>
                             @empty

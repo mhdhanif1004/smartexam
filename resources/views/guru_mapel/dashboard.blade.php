@@ -32,6 +32,25 @@
             </div>
         </div>
 
+        <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Mata Pelajaran yang Anda ampu</h3>
+                <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">{{ $subjects->count() }} mapel</span>
+            </div>
+            @if ($subjects->isEmpty())
+                <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">Belum ada mapel yang ditugaskan kepada Anda. Hubungi administrator.</p>
+            @else
+                <div class="mt-4 flex flex-wrap gap-2">
+                    @foreach ($subjects as $item)
+                        <div class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50">
+                            <span class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ $item['subject']->name }}</span>
+                            <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">{{ $item['class_count'] }} kelas</span>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex items-center justify-between border-b border-gray-200 px-5 py-3 dark:border-gray-800">

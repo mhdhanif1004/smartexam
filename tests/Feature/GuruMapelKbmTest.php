@@ -339,6 +339,118 @@ class GuruMapelKbmTest extends TestCase
         $this->assertDatabaseHas('questions', ['id' => $question->id]);
     }
 
+    public function test_guru_can_bulk_delete_own_questions(): void
+    {
+        [$guru, $subject, $classroom] = $this->makeAmpuGuru();
+
+        $q1 = Question::query()->create([
+            'subject_id' => $subject->id,
+            'type' => Question::TYPE_ESSAY,
+            'question_text' => 'Soal hapus massal 1',
+            'answer_key' => 'rubrik',
+            'score_weight' => 10,
+            'created_by_user_id' => $guru->user->id,
+        ]);
+        $q1->classrooms()->attach($classroom->id);
+
+        $q2 = Question::query()->create([
+            'subject_id' => $subject->id,
+            'type' => Question::TYPE_ESSAY,
+            'question_text' => 'Soal hapus massal 2',
+            'answer_key' => 'rubrik',
+            'score_weight' => 10,
+            'created_by_user_id' => $guru->user->id,
+        ]);
+        $q2->classrooms()->attach($classroom->id);
+
+        $this->actingAs($guru->user)
+            ->post(route('guru_mapel.questions.bulk-destroy'), ['ids' => [$q1->id, $q2->id]])
+            ->assertRedirect(route('guru_mapel.questions.index'))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('questions', ['id' => $q1->id]);
+        $this->assertDatabaseMissing('questions', ['id' => $q2->id]);
+    }
+
+    public function test_guru_bulk_delete_skips_questions_already_answered(): void
+    {
+        [$guru, $subject, $classroom] = $this->makeAmpuGuru();
+
+        $answered = Question::query()->create([
+            'subject_id' => $subject->id,
+            'type' => Question::TYPE_ESSAY,
+            'question_text' => 'Soal sudah dijawab peserta',
+            'answer_key' => 'rubrik',
+            'score_weight' => 10,
+            'created_by_user_id' => $guru->user->id,
+        ]);
+        $answered->classrooms()->attach($classroom->id);
+
+        $clean = Question::query()->create([
+            'subject_id' => $subject->id,
+            'type' => Question::TYPE_ESSAY,
+            'question_text' => 'Soal bersih belum dijawab',
+            'answer_key' => 'rubrik',
+            'score_weight' => 10,
+            'created_by_user_id' => $guru->user->id,
+        ]);
+        $clean->classrooms()->attach($classroom->id);
+
+        $session = ExamSession::factory()->create([
+            'exam_schedule_id' => ExamSchedule::factory()->create(['subject_id' => $subject->id])->id,
+        ]);
+
+        ExamAnswer::create([
+            'exam_session_id' => $session->id,
+            'question_id' => $answered->id,
+            'student_answer' => ['A'],
+        ]);
+
+        $this->actingAs($guru->user)
+            ->post(route('guru_mapel.questions.bulk-destroy'), ['ids' => [$answered->id, $clean->id]])
+            ->assertRedirect(route('guru_mapel.questions.index'))
+            ->assertSessionHas('success');
+
+        // Soal sudah dijawab dilewati; soal bersih terhapus.
+        $this->assertDatabaseHas('questions', ['id' => $answered->id]);
+        $this->assertDatabaseMissing('questions', ['id' => $clean->id]);
+    }
+
+    public function test_guru_bulk_delete_ignores_other_gurus_questions(): void
+    {
+        [$guruA, $subjectA, $classroomA] = $this->makeAmpuGuru();
+        [$guruB, $subjectB, $classroomB] = $this->makeAmpuGuru();
+
+        $own = Question::query()->create([
+            'subject_id' => $subjectA->id,
+            'type' => Question::TYPE_ESSAY,
+            'question_text' => 'Soal milik guru A',
+            'answer_key' => 'rubrik',
+            'score_weight' => 10,
+            'created_by_user_id' => $guruA->user->id,
+        ]);
+        $own->classrooms()->attach($classroomA->id);
+
+        $other = Question::query()->create([
+            'subject_id' => $subjectB->id,
+            'type' => Question::TYPE_ESSAY,
+            'question_text' => 'Soal milik guru B',
+            'answer_key' => 'rubrik',
+            'score_weight' => 10,
+            'created_by_user_id' => $guruB->user->id,
+        ]);
+        $other->classrooms()->attach($classroomB->id);
+
+        $this->actingAs($guruA->user)
+            ->post(route('guru_mapel.questions.bulk-destroy'), ['ids' => [$own->id, $other->id]])
+            ->assertRedirect(route('guru_mapel.questions.index'))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('questions', ['id' => $own->id]);
+        // Soal milik guru B tidak boleh ikut terhapus.
+        $this->assertDatabaseHas('questions', ['id' => $other->id]);
+    }
+
     public function test_guru_can_update_own_question_in_ampu_subject(): void
     {
         [$guru, $subject, $classroom] = $this->makeAmpuGuru();

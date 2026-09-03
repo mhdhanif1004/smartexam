@@ -13,8 +13,17 @@
     </div>
 
     <div class="flex shrink-0 items-center gap-3">
-        <span class="hidden items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300 sm:inline-flex">
-            {{ ucfirst(auth()->user()->role ?? 'user') }}
+        @php
+            $roleLabels = [
+                'admin' => 'Administrator',
+                'pengawas' => 'Pengawas',
+                'peserta' => 'Peserta',
+                'guru_mapel' => 'Guru Mapel',
+            ];
+            $roleLabel = $roleLabels[auth()->user()->role] ?? ucfirst(auth()->user()->role ?? 'user');
+        @endphp
+        <span class="hidden items-center rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300 sm:inline-flex">
+            {{ $roleLabel }}
         </span>
 
         <x-theme-toggle />
