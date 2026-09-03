@@ -80,7 +80,7 @@ class AdminAdvancedTest extends TestCase
             ->post(route('admin.student-cards.preview'), ['type' => 'pengawas', 'supervisor_ids' => [$supervisor->id]])
             ->assertOk()
             ->assertSee('pengawas123')
-            ->assertSee($supervisor->user->email);
+            ->assertSee($supervisor->user->username);
 
         $response = $this->actingAs($this->admin)
             ->post(route('admin.student-cards.print'), ['type' => 'pengawas', 'supervisor_ids' => [$supervisor->id]]);

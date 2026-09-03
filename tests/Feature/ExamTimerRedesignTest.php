@@ -285,8 +285,8 @@ class ExamTimerRedesignTest extends TestCase
             ->assertOk()
             ->assertSee('totalSessionSeconds')
             ->assertSee('remainingSession')
-            ->assertSee('isFinalMapel')
-            ->assertSee('graceSeconds');
+            ->assertSee('remainingGrace')
+            ->assertSee('isFinalMapel');
     }
 
     // ---------------------------------------------------------------
@@ -478,32 +478,71 @@ class ExamTimerRedesignTest extends TestCase
     }
 
     // ---------------------------------------------------------------
-    // TEST 12: Timer Sesi includes grace period (10 min)
+    // TEST 12: Timer Sesi dua tahap — periodEnd (tanpa grace) lalu masa toleransi
     // ---------------------------------------------------------------
 
-    public function test_sesi_remaining_includes_grace_period(): void
+    public function test_sesi_remaining_splits_period_and_grace(): void
     {
         $this->beginSession($this->scheduleA);
 
-        // Period end = 11:00, grace = 10 min → sesiDeadline = 11:10
-        // Now = 11:05 => remaining = 11:10 - 11:05 = 300s
-        Carbon::setTestNow(Carbon::parse('2026-08-15 11:05:00'));
+        // Period end = 11:00, grace = 10 min. Sebelum periodEnd → tahap 1.
+        // Now = 10:50:00 => remaining_period = 600s, belum in_grace.
+        Carbon::setTestNow(Carbon::parse('2026-08-15 10:50:00'));
         $response = $this->actingAs($this->student->user)
             ->getJson(route('peserta.exams.status', $this->scheduleA->id));
         $response->assertOk();
-        $this->assertEquals(300, $response->json('sesi.remaining_seconds'));
+        $this->assertEquals(600, $response->json('sesi.remaining_seconds'));
+        $this->assertFalse($response->json('sesi.in_grace'));
+        $this->assertEquals(1200, $response->json('sesi.remaining_grace'));
+
+        // Now = 11:05 (5 menit dalam grace) → tahap 2: periode berakhir (negatif/0),
+        // sisa toleransi = 300s, in_grace = true.
+        Carbon::setTestNow(Carbon::parse('2026-08-15 11:05:00'));
+        $response2 = $this->actingAs($this->student->user)
+            ->getJson(route('peserta.exams.status', $this->scheduleA->id));
+        $response2->assertOk();
+        $this->assertEquals(-300, $response2->json('sesi.remaining_seconds'));
+        $this->assertEquals(300, $response2->json('sesi.remaining_grace'));
+        $this->assertTrue($response2->json('sesi.in_grace'));
     }
 
-    public function test_sesi_remaining_zero_after_grace_expires(): void
+    public function test_sesi_grace_not_reset_on_refresh_while_in_grace(): void
     {
         $this->beginSession($this->scheduleA);
 
-        // Period end = 11:00, grace = 10 min → sesiDeadline = 11:10
-        // Now = 11:15 => remaining = 0 (past grace period)
+        // Period end = 11:00, grace = 10 min. Siswa membuka status saat sudah 4 menit
+        // dalam masa toleransi (11:04). Sisa toleransi harus 6 menit (360s), BUKAN 10 menit penuh.
+        Carbon::setTestNow(Carbon::parse('2026-08-15 11:04:00'));
+        $r1 = $this->actingAs($this->student->user)
+            ->getJson(route('peserta.exams.status', $this->scheduleA->id));
+        $r1->assertOk();
+        $this->assertLessThanOrEqual(0, $r1->json('sesi.remaining_seconds'));
+        $this->assertTrue($r1->json('sesi.in_grace'));
+
+        // 2 menit kemudian refresh/status lagi → sisa toleransi harus berkurang menjadi 4 menit (240s).
+        Carbon::setTestNow(Carbon::parse('2026-08-15 11:06:00'));
+        $r2 = $this->actingAs($this->student->user)
+            ->getJson(route('peserta.exams.status', $this->scheduleA->id));
+        $r2->assertOk();
+        $this->assertTrue($r2->json('sesi.in_grace'));
+        $this->assertEquals(360, $r1->json('sesi.remaining_grace'));
+        $this->assertEquals(240, $r2->json('sesi.remaining_grace'));
+        $this->assertLessThan($r1->json('sesi.remaining_grace'), $r2->json('sesi.remaining_grace'),
+            'remaining_grace harus menurun seiring waktu, tidak mereset');
+    }
+
+    public function test_sesi_zero_after_grace_expires(): void
+    {
+        $this->beginSession($this->scheduleA);
+
+        // Period end = 11:00, grace = 10 min → deadline sebenarnya = 11:10.
+        // Now = 11:15 => sudah lewat total; periode & grace sama-sama negatif, in_grace = false.
         Carbon::setTestNow(Carbon::parse('2026-08-15 11:15:00'));
         $response = $this->actingAs($this->student->user)
             ->getJson(route('peserta.exams.status', $this->scheduleA->id));
         $response->assertOk();
-        $this->assertEquals(0, $response->json('sesi.remaining_seconds'));
+        $this->assertLessThanOrEqual(0, $response->json('sesi.remaining_seconds'));
+        $this->assertLessThanOrEqual(0, $response->json('sesi.remaining_grace'));
+        $this->assertFalse($response->json('sesi.in_grace'));
     }
 }

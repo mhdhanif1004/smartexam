@@ -43,12 +43,12 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect(route('admin.dashboard', absolute: false));
     }
 
-    public function test_pengawas_can_authenticate_using_email(): void
+    public function test_pengawas_can_authenticate_using_username(): void
     {
         $pengawas = User::factory()->pengawas()->create();
 
         $response = $this->post('/login', [
-            'email' => $pengawas->email,
+            'email' => $pengawas->username,
             'password' => 'password',
         ]);
 

@@ -64,7 +64,7 @@
 
                 <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div class="border-b border-gray-200 px-6 py-4 dark:border-gray-700">
-                        <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Jawaban per Soal — {{ $session->examAnswers->count() }} soal</h3>
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Jawaban per Soal — {{ $allQuestions->count() }} soal</h3>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -79,56 +79,71 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-800 dark:bg-gray-900">
-                                @forelse ($session->examAnswers as $index => $answer)
-                                    @php($question = $answer->question)
+                                @foreach ($allQuestions as $index => $question)
+                                    @php($answer = $session->examAnswers->firstWhere('question_id', $question->id))
                                     <tr>
                                         <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $index + 1 }}</td>
                                         <td class="px-4 py-3 text-sm">
-                                            <div class="text-gray-900 dark:text-gray-100">{{ $question?->question_text }}</div>
+                                            <div class="text-gray-900 dark:text-gray-100">{{ $question->question_text }}</div>
                                             <span class="mt-1 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                                {{ $question?->typeLabel() ?? '?' }} · {{ $question?->score_weight ?? 0 }} poin
+                                                {{ $question->typeLabel() }} · {{ $question->score_weight }} poin
                                             </span>
                                         </td>
-                                        <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                                            @if ($question && $question->type === \App\Models\Question::TYPE_ESSAY)
-                                                <div class="max-w-xs whitespace-pre-wrap">{{ is_array($answer->student_answer) ? implode(', ', $answer->student_answer) : $answer->student_answer }}</div>
+                                        <td class="px-4 py-3 text-sm">
+                                            @if ($answer && $answer->student_answer !== null)
+                                                @if ($question->type === \App\Models\Question::TYPE_ESSAY)
+                                                    <div class="max-w-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100">{{ is_array($answer->student_answer) ? implode(', ', $answer->student_answer) : $answer->student_answer }}</div>
+                                                @else
+                                                    <span class="text-gray-900 dark:text-gray-100">{{ is_array($answer->student_answer) ? implode(', ', $answer->student_answer) : $answer->student_answer }}</span>
+                                                @endif
                                             @else
-                                                {{ is_array($answer->student_answer) ? implode(', ', $answer->student_answer) : $answer->student_answer }}
+                                                <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">Tidak dijawab</span>
                                             @endif
                                         </td>
                                         <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                                            @if ($question && $question->type !== \App\Models\Question::TYPE_ESSAY)
+                                            @if ($question->type !== \App\Models\Question::TYPE_ESSAY)
                                                 {{ is_array($question->answer_key) ? implode(', ', array_map(static fn ($item) => is_bool($item) ? ($item ? 'Benar' : 'Salah') : (string) $item, (array) $question->answer_key)) : $question->answer_key }}
                                             @else
                                                 —
                                             @endif
                                         </td>
                                         <td class="px-4 py-3 text-sm">
-                                            @if ($answer->score === null)
-                                                @if ($question && $question->type === \App\Models\Question::TYPE_ESSAY)
-                                                    <span class="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-medium text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">Belum dinilai</span>
+                                            @if ($answer && $answer->student_answer !== null)
+                                                @if ($answer->score === null)
+                                                    @if ($question->type === \App\Models\Question::TYPE_ESSAY)
+                                                        <span class="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-medium text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">Belum dinilai</span>
+                                                    @else
+                                                        <span class="text-gray-400 dark:text-gray-500">Dikosongkan</span>
+                                                    @endif
                                                 @else
-                                                    <span class="text-gray-400 dark:text-gray-500">Dikosongkan</span>
+                                                    <span class="font-semibold text-gray-900 dark:text-gray-100">{{ number_format((float) $answer->score, 2) }}</span>
                                                 @endif
                                             @else
-                                                <span class="font-semibold text-gray-900 dark:text-gray-100">{{ number_format((float) $answer->score, 2) }}</span>
+                                                <span class="font-semibold text-gray-900 dark:text-gray-100">{{ number_format((float) ($answer?->score ?? 0), 2) }}</span>
                                             @endif
                                         </td>
                                         <td class="px-4 py-3">
-                                            <input type="number" name="scores[{{ $answer->id }}]" min="0" max="{{ (float) $question?->score_weight ?? 0 }}" step="0.01"
-                                                   value="{{ old('scores.'.$answer->id, $answer->score) }}"
-                                                   placeholder="0 - {{ (float) $question?->score_weight ?? 0 }}"
-                                                   class="w-28 rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" />
-                                            @error('scores.'.$answer->id)
-                                                <p class="mt-1 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>
-                                            @enderror
+                                            @if ($answer && $answer->exists)
+                                                <input type="number" name="scores[{{ $answer->id }}]" min="0" max="{{ (float) $question->score_weight }}" step="0.01"
+                                                       value="{{ old('scores.'.$answer->id, $answer->score) }}"
+                                                       placeholder="0 - {{ (float) $question->score_weight }}"
+                                                       class="w-28 rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" />
+                                                @error('scores.'.$answer->id)
+                                                    <p class="mt-1 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>
+                                                @enderror
+                                            @elseif ($answer)
+                                                {{-- Stub in-memory: soal tidak dijawab, belum ada row di DB --}}
+                                                <input type="number" name="new_scores[{{ $question->id }}]" min="0" max="{{ (float) $question->score_weight }}" step="0.01"
+                                                       value="{{ old('new_scores.'.$question->id, 0) }}"
+                                                       placeholder="0 - {{ (float) $question->score_weight }}"
+                                                       class="w-28 rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" />
+                                                @error('new_scores.'.$question->id)
+                                                    <p class="mt-1 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>
+                                                @enderror
+                                            @endif
                                         </td>
                                     </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="6" class="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada jawaban yang tercatat pada sesi ujian ini.</td>
-                                    </tr>
-                                @endforelse
+                                @endforeach
                             </tbody>
                         </table>
                     </div>

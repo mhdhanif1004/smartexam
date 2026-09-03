@@ -1,23 +1,31 @@
-<footer class="bg-surface-container-low border-t border-outline-variant dark:bg-gray-900 dark:border-gray-800">
-    <div class="flex flex-col md:flex-row justify-between items-center px-lg py-xl w-full max-w-container-max mx-auto">
-        <div class="mb-md md:mb-0">
-            <span class="font-title-md text-title-md font-semibold text-on-surface dark:text-gray-200">SmartExam
+<footer class="relative overflow-hidden border-t border-outline-variant bg-surface-container-low">
+    {{-- Garis aksen gradient di atas footer (dekoratif, bukan teks) --}}
+    <div class="absolute inset-x-0 top-0 h-px pointer-events-none"
+        style="background: linear-gradient(90deg, transparent, rgb(var(--color-primary) / 0.55), transparent);"></div>
+
+    <div class="w-full max-w-container-max mx-auto px-lg py-xl">
+        <div class="flex flex-col gap-lg md:flex-row md:items-center md:justify-between">
+
+            {{-- Branding teks (kata dipertahankan) --}}
+            <span class="font-title-md text-title-md font-semibold text-on-surface">SmartExam
                 Development Team</span>
-        </div>
-        <div class="flex flex-wrap justify-center gap-lg mb-md md:mb-0">
-            <a href="#"
-                class="font-label-sm text-label-sm text-on-surface-variant hover:underline hover:text-primary transition-all duration-200 dark:text-gray-400 dark:hover:text-indigo-300">Privacy
-                Policy</a>
-            <a href="#"
-                class="font-label-sm text-label-sm text-on-surface-variant hover:underline hover:text-primary transition-all duration-200 dark:text-gray-400 dark:hover:text-indigo-300">Terms
-                of Service</a>
-            <a href="#"
-                class="font-label-sm text-label-sm text-on-surface-variant hover:underline hover:text-primary transition-all duration-200 dark:text-gray-400 dark:hover:text-indigo-300">CBT
-                Guidelines</a>
-        </div>
-        <div class="text-center md:text-right">
-            <p class="font-body-md text-body-md text-secondary dark:text-emerald-400">© 2026 Erwa & Hanif Development.
-                All rights reserved.</p>
+
+            {{-- Navigasi footer (kata dipertahankan) --}}
+            <nav class="flex flex-wrap justify-center gap-lg" aria-label="Navigasi footer">
+                <a href="{{ route('privacy-policy') }}"
+                    class="font-label-sm text-label-sm text-on-surface-variant hover:underline hover:text-primary transition-all duration-200">Privacy
+                    Policy</a>
+                <a href="{{ route('terms-of-service') }}"
+                    class="font-label-sm text-label-sm text-on-surface-variant hover:underline hover:text-primary transition-all duration-200">Terms
+                    of Service</a>
+                <a href="{{ route('cbt-guidelines') }}"
+                    class="font-label-sm text-label-sm text-on-surface-variant hover:underline hover:text-primary transition-all duration-200">CBT
+                    Guidelines</a>
+            </nav>
+
+            {{-- Copyright (kata dipertahankan) --}}
+            <p class="text-center md:text-right font-body-md text-body-md text-secondary">© 2026 Erwa & Hanif
+                Development. All rights reserved.</p>
         </div>
     </div>
 </footer>

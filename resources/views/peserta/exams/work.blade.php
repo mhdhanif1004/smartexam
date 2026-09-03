@@ -7,7 +7,7 @@
              deadline: {{ $deadline }},
              totalSessionSeconds: {{ $totalSessionSeconds }},
              remainingSession: {{ $remainingSession }},
-             graceSeconds: {{ config('exam.grace_period_minutes', 10) * 60 }},
+             remainingGrace: {{ $remainingGrace }},
              isFinalMapel: {{ $isFinalMapel ? 'true' : 'false' }},
              saveUrl: {{ Js::from(route('peserta.exams.save-answer', $schedule->id)) }},
              doubtUrl: {{ Js::from(route('peserta.exams.questions.toggle-doubtful', [$schedule->id, ':question'])) }},
@@ -65,10 +65,13 @@
                     </div>
 
                     {{-- Timer Sesi (normal atau takeover slot mapel saat isFinalMapel) --}}
+                    {{-- Tahap 1: Timer Utama = sisa waktu resmi (periodEnd, tanpa grace) --}}
+                    {{-- Tahap 2: Timer "+MM:SS" = masa toleransi, tampil berdampingan saat tahap 1 habis --}}
                     <div class="text-center">
                         <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Sisa Waktu Sesi</p>
-                        <p class="font-mono text-2xl font-bold tabular-nums" :class="inGracePeriod ? 'text-amber-600 dark:text-amber-400' : (remainingSesi < 300 ? 'text-rose-600 dark:text-rose-400' : 'text-gray-900 dark:text-gray-100')" x-text="formatTime(remainingSesi)"></p>
-                        <p x-show="inGracePeriod" class="text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Waktu Tambahan</p>
+                        <p class="font-mono text-2xl font-bold tabular-nums" :class="inGracePeriod ? 'text-gray-400 dark:text-gray-500' : (remainingSesi < 300 ? 'text-rose-600 dark:text-rose-400' : 'text-gray-900 dark:text-gray-100')" x-text="formatTime(remainingSesi)"></p>
+                        <p x-show="inGracePeriod" x-cloak class="mt-1 font-mono text-2xl font-bold tabular-nums text-amber-600 dark:text-amber-400">+<span x-text="formatTime(remainingGrace)"></span></p>
+                        <p x-show="inGracePeriod" x-cloak class="text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Waktu Tambahan</p>
                     </div>
                     <div class="text-center">
                         <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Terjawab</p>

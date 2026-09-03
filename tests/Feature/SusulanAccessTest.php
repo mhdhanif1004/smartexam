@@ -185,9 +185,12 @@ class SusulanAccessTest extends TestCase
         $mapelDeadline = Carbon::parse('2026-08-15 09:50:00')->addMinutes(90);
 
         $graceMinutes = config('exam.grace_period_minutes', 10);
-        $sesiDeadline = $periodEnd->copy()->addMinutes($graceMinutes);
-        $response->assertViewHas('remainingSession', max(0, $sesiDeadline->getTimestamp() - now()->getTimestamp()));
-        $this->assertSame(7800, $sesiDeadline->getTimestamp() - now()->getTimestamp());
+        $graceEnd = $periodEnd->copy()->addMinutes($graceMinutes);
+        // Tahap 1: sisa waktu resmi sesi (periodEnd), tanpa grace.
+        $response->assertViewHas('remainingSession', max(0, $periodEnd->getTimestamp() - now()->getTimestamp()));
+        $this->assertSame(7200, $periodEnd->getTimestamp() - now()->getTimestamp());
+        // Tahap 2: sisa masa toleransi (periodEnd + grace).
+        $response->assertViewHas('remainingGrace', max(0, $graceEnd->getTimestamp() - now()->getTimestamp()));
 
         $response->assertViewHas('totalSessionSeconds', $periodEnd->getTimestamp() - $periodStart->getTimestamp());
         $response->assertViewHas('deadline', $mapelDeadline->getTimestamp());

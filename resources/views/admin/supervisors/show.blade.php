@@ -6,7 +6,7 @@
                     <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">{{ $supervisor->user?->name }}</h2>
                     <x-badge-status :status="$supervisor->user?->is_active ? 'aktif' : 'nonaktif'" />
                 </div>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $supervisor->user?->email }}</p>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Username: {{ $supervisor->user?->username ?? '-' }}</p>
             </div>
             <div class="flex items-center gap-2">
                 <a href="{{ route('admin.supervisors.edit', $supervisor) }}" class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">Edit</a>

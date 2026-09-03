@@ -19,7 +19,6 @@ class SupervisorsTemplateExport implements FromCollection, WithColumnWidths, Wit
         return new Collection([
             [
                 'name' => 'Nama Contoh Pengawas',
-                'email' => 'pengawas@example.com',
             ],
         ]);
     }
@@ -29,16 +28,16 @@ class SupervisorsTemplateExport implements FromCollection, WithColumnWidths, Wit
      */
     public function headings(): array
     {
-        return ['Nama', 'Email'];
+        return ['Nama'];
     }
 
     /**
-     * @param  array{name: string, email: string}  $row
+     * @param  array{name: string}  $row
      * @return array<int, mixed>
      */
     public function map($row): array
     {
-        return [$row['name'], $row['email']];
+        return [$row['name']];
     }
 
     /**
@@ -47,8 +46,7 @@ class SupervisorsTemplateExport implements FromCollection, WithColumnWidths, Wit
     public function columnWidths(): array
     {
         return [
-            'A' => 30,
-            'B' => 30,
+            'A' => 40,
         ];
     }
 }

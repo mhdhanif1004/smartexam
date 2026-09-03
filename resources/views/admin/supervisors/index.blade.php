@@ -86,6 +86,10 @@
                 message: '',
                 result: null,
                 finished: null,
+                modeChoices: {},
+                setMode(row, mode) {
+                    this.modeChoices[row] = mode;
+                },
                 onFileChange(e) {
                     this.file = e.target.files[0];
                     this.message = '';
@@ -115,6 +119,10 @@
                                 return;
                             }
                             this.result = data;
+                            this.modeChoices = {};
+                            (data.duplicates ?? []).forEach((d) => {
+                                this.modeChoices[d.row] = d.mode ?? 'update';
+                            });
                             this.step = 2;
                         })
                         .catch(() => { this.message = 'Terjadi kesalahan saat memvalidasi file.'; })
@@ -123,9 +131,18 @@
                 confirm() {
                     this.busy = true;
                     this.message = '';
+                    const modes = Object.entries(this.modeChoices).map(([row, mode]) => ({
+                        row: Number(row),
+                        mode,
+                    }));
                     fetch(@js(route('admin.supervisors.import-confirm')), {
                         method: 'POST',
-                        headers: { 'X-CSRF-TOKEN': @js(csrf_token()), 'Accept': 'application/json' },
+                        headers: {
+                            'X-CSRF-TOKEN': @js(csrf_token()),
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ modes }),
                     })
                         .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
                         .then(({ ok, data }) => {
@@ -179,7 +196,7 @@
 
         <form method="GET" action="{{ route('admin.supervisors.index') }}" class="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div class="flex-1">
-                <x-text-input type="search" name="search" value="{{ request('search') }}" placeholder="Cari nama, email, atau ruangan..." class="block w-full" />
+                <x-text-input type="search" name="search" value="{{ request('search') }}" placeholder="Cari nama, username, atau ruangan..." class="block w-full" />
             </div>
             <div>
                 <select name="room" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 lg:w-auto">
@@ -197,7 +214,7 @@
             </div>
         </form>
 
-        <div x-show="selected.length > 0" x-transition class="flex items-center justify-between gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-500/30 dark:bg-indigo-500/10">
+        <div x-show="selected.length > 0" x-cloak x-transition class="flex items-center justify-between gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-500/30 dark:bg-indigo-500/10">
             <p class="text-sm font-medium text-indigo-800 dark:text-indigo-200">
                 <span x-text="selected.length" class="font-bold"></span> pengawas dipilih <span class="text-xs text-indigo-500 dark:text-indigo-400">(dari semua halaman)</span>
             </p>
@@ -219,7 +236,7 @@
                             </th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">No</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Nama</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Email</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Username</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Password</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Status</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Aksi</th>
@@ -233,7 +250,7 @@
                                 </td>
                                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $supervisors->firstItem() + $index }}</td>
                                 <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $supervisor->user?->name }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $supervisor->user?->email }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $supervisor->user?->username ?? '-' }}</td>
                                 @include('admin.partials.password-cell', ['user' => $supervisor->user])
                                 <td class="px-4 py-3 text-sm">
                                     <x-badge-status :status="$supervisor->user?->is_active ? 'aktif' : 'nonaktif'" />
@@ -325,7 +342,7 @@
         <x-modal name="import-supervisors" maxWidth="2xl">
             <div class="p-6">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Impor Data Pengawas</h2>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Upload file Excel/CSV berisi kolom Nama dan Email.</p>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Upload file Excel/CSV berisi kolom Nama. Username & password dibuat otomatis untuk pengawas baru.</p>
 
                 <div x-show="importState.message !== ''" x-transition class="mt-4 flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-500/10 dark:text-rose-300">
                     <svg class="h-5 w-5 shrink-0 text-rose-500 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -369,6 +386,41 @@
                             <div class="rounded-lg bg-amber-50 p-4 text-center dark:bg-amber-500/10">
                                 <p class="text-2xl font-bold text-amber-700 dark:text-amber-300" x-text="importState.result?.to_update ?? 0"></p>
                                 <p class="text-xs font-medium text-amber-600 dark:text-amber-400">Update</p>
+                            </div>
+                        </div>
+
+                        <div x-show="(importState.result?.duplicates ?? []).length > 0" class="mt-4">
+                            <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-500/10">
+                                <p class="text-sm font-semibold text-amber-900 dark:text-amber-200">Nama sudah terdaftar — pilih tindakan</p>
+                                <p class="mt-1 text-xs text-amber-800 dark:text-amber-300">
+                                    Berikut nama yang cocok dengan pengawas yang sudah ada. Pilih <strong>Update</strong> untuk memperbarui pengawas tersebut (kredensial & ruangan dipertahankan), atau <strong>Tambah</strong> untuk membuat pengawas baru dengan username & password baru.
+                                </p>
+                                <ul class="mt-3 space-y-2">
+                                    <template x-for="d in importState.result?.duplicates ?? []" :key="d.row">
+                                        <li class="flex flex-col gap-2 rounded-md bg-white p-3 sm:flex-row sm:items-center sm:justify-between dark:bg-gray-900">
+                                            <div>
+                                                <p class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="'Baris ' + d.row + ': ' + d.name"></p>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400" x-text="'Sudah ada: ' + d.existing_name"></p>
+                                            </div>
+                                            <div class="flex shrink-0 items-center gap-3">
+                                                <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300">
+                                                    <input type="radio" :name="'mode-' + d.row" :value="'update'"
+                                                        :checked="(importState.modeChoices[d.row] ?? 'update') === 'update'"
+                                                        @change="importState.setMode(d.row, 'update')"
+                                                        class="h-4 w-4 border-gray-300 text-amber-600 focus:ring-amber-500 dark:border-gray-600 dark:bg-gray-800">
+                                                    Update
+                                                </label>
+                                                <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300">
+                                                    <input type="radio" :name="'mode-' + d.row" :value="'create'"
+                                                        :checked="(importState.modeChoices[d.row] ?? 'update') === 'create'"
+                                                        @change="importState.setMode(d.row, 'create')"
+                                                        class="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
+                                                    Tambah
+                                                </label>
+                                            </div>
+                                        </li>
+                                    </template>
+                                </ul>
                             </div>
                         </div>
 

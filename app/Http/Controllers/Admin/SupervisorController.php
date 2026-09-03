@@ -25,7 +25,7 @@ class SupervisorController extends Controller
                 $query->where(function ($builder) use ($search) {
                     $builder->whereHas('user', function ($user) use ($search) {
                         $user->where('name', 'like', "%{$search}%")
-                            ->orWhere('email', 'like', "%{$search}%");
+                            ->orWhere('username', 'like', "%{$search}%");
                     })->orWhereHas('room', function ($room) use ($search) {
                         $room->where('room_number', 'like', "%{$search}%");
                     });
@@ -86,13 +86,15 @@ class SupervisorController extends Controller
     public function store(StoreSupervisorRequest $request): RedirectResponse
     {
         DB::transaction(function () use ($request) {
+            $generator = app(CredentialGenerator::class);
+
             $password = $request->filled('password')
                 ? $request->password
-                : app(CredentialGenerator::class)->password();
+                : $generator->password();
 
             $user = User::create([
                 'name' => $request->name,
-                'email' => $request->email,
+                'username' => $generator->username(),
                 'password' => $password,
                 'plain_password' => $password,
                 'role' => User::ROLE_PENGAWAS,
@@ -116,7 +118,6 @@ class SupervisorController extends Controller
     {
         $userData = [
             'name' => $request->name,
-            'email' => $request->email,
             'is_active' => $request->boolean('is_active'),
         ];
 

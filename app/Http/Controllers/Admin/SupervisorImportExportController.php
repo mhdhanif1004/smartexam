@@ -40,7 +40,7 @@ class SupervisorImportExportController extends Controller
                     $query->where(function ($builder) use ($search) {
                         $builder->whereHas('user', function ($user) use ($search) {
                             $user->where('name', 'like', "%{$search}%")
-                                ->orWhere('email', 'like', "%{$search}%");
+                                ->orWhere('username', 'like', "%{$search}%");
                         })->orWhereHas('room', function ($room) use ($search) {
                             $room->where('name', 'like', "%{$search}%");
                         });
@@ -95,6 +95,7 @@ class SupervisorImportExportController extends Controller
             'invalid' => count($import->invalidRows),
             'to_create' => $import->toCreate,
             'to_update' => $import->toUpdate,
+            'duplicates' => $import->duplicates(),
             'errors' => $this->summarizeErrors($import->invalidRows),
         ]);
     }
@@ -108,6 +109,29 @@ class SupervisorImportExportController extends Controller
             return response()->json([
                 'message' => 'Sesi import kadaluarsa, silakan upload ulang.',
             ], 422);
+        }
+
+        // Terapkan pilihan mode per-baris (Tambah/Update) yang dikirim admin
+        // untuk baris duplikat. validRows di-cache memakai struktur baru.
+        $modes = $request->input('modes', []);
+        if (is_array($modes) && $modes !== []) {
+            $byRow = [];
+            foreach ($modes as $choice) {
+                if (! is_array($choice) || ! isset($choice['row'])) {
+                    continue;
+                }
+
+                $row = (int) $choice['row'];
+                $mode = ($choice['mode'] ?? '') === 'create' ? 'create' : 'update';
+                $byRow[$row] = $mode;
+            }
+
+            foreach ($data['validRows'] as &$validRow) {
+                if (isset($byRow[$validRow['row']])) {
+                    $validRow['mode'] = $byRow[$validRow['row']];
+                }
+            }
+            unset($validRow);
         }
 
         // Reconstruct import object for persistRows()

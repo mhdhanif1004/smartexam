@@ -38,7 +38,7 @@
             </div>
         </form>
 
-        <div x-show="selected.length > 0" x-transition class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-500/30 dark:bg-indigo-500/10">
+        <div x-show="selected.length > 0" x-cloak x-transition class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-500/30 dark:bg-indigo-500/10">
             <p class="text-sm font-medium text-indigo-800 dark:text-indigo-200">
                 <span x-text="selected.length" class="font-bold"></span> ruangan dipilih <span class="text-xs text-indigo-500 dark:text-indigo-400">(dari semua halaman)</span>
             </p>

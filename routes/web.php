@@ -47,6 +47,11 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         return response()->json(['csrf_token' => csrf_token()]);
     })->name('csrf-token');
 
+    // Halaman legal/informasi publik (tidak memerlukan login)
+    Route::get('/privacy-policy', fn () => view('legal.privacy-policy'))->name('privacy-policy');
+    Route::get('/terms-of-service', fn () => view('legal.terms-of-service'))->name('terms-of-service');
+    Route::get('/cbt-guidelines', fn () => view('legal.cbt-guidelines'))->name('cbt-guidelines');
+
     Route::prefix('admin')->middleware(['auth', 'verified', 'role:admin'])->name('admin.')->group(function () {
         Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
@@ -102,6 +107,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::post('exam-schedules/bulk-delete', [ExamScheduleController::class, 'bulkDelete'])->name('exam-schedules.bulk-delete');
 
         Route::get('exam-periods/{examPeriod}/delete-preview', [ExamPeriodController::class, 'deletePreview'])->name('exam-periods.delete-preview');
+        Route::get('exam-periods/by-date', [ExamPeriodController::class, 'byDate'])->name('exam-periods.by-date');
         Route::resource('exam-periods', ExamPeriodController::class)->except(['edit', 'update']);
         Route::get('exam-periods/auto-generate/create', [ExamPeriodController::class, 'autoGenerateCreate'])->name('exam-periods.auto-generate.create');
         Route::post('exam-periods/auto-generate', [ExamPeriodController::class, 'autoGenerateStore'])->name('exam-periods.auto-generate.store');

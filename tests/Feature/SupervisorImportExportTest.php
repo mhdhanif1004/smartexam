@@ -44,7 +44,7 @@ class SupervisorImportExportTest extends TestCase
             ->assertDownload('data-pengawas-'.date('Y-m-d').'.csv');
 
         $content = $response->streamedContent();
-        $this->assertStringContainsString($supervisor->user->email, $content);
+        $this->assertStringContainsString($supervisor->user->username, $content);
         $this->assertStringContainsString($supervisor->user->plain_password, $content);
     }
 
@@ -61,7 +61,7 @@ class SupervisorImportExportTest extends TestCase
             ->assertOk();
 
         $content = $response->streamedContent();
-        $this->assertStringContainsString($inRoom->user->email, $content);
+        $this->assertStringContainsString($inRoom->user->username, $content);
         $this->assertStringNotContainsString('Ruang 2', $content);
     }
 
@@ -73,11 +73,13 @@ class SupervisorImportExportTest extends TestCase
             ->assertDownload('template-import-pengawas.xlsx');
     }
 
-    public function test_import_validate_returns_preview(): void
+    public function test_import_validate_returns_preview_with_duplicates(): void
     {
         $existing = Supervisor::factory()->create();
+        $existing->user->update(['name' => 'Rina Kurniawan']);
+        $existingName = $existing->user->name;
 
-        $csv = "Nama,Email\nAndi Pratama,andi@example.com\n{$existing->user->name},{$existing->user->email}\n";
+        $csv = "Nama\nAndi Pratama\n{$existingName}\n";
 
         $response = $this->actingAs($this->admin)
             ->post(route('admin.supervisors.import-validate'), [
@@ -93,24 +95,28 @@ class SupervisorImportExportTest extends TestCase
                 'to_update' => 1,
             ]);
 
-        $this->assertSame($existing->user->email, $existing->fresh()->user->email);
+        $duplicates = $response->json('duplicates');
+        $this->assertCount(1, $duplicates);
+        $this->assertSame($existingName, $duplicates[0]['name']);
+        $this->assertSame($existing->id, $duplicates[0]['existing_supervisor_id']);
+        $this->assertSame('update', $duplicates[0]['mode']);
     }
 
     public function test_import_validate_rejects_missing_header(): void
     {
-        $csv = "Nama\nAndi Pratama\n";
+        $csv = "Email\nandi@example.com\n";
 
         $this->actingAs($this->admin)
             ->post(route('admin.supervisors.import-validate'), [
                 'file' => $this->csvFile($csv),
             ])
             ->assertStatus(422)
-            ->assertJsonPath('message', fn (string $message) => str_contains($message, 'Email'));
+            ->assertJsonPath('message', fn (string $message) => str_contains($message, 'Nama'));
     }
 
-    public function test_import_validate_rejects_invalid_rows(): void
+    public function test_import_validate_rejects_missing_name_rows(): void
     {
-        $csv = "Nama,Email\nAndi Pratama,bukan-email\n,andi@example.com\n";
+        $csv = "Nama\nAndi Pratama\n\n";
 
         $this->actingAs($this->admin)
             ->post(route('admin.supervisors.import-validate'), [
@@ -119,16 +125,16 @@ class SupervisorImportExportTest extends TestCase
             ->assertOk()
             ->assertJson([
                 'ok' => true,
-                'total' => 2,
-                'valid' => 0,
-                'invalid' => 2,
+                'total' => 1,
+                'valid' => 1,
+                'invalid' => 0,
             ])
-            ->assertJsonPath('errors.0', fn (string $error) => str_contains($error, 'Baris 2'));
+            ->assertJsonPath('errors', []);
     }
 
-    public function test_import_validate_rejects_duplicate_email_in_file(): void
+    public function test_import_validate_rejects_duplicate_name_in_file(): void
     {
-        $csv = "Nama,Email\nAndi Pratama,andi@example.com\nBudi Santoso,andi@example.com\n";
+        $csv = "Nama\nAndi Pratama\nAndi Pratama\n";
 
         $response = $this->actingAs($this->admin)
             ->post(route('admin.supervisors.import-validate'), [
@@ -141,20 +147,22 @@ class SupervisorImportExportTest extends TestCase
         $this->assertStringContainsString('duplikat', $response->json('errors.0'));
     }
 
-    public function test_import_validate_rejects_email_used_by_other_role(): void
+    public function test_import_validate_marks_multi_match_as_create_only(): void
     {
-        User::factory()->peserta()->create(['email' => 'andi@example.com']);
+        $name = 'Nama Kembar';
+        $userA = User::factory()->pengawas()->create(['name' => $name]);
+        $userB = User::factory()->pengawas()->create(['name' => $name]);
 
-        $csv = "Nama,Email\nAndi Pratama,andi@example.com\n";
+        $csv = "Nama\n{$name}\n";
 
         $response = $this->actingAs($this->admin)
             ->post(route('admin.supervisors.import-validate'), [
                 'file' => $this->csvFile($csv),
             ])
             ->assertOk()
-            ->assertJson(['valid' => 0, 'invalid' => 1]);
+            ->assertJson(['to_create' => 1, 'to_update' => 0]);
 
-        $this->assertStringContainsString('bukan pengawas', $response->json('errors.0'));
+        $this->assertCount(0, $response->json('duplicates'));
     }
 
     public function test_import_validate_rejects_non_excel_file(): void
@@ -182,8 +190,8 @@ class SupervisorImportExportTest extends TestCase
 
         $importData = [
             'validRows' => [
-                ['row' => 2, 'name' => 'Andi Pratama', 'email' => 'andi@example.com', 'mode' => 'create'],
-                ['row' => 3, 'name' => 'Budi Santoso', 'email' => $existing->user->email, 'mode' => 'update'],
+                ['row' => 2, 'name' => 'Andi Pratama', 'mode' => 'create', 'dup' => false, 'existing_supervisor_id' => null, 'existing_name' => null],
+                ['row' => 3, 'name' => 'Budi Santoso', 'mode' => 'update', 'dup' => true, 'existing_supervisor_id' => $existing->id, 'existing_name' => $existing->user->name],
             ],
             'invalidRows' => [],
             'headerError' => '',
@@ -201,12 +209,12 @@ class SupervisorImportExportTest extends TestCase
                 'updated' => 1,
             ]);
 
-        $created = User::query()->where('email', 'andi@example.com')->first();
+        $created = User::query()->where('name', 'Andi Pratama')->where('role', 'pengawas')->first();
         $this->assertNotNull($created);
-        $this->assertSame('Andi Pratama', $created->name);
         $this->assertSame(User::ROLE_PENGAWAS, $created->role);
         $this->assertTrue((bool) $created->is_active);
-        $this->assertNull($created->username);
+        $this->assertNotNull($created->username);
+        $this->assertNull($created->email);
         $this->assertNotNull($created->plain_password);
         $this->assertTrue(strlen($created->plain_password) >= 8);
         $this->assertTrue(password_verify($created->plain_password, $created->password));
@@ -219,11 +227,49 @@ class SupervisorImportExportTest extends TestCase
         $this->assertSame($oldRoom->id, $existing->room_id);
     }
 
+    public function test_import_confirm_respects_per_row_create_choice(): void
+    {
+        $existing = Supervisor::factory()->create();
+        $oldName = $existing->user->name;
+        $oldUserId = $existing->user_id;
+
+        $importData = [
+            'validRows' => [
+                ['row' => 2, 'name' => 'Andi Pratama', 'mode' => 'update', 'dup' => true, 'existing_supervisor_id' => $existing->id, 'existing_name' => $oldName],
+            ],
+            'invalidRows' => [],
+            'headerError' => '',
+        ];
+
+        Cache::put('import_pending_'.$this->admin->id, $importData, now()->addMinutes(10));
+
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['Cookie' => ''])
+            ->post(route('admin.supervisors.import-confirm'), [
+                'modes' => [['row' => 2, 'mode' => 'create']],
+            ])
+            ->assertOk()
+            ->assertJson(['ok' => true, 'created' => 1, 'updated' => 0]);
+
+        // Pengawas lama tidak menjadi 'Andi Pratama' (tidak di-update).
+        $this->assertSame($oldName, $existing->fresh()->user->name);
+        $this->assertSame($oldUserId, $existing->fresh()->user_id);
+
+        // Pengawas baru dengan nama sama dibuat.
+        $created = User::query()
+            ->where('name', 'Andi Pratama')
+            ->where('role', 'pengawas')
+            ->where('id', '<>', $oldUserId)
+            ->first();
+        $this->assertNotNull($created);
+        $this->assertNotNull($created->username);
+    }
+
     public function test_import_confirm_generates_password_and_leaves_room_empty(): void
     {
         $importData = [
             'validRows' => [
-                ['row' => 2, 'name' => 'Andi Pratama', 'email' => 'andi@example.com', 'mode' => 'create'],
+                ['row' => 2, 'name' => 'Andi Pratama', 'mode' => 'create', 'dup' => false, 'existing_supervisor_id' => null, 'existing_name' => null],
             ],
             'invalidRows' => [],
             'headerError' => '',
@@ -237,8 +283,9 @@ class SupervisorImportExportTest extends TestCase
             ->assertOk()
             ->assertJson(['ok' => true, 'created' => 1]);
 
-        $created = User::query()->where('email', 'andi@example.com')->first();
+        $created = User::query()->where('name', 'Andi Pratama')->where('role', 'pengawas')->first();
         $this->assertNotNull($created->plain_password);
+        $this->assertNotNull($created->username);
         $this->assertTrue(strlen($created->plain_password) >= 8);
         $this->assertTrue(password_verify($created->plain_password, $created->password));
         $this->assertNull($created->supervisor->room_id);
@@ -252,7 +299,7 @@ class SupervisorImportExportTest extends TestCase
 
         $importData = [
             'validRows' => [
-                ['row' => 2, 'name' => 'Nama Baru', 'email' => $existing->user->email, 'mode' => 'update'],
+                ['row' => 2, 'name' => 'Nama Baru', 'mode' => 'update', 'dup' => true, 'existing_supervisor_id' => $existing->id, 'existing_name' => $existing->user->name],
             ],
             'invalidRows' => [],
             'headerError' => '',
@@ -274,13 +321,13 @@ class SupervisorImportExportTest extends TestCase
     {
         $importData = [
             'validRows' => [
-                ['row' => 2, 'name' => 'Andi Pratama', 'email' => 'andi@example.com', 'mode' => 'create'],
+                ['row' => 2, 'name' => 'Andi Pratama', 'mode' => 'create', 'dup' => false, 'existing_supervisor_id' => null, 'existing_name' => null],
             ],
             'invalidRows' => [
                 [
                     'row' => 3,
-                    'data' => ['name' => 'Budi Santoso', 'email' => 'budi@example.com'],
-                    'errors' => ['Email budi@example.com tidak valid.'],
+                    'data' => ['name' => 'Budi Santoso'],
+                    'errors' => ['Nama Budi Santoso duplikat di dalam file (bentrok dengan baris 2).'],
                 ],
             ],
             'headerError' => '',

@@ -50,8 +50,7 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'role' => 'pengawas',
-            'email' => fake()->unique()->safeEmail(),
-            'username' => null,
+            'email' => null,
         ]);
     }
 

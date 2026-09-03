@@ -181,14 +181,18 @@ class ExamController extends Controller
             $periodEnd = Carbon::parse($period->exam_date->format('Y-m-d').' '.$period->end_time);
             $periodStart = Carbon::parse($period->exam_date->format('Y-m-d').' '.$period->start_time);
             $graceMinutes = config('exam.grace_period_minutes', 10);
-            $sesiDeadline = $periodEnd->copy()->addMinutes($graceMinutes);
+            $graceEnd = $periodEnd->copy()->addMinutes($graceMinutes);
             $totalSessionSeconds = max(0, $periodEnd->getTimestamp() - $periodStart->getTimestamp());
-            $remainingSession = max(0, $sesiDeadline->getTimestamp() - now()->getTimestamp());
+            // Tahap 1: sisa waktu resmi (periodEnd), tanpa grace. Bisa bernilai nol bila periode sudah lewat.
+            $remainingSession = max(0, $periodEnd->getTimestamp() - now()->getTimestamp());
+            // Tahap 2: sisa masa toleransi (periodEnd + grace). Hanya relevan bila tahap 1 habis.
+            $remainingGrace = max(0, $graceEnd->getTimestamp() - now()->getTimestamp());
             $isFinalMapel = $this->computeIsFinalMapel($this->schedule, $period);
         } else {
             $mapelRemaining = max(0, $deadline - now()->getTimestamp());
             $totalSessionSeconds = $mapelRemaining;
             $remainingSession = $mapelRemaining;
+            $remainingGrace = 0;
             $isFinalMapel = true;
         }
 
@@ -206,6 +210,7 @@ class ExamController extends Controller
             'deadline' => $deadline,
             'totalSessionSeconds' => $totalSessionSeconds,
             'remainingSession' => $remainingSession,
+            'remainingGrace' => $remainingGrace,
             'isFinalMapel' => $isFinalMapel,
             'attendanceRevoked' => $attendanceRevoked,
             'attendanceWarning' => $attendanceWarning,
@@ -374,12 +379,17 @@ class ExamController extends Controller
             $periodEnd = Carbon::parse($period->exam_date->format('Y-m-d').' '.$period->end_time);
             $periodStart = Carbon::parse($period->exam_date->format('Y-m-d').' '.$period->start_time);
             $graceMinutes = config('exam.grace_period_minutes', 10);
-            $sesiDeadline = $periodEnd->copy()->addMinutes($graceMinutes);
-            $remainingSesi = max(0, $sesiDeadline->getTimestamp() - now()->getTimestamp());
+            $graceEnd = $periodEnd->copy()->addMinutes($graceMinutes);
+            $nowTs = now()->getTimestamp();
+            // Tahap 1: sisa waktu resmi (periodEnd), tanpa grace. Bisa negatif bila periode sudah lewat.
+            $remainingSesi = $periodEnd->getTimestamp() - $nowTs;
+            // Tahap 2: sisa masa toleransi (periodEnd + grace). Bisa negatif bila grace sudah habis.
+            $remainingGrace = $graceEnd->getTimestamp() - $nowTs;
             $totalSesi = max(0, $periodEnd->getTimestamp() - $periodStart->getTimestamp());
             $isFinalMapel = $this->computeIsFinalMapel($schedule, $period);
         } else {
             $remainingSesi = $remainingMapel;
+            $remainingGrace = 0;
             $totalSesi = $remainingMapel;
             $isFinalMapel = true;
         }
@@ -398,6 +408,8 @@ class ExamController extends Controller
             ],
             'sesi' => [
                 'remaining_seconds' => $remainingSesi,
+                'remaining_grace' => $remainingGrace,
+                'in_grace' => $remainingSesi <= 0 && $remainingGrace > 0,
                 'total_seconds' => $totalSesi,
             ],
         ]);

@@ -2,6 +2,7 @@
 
 namespace App\Imports;
 
+use App\Models\Supervisor;
 use App\Models\User;
 use App\Services\CredentialGenerator;
 use Illuminate\Support\Collection;
@@ -12,20 +13,42 @@ use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithBatchInserts;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Concerns\WithCustomCsvSettings;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Throwable;
 
-class SupervisorsImport implements ToCollection, WithBatchInserts, WithChunkReading, WithEvents, WithHeadingRow
+class SupervisorsImport implements ToCollection, WithBatchInserts, WithChunkReading, WithCustomCsvSettings, WithEvents, WithHeadingRow
 {
     public string $headerError = '';
 
     /**
-     * Baris valid yang siap disimpan (mode: create|update).
+     * Impor pengawas hanya berbentuk satu kolom Nama. Memaksa delimiter
+     * koma agar CSV satu kolom dengan spasi di dalam nama (mis. "Andi
+     * Pratama") tidak terpotong oleh auto-detect delimiter bawaan.
      *
-     * @var list<array{row:int, name:string, email:string, mode:string}>
+     * @return array<string, mixed>
+     */
+    public function getCsvSettings(): array
+    {
+        return [
+            'delimiter' => ',',
+        ];
+    }
+
+    /**
+     * Baris valid yang siap disimpan.
+     *
+     * Struktur entry:
+     * - dup=false  -> nama belum ada, mode selalu 'create'.
+     * - dup=true   -> nama sudah cocok dengan satu pengawas; mode default
+     *   'update' (perbarui pengawas yang cocok), admin bisa memilih 'create'
+     *   (tambahkan duplikat baru) per baris di langkah konfirmasi.
+     * Ketika mode='update', existing_supervisor_id menunjuk pengawas sasaran.
+     *
+     * @var list<array{row:int, name:string, mode:string, dup:bool, existing_supervisor_id:?int, existing_name:?string}>
      */
     public array $validRows = [];
 
@@ -52,8 +75,6 @@ class SupervisorsImport implements ToCollection, WithBatchInserts, WithChunkRead
 
     private const NAME_ALIASES = ['nama', 'nama_lengkap', 'nama_pengawas', 'name', 'nama_guru', 'nama_pegawai'];
 
-    private const EMAIL_ALIASES = ['email', 'email_pengawas', 'email_guru', 'email_pegawai'];
-
     public function registerEvents(): array
     {
         return [];
@@ -68,16 +89,15 @@ class SupervisorsImport implements ToCollection, WithBatchInserts, WithChunkRead
         $keys = $rows->isNotEmpty() ? $rows->first()->keys()->all() : [];
 
         $nameKey = $this->resolveKey($keys, self::NAME_ALIASES);
-        $emailKey = $this->resolveKey($keys, self::EMAIL_ALIASES);
 
-        if ($nameKey === null || $emailKey === null) {
-            $this->headerError = $this->missingHeaderMessage($nameKey, $emailKey);
+        if ($nameKey === null) {
+            $this->headerError = $this->missingHeaderMessage($nameKey);
 
             return;
         }
 
-        // First pass: collect all valid emails from this chunk
-        $chunkEmails = [];
+        // First pass: collect all names from this chunk
+        $chunkNames = [];
         $rowDataList = [];
 
         foreach ($rows as $index => $row) {
@@ -85,98 +105,111 @@ class SupervisorsImport implements ToCollection, WithBatchInserts, WithChunkRead
             $rowNumber = $index + 2;
 
             $name = $this->normalizeText($rowData[$nameKey] ?? null);
-            $email = $this->normalizeEmail($rowData[$emailKey] ?? null);
 
-            if ($name === '' && $email === '') {
+            if ($name === '') {
                 continue;
             }
 
             $rowDataList[] = [
                 'rowNumber' => $rowNumber,
                 'name' => $name,
-                'email' => $email,
                 'rawName' => $this->displayValue($rowData[$nameKey] ?? null),
-                'rawEmail' => $this->displayValue($rowData[$emailKey] ?? null),
             ];
 
-            if ($email !== '') {
-                $chunkEmails[] = $email;
-            }
+            $chunkNames[] = $name;
         }
 
         if (empty($rowDataList)) {
             return;
         }
 
-        // Batch query: get existing users with supervisor role (single query)
-        $existingSupervisors = User::query()
-            ->whereIn('email', $chunkEmails)
+        // Batch query: supervisor users whose name matches any row in this chunk.
+        // name => list of [supervisor_id, user_name] (a name can match >1 record).
+        $matched = User::query()
+            ->whereIn('name', $chunkNames)
             ->whereHas('supervisor')
-            ->pluck('email')
-            ->flip()
+            ->with('supervisor:id,user_id')
+            ->get(['id', 'name'])
+            ->groupBy('name')
+            ->map(function ($users) {
+                return $users->map(fn ($u) => [
+                    'supervisor_id' => $u->supervisor->id,
+                    'user_name' => $u->name,
+                ])->all();
+            })
             ->toArray();
 
-        // Batch query: get all existing users (for checking if email used by other role)
-        $existingUsers = User::query()
-            ->whereIn('email', $chunkEmails)
-            ->pluck('email', 'id')
-            ->flip()
-            ->toArray();
-
-        $seenEmails = [];
+        $seenNames = [];
 
         foreach ($rowDataList as $data) {
             $rowNumber = $data['rowNumber'];
             $name = $data['name'];
-            $email = $data['email'];
             $errors = [];
 
             if ($name === '') {
                 $errors[] = 'Nama wajib diisi.';
-            }
-
-            if ($email === '') {
-                $errors[] = 'Email wajib diisi.';
-            } elseif (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $errors[] = "Email {$email} tidak valid.";
-            } elseif (isset($seenEmails[$email])) {
-                $errors[] = "Email {$email} duplikat di dalam file (bentrok dengan baris {$seenEmails[$email]}).";
-            }
-
-            // Check if email exists in DB but not as supervisor
-            $hasSupervisor = isset($existingSupervisors[$email]);
-            $hasOtherRole = isset($existingUsers[$email]) && ! $hasSupervisor;
-
-            if ($hasOtherRole) {
-                $errors[] = "Email {$email} sudah terdaftar pada akun lain (bukan pengawas).";
+            } elseif (isset($seenNames[$name])) {
+                $errors[] = "Nama {$name} duplikat di dalam file (bentrok dengan baris {$seenNames[$name]}).";
             }
 
             if (! empty($errors)) {
                 $this->invalidRows[] = [
                     'row' => $rowNumber,
-                    'data' => [
-                        'name' => $name !== '' ? $name : $data['rawName'],
-                        'email' => $email !== '' ? $email : $data['rawEmail'],
-                    ],
+                    'data' => ['name' => $data['rawName']],
                     'errors' => $errors,
                 ];
 
                 continue;
             }
 
-            $seenEmails[$email] = $rowNumber;
+            $seenNames[$name] = $rowNumber;
 
-            // Check if email exists as supervisor (from batch query result)
-            $mode = $hasSupervisor ? 'update' : 'create';
+            $candidates = $matched[$name] ?? [];
+
+            // Duplicate hanya ketika nama cocok dengan TEPAT satu pengawas
+            // (hanya dalam hal itu mode 'update' tidak ambigu). Bila cocok
+            // dengan banyak pengawas, selalu buat baru.
+            $dup = count($candidates) === 1;
+
+            $mode = $dup ? 'update' : 'create';
             $mode === 'create' ? $this->toCreate++ : $this->toUpdate++;
 
             $this->validRows[] = [
                 'row' => $rowNumber,
                 'name' => $name,
-                'email' => $email,
                 'mode' => $mode,
+                'dup' => $dup,
+                'existing_supervisor_id' => $dup ? $candidates[0]['supervisor_id'] : null,
+                'existing_name' => $dup ? $candidates[0]['user_name'] : null,
             ];
         }
+    }
+
+    /**
+     * Daftar baris duplikat (nama sudah cocok dengan satu pengawas) untuk
+     * ditampilkan ke admin di langkah konfirmasi, lengkap dengan mode default.
+     *
+     * @return list<array{row:int, name:string, existing_supervisor_id:int, existing_name:string, mode:string}>
+     */
+    public function duplicates(): array
+    {
+        $list = [];
+
+        foreach ($this->validRows as $validRow) {
+            if (! $validRow['dup']) {
+                continue;
+            }
+
+            $list[] = [
+                'row' => $validRow['row'],
+                'name' => $validRow['name'],
+                'existing_supervisor_id' => $validRow['existing_supervisor_id'],
+                'existing_name' => $validRow['existing_name'],
+                'mode' => $validRow['mode'],
+            ];
+        }
+
+        return $list;
     }
 
     /**
@@ -246,7 +279,8 @@ class SupervisorsImport implements ToCollection, WithBatchInserts, WithChunkRead
     }
 
     /**
-     * Batch create new supervisors with users.
+     * Batch create new supervisors with users. Username di-generate acak unik
+     * (sama seperti peserta) agar pengawas bisa login dengan username.
      */
     private function batchCreate(array $createRows): int
     {
@@ -259,8 +293,7 @@ class SupervisorsImport implements ToCollection, WithBatchInserts, WithChunkRead
                 $password = $generator->password();
                 $usersData[] = [
                     'name' => $row['name'],
-                    'email' => $row['email'],
-                    'username' => null,
+                    'username' => $generator->username(),
                     'password' => Hash::make($password),
                     'plain_password' => Crypt::encryptString($password),
                     'role' => User::ROLE_PENGAWAS,
@@ -274,18 +307,18 @@ class SupervisorsImport implements ToCollection, WithBatchInserts, WithChunkRead
             DB::table('users')->insert($usersData);
 
             // Get the inserted user IDs
-            $emails = array_column($usersData, 'email');
+            $usernames = array_column($usersData, 'username');
             $users = User::query()
-                ->whereIn('email', $emails)
+                ->whereIn('username', $usernames)
                 ->orderBy('id')
-                ->get(['id', 'email'])
-                ->keyBy('email');
+                ->get(['id', 'username'])
+                ->keyBy('username');
 
             // Create supervisor records in batch
             $supervisorsData = [];
             foreach ($createRows as $index => $row) {
-                $email = $usersData[$index]['email'];
-                $userId = $users[$email]->id ?? null;
+                $username = $usersData[$index]['username'];
+                $userId = $users[$username]->id ?? null;
 
                 if ($userId) {
                     $supervisorsData[] = [
@@ -305,28 +338,27 @@ class SupervisorsImport implements ToCollection, WithBatchInserts, WithChunkRead
     }
 
     /**
-     * Batch update existing supervisors.
+     * Batch update existing supervisors (dinamai dari existing_supervisor_id).
      */
     private function batchUpdate(array $updateRows): int
     {
         return DB::transaction(function () use ($updateRows) {
-            $emails = array_column($updateRows, 'email');
+            $supervisorIds = array_column($updateRows, 'existing_supervisor_id');
 
             // Get existing supervisors with user_id
-            $supervisors = User::query()
-                ->whereIn('email', $emails)
-                ->whereHas('supervisor')
-                ->with('supervisor')
-                ->get(['id', 'email'])
-                ->keyBy('email');
+            $supervisors = Supervisor::query()
+                ->whereIn('id', $supervisorIds)
+                ->with('user:id,name')
+                ->get(['id', 'user_id'])
+                ->keyBy('id');
 
             // Batch update users (name only)
             $userUpdates = [];
             foreach ($updateRows as $row) {
-                $user = $supervisors[$row['email']] ?? null;
-                if ($user) {
+                $supervisor = $supervisors[$row['existing_supervisor_id']] ?? null;
+                if ($supervisor?->user_id) {
                     $userUpdates[] = [
-                        'id' => $user->id,
+                        'id' => $supervisor->user_id,
                         'name' => $row['name'],
                         'updated_at' => now(),
                     ];
@@ -348,24 +380,25 @@ class SupervisorsImport implements ToCollection, WithBatchInserts, WithChunkRead
     public function upsertRow(array $validRow): bool
     {
         return DB::transaction(function () use ($validRow) {
-            $user = User::query()->where('email', $validRow['email'])->whereHas('supervisor')->first();
+            if ($validRow['mode'] === 'update' && ! empty($validRow['existing_supervisor_id'])) {
+                // Mode update: jangan sentuh password, username, maupun ruangan.
+                $supervisor = Supervisor::query()->find($validRow['existing_supervisor_id']);
 
-            if ($user) {
-                // Mode update: jangan sentuh password maupun ruangan.
-                $user->update(['name' => $validRow['name']]);
+                if ($supervisor) {
+                    $supervisor->user?->update(['name' => $validRow['name']]);
 
-                return false;
+                    return false;
+                }
             }
 
-            // Mode create: password acak dari generator yang sama dengan
+            // Mode create: kredensial acak dari generator yang sama dengan
             // form manual, pengawas belum ditempatkan ke ruangan (room_id null).
             $generator = app(CredentialGenerator::class);
             $password = $generator->password();
 
             $user = User::create([
                 'name' => $validRow['name'],
-                'email' => $validRow['email'],
-                'username' => null,
+                'username' => $generator->username(),
                 'password' => $password,
                 'plain_password' => $password,
                 'role' => User::ROLE_PENGAWAS,
@@ -376,16 +409,6 @@ class SupervisorsImport implements ToCollection, WithBatchInserts, WithChunkRead
 
             return true;
         });
-    }
-
-    /**
-     * Perkirakan mode untuk sebuah email: 'update' jika akun pengawasnya
-     * sudah ada di DB.
-     * (Ditahan untuk kompatibilitas, tapi sekarang dipakai batch query di collection())
-     */
-    public function estimateMode(string $email): string
-    {
-        return User::query()->where('email', $email)->whereHas('supervisor')->exists() ? 'update' : 'create';
     }
 
     /**
@@ -413,26 +436,22 @@ class SupervisorsImport implements ToCollection, WithBatchInserts, WithChunkRead
         }
 
         $nameKey = $this->resolveKey($headers, self::NAME_ALIASES);
-        $emailKey = $this->resolveKey($headers, self::EMAIL_ALIASES);
 
-        if ($nameKey === null || $emailKey === null) {
-            $this->headerError = $this->missingHeaderMessage($nameKey, $emailKey);
+        if ($nameKey === null) {
+            $this->headerError = $this->missingHeaderMessage($nameKey);
         }
     }
 
-    private function missingHeaderMessage(?string $nameKey, ?string $emailKey): string
+    private function missingHeaderMessage(?string $nameKey): string
     {
         $missing = [];
 
         if ($nameKey === null) {
             $missing[] = 'Nama';
         }
-        if ($emailKey === null) {
-            $missing[] = 'Email';
-        }
 
         return 'Kolom wajib tidak ditemukan di file: '.implode(', ', $missing)
-            .'. Gunakan header sesuai template (Nama, Email).';
+            .'. Gunakan header sesuai template (Nama).';
     }
 
     /**
@@ -447,11 +466,6 @@ class SupervisorsImport implements ToCollection, WithBatchInserts, WithChunkRead
         }
 
         return null;
-    }
-
-    private function normalizeEmail(mixed $value): string
-    {
-        return strtolower(trim((string) $value));
     }
 
     private function normalizeText(mixed $value): string

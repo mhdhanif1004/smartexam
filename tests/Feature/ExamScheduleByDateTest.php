@@ -49,10 +49,13 @@ class ExamScheduleByDateTest extends TestCase
         ], $attributes));
     }
 
-    public function test_index_lists_unique_dates_with_schedule_count(): void
+    public function test_index_lists_unique_dates_with_mapel_count(): void
     {
+        $fisika = Subject::factory()->create(['name' => 'Fisika']);
+
         $this->makeSchedule();
         $this->makeSchedule(['start_time' => '10:00:00', 'end_time' => '11:30:00']);
+        $this->makeSchedule(['subject_id' => $fisika->id]);
         $this->makeSchedule(['exam_date' => '2026-08-11']);
 
         $this->actingAs($this->admin)
@@ -60,8 +63,39 @@ class ExamScheduleByDateTest extends TestCase
             ->assertOk()
             ->assertSee('10 Agustus 2026')
             ->assertSee('11 Agustus 2026')
-            ->assertSee('2 jadwal')
+            // 3 baris mentah di 2026-08-10 tapi hanya 2 mapel (Matematika + Fisika)
+            ->assertSee('2 mapel')
+            ->assertDontSee('3 jadwal')
             ->assertDontSee('Matematika');
+    }
+
+    public function test_index_mapel_count_matches_by_date_rows(): void
+    {
+        // 2026-08-10: 2 mapel — Matematika di 2 ruangan (2 baris mentah) + Fisika di 1 ruangan
+        $fisika = Subject::factory()->create(['name' => 'Fisika']);
+        $room2 = Room::factory()->create(['room_number' => 2]);
+
+        $this->makeSchedule();
+        $this->makeSchedule(['room_id' => $room2->id, 'start_time' => '10:00:00', 'end_time' => '11:30:00']);
+        $this->makeSchedule(['subject_id' => $fisika->id]);
+
+        $index = $this->actingAs($this->admin)
+            ->get(route('admin.exam-schedules.index'))
+            ->assertOk();
+
+        // Index menampilkan jumlah MAPEL, bukan baris mentah (3)
+        $this->assertStringContainsString('2 mapel', $index->content());
+        $this->assertStringNotContainsString('3 jadwal', $index->content());
+
+        // Detail by-date: 1 baris per mapel → harus SAMA dengan angka di index (2)
+        $byDate = $this->actingAs($this->admin)
+            ->get(route('admin.exam-schedules.by-date', ['date' => '2026-08-10']))
+            ->assertOk();
+
+        preg_match_all('/<tr class="transition hover:bg-gray-50 dark:hover:bg-gray-800\/50">/', $byDate->content(), $rows);
+        $this->assertCount(2, $rows[0]);
+        $this->assertStringContainsString('Matematika', $byDate->content());
+        $this->assertStringContainsString('Fisika', $byDate->content());
     }
 
     public function test_by_date_shows_only_schedules_of_that_date(): void
