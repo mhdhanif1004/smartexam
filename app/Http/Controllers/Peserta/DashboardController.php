@@ -64,15 +64,8 @@ class DashboardController extends Controller
         }
 
         if ($session !== null && $session->status === ExamSession::STATUS_IN_PROGRESS) {
-            if (! $session->attendance_confirmed
-                && $session->activeViolationFlags() > 0
-                && ! $schedule->isAttendanceWindowOpen()) {
-                return [
-                    'key' => 'absensi_tertutup',
-                    'label' => 'Sesi Berakhir',
-                    'can_start' => false,
-                    'url' => null,
-                ];
+            if (($blocked = $this->attendanceBlockedDisplay($schedule, $session)) !== null) {
+                return $blocked;
             }
 
             return [
@@ -91,6 +84,10 @@ class DashboardController extends Controller
             && $schedule->isWithinPeriodWindow()
             && $this->hasCompletedOtherMapelInPeriod($schedule, $student)
             && ! $this->hasActiveSessionInPeriod($schedule, $student)) {
+            if (($blocked = $this->attendanceBlockedDisplay($schedule, $session)) !== null) {
+                return $blocked;
+            }
+
             return [
                 'key' => 'bisa_dimulai',
                 'label' => 'Bisa Dimulai',
@@ -106,19 +103,19 @@ class DashboardController extends Controller
                 'can_start' => false,
                 'url' => null,
             ],
-            ExamSchedule::STATUS_ONGOING => [
+            ExamSchedule::STATUS_ONGOING => $this->attendanceBlockedDisplay($schedule, $session) ?? [
                 'key' => 'bisa_dimulai',
                 'label' => 'Bisa Dimulai',
                 'can_start' => true,
                 'url' => route('peserta.exams.token', $schedule),
             ],
             default => $schedule->isWithinPeriodWindow()
-                ? [
+                ? ($this->attendanceBlockedDisplay($schedule, $session) ?? [
                     'key' => 'susulan',
                     'label' => 'Bisa Dikerjakan',
                     'can_start' => true,
                     'url' => route('peserta.exams.token', $schedule),
-                ]
+                ])
                 : [
                     'key' => 'terlewat',
                     'label' => 'Waktu Terlewat',
@@ -126,6 +123,57 @@ class DashboardController extends Controller
                     'url' => null,
                 ],
         };
+    }
+
+    /**
+     * Guard absensi untuk dashboard agar konsisten dengan ExamController::accessBlock().
+     * - session null         → belum diabsen (NOT_CONFIRMED di token)
+     * - !confirmed + violation && window tutup → absensi_tertutup (Sesi Berakhir)
+     * - !confirmed + violation && window buka  → tidak_hadir (Dinonaktifkan)
+     * - !confirmed tanpa violation               → tidak_hadir (Belum Diabsen)
+     * Mengembalikan null jika boleh lanjut (attendance_confirmed = true).
+     *
+     * @return array{key: string, label: string, can_start: bool, url: null}|null
+     */
+    private function attendanceBlockedDisplay(ExamSchedule $schedule, ?ExamSession $session): ?array
+    {
+        if ($session === null) {
+            return [
+                'key' => 'tidak_hadir',
+                'label' => 'Belum Diabsen',
+                'can_start' => false,
+                'url' => null,
+            ];
+        }
+
+        if ($session->attendance_confirmed) {
+            return null;
+        }
+
+        if ($session->activeViolationFlags() > 0) {
+            if (! $schedule->isAttendanceWindowOpen()) {
+                return [
+                    'key' => 'absensi_tertutup',
+                    'label' => 'Sesi Berakhir',
+                    'can_start' => false,
+                    'url' => null,
+                ];
+            }
+
+            return [
+                'key' => 'tidak_hadir',
+                'label' => 'Dinonaktifkan',
+                'can_start' => false,
+                'url' => null,
+            ];
+        }
+
+        return [
+            'key' => 'tidak_hadir',
+            'label' => 'Belum Diabsen',
+            'can_start' => false,
+            'url' => null,
+        ];
     }
 
     private function hasCompletedOtherMapelInPeriod(ExamSchedule $schedule, Student $student): bool

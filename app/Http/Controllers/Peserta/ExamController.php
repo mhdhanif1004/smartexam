@@ -192,6 +192,11 @@ class ExamController extends Controller
             $isFinalMapel = true;
         }
 
+        $attendanceRevoked = $this->attendanceRevoked($session);
+        $attendanceWarning = $attendanceRevoked
+            ? 'Absensi Anda dicabut pengawas. Segera hubungi pengawas untuk diabsen kembali, jawaban tetap tersimpan sementara.'
+            : null;
+
         return view('peserta.exams.work', [
             'schedule' => $this->schedule,
             'session' => $session,
@@ -202,6 +207,8 @@ class ExamController extends Controller
             'totalSessionSeconds' => $totalSessionSeconds,
             'remainingSession' => $remainingSession,
             'isFinalMapel' => $isFinalMapel,
+            'attendanceRevoked' => $attendanceRevoked,
+            'attendanceWarning' => $attendanceWarning,
         ]);
     }
 
@@ -226,6 +233,8 @@ class ExamController extends Controller
             return response()->json(['error' => $error], 403);
         }
 
+        $isRevoked = $this->attendanceRevoked($session);
+
         if ($session->status !== ExamSession::STATUS_IN_PROGRESS || $session->started_at === null) {
             return response()->json(['error' => 'Sesi ujian belum dimulai.'], 403);
         }
@@ -237,6 +246,13 @@ class ExamController extends Controller
         $session->touchLastActivity();
 
         $this->storeAnswers($session, $schedule, (array) $request->input('answers', []), $student->classroom_id);
+
+        if ($isRevoked) {
+            return response()->json([
+                'ok' => true,
+                'warning' => 'Absensi Anda dicabut pengawas. Segera hubungi pengawas untuk diabsen kembali, jawaban tetap tersimpan sementara.',
+            ]);
+        }
 
         return response()->json(['ok' => true]);
     }
@@ -261,6 +277,8 @@ class ExamController extends Controller
         if (($error = $this->midExamBlock($session)) !== null) {
             return response()->json(['error' => $error], 403);
         }
+
+        $isRevoked = $this->attendanceRevoked($session);
 
         if ($session->status !== ExamSession::STATUS_IN_PROGRESS || $session->started_at === null) {
             return response()->json(['error' => 'Sesi ujian belum dimulai.'], 403);
@@ -292,7 +310,12 @@ class ExamController extends Controller
                 'is_doubtful' => true,
             ]);
 
-            return response()->json(['ok' => true, 'question_id' => $question, 'is_doubtful' => true]);
+            $payload = ['ok' => true, 'question_id' => $question, 'is_doubtful' => true];
+            if ($isRevoked) {
+                $payload['warning'] = 'Absensi Anda dicabut pengawas. Segera hubungi pengawas untuk diabsen kembali, jawaban tetap tersimpan sementara.';
+            }
+
+            return response()->json($payload);
         }
 
         $isDoubtful = ! $answer->is_doubtful;
@@ -303,7 +326,12 @@ class ExamController extends Controller
             $answer->update(['is_doubtful' => $isDoubtful]);
         }
 
-        return response()->json(['ok' => true, 'question_id' => $question, 'is_doubtful' => $isDoubtful]);
+        $payload = ['ok' => true, 'question_id' => $question, 'is_doubtful' => $isDoubtful];
+        if ($isRevoked) {
+            $payload['warning'] = 'Absensi Anda dicabut pengawas. Segera hubungi pengawas untuk diabsen kembali, jawaban tetap tersimpan sementara.';
+        }
+
+        return response()->json($payload);
     }
 
     public function status(Request $request, int $schedule): JsonResponse
@@ -356,8 +384,14 @@ class ExamController extends Controller
             $isFinalMapel = true;
         }
 
+        $attendanceRevoked = $this->attendanceRevoked($session);
+
         return response()->json([
             'locked' => false,
+            'attendance_revoked' => $attendanceRevoked,
+            'attendance_revoked_message' => $attendanceRevoked
+                ? 'Absensi Anda dicabut pengawas. Segera hubungi pengawas untuk diabsen kembali, jawaban tetap tersimpan sementara.'
+                : null,
             'mapel' => [
                 'remaining_seconds' => $remainingMapel,
                 'is_final' => $isFinalMapel,
@@ -369,6 +403,13 @@ class ExamController extends Controller
         ]);
     }
 
+    /**
+     * Kumpulkan/finalize ujian (tiered strict): submit memakai accessBlock()
+     * sehingga absensi yang dicabut (revoked) tetap DIBLOKIR saat finalize
+     * meskipun midExamBlock meloloskan save jawaban. Peserta boleh simpan
+     * jawaban selama grace warning, namun tidak bisa finalize sampai
+     * diabsen ulang oleh pengawas.
+     */
     public function submit(Request $request, int $schedule): RedirectResponse
     {
         if (($redirect = $this->resolve($request, $schedule)) !== null) {
@@ -381,7 +422,7 @@ class ExamController extends Controller
             return redirect()->route('peserta.exams.finished', $this->schedule->id);
         }
 
-        if (($error = $this->midExamBlock($session)) !== null) {
+        if (($error = $this->accessBlock($session)) !== null) {
             return $this->deny($error);
         }
 
@@ -524,10 +565,13 @@ class ExamController extends Controller
     }
 
     /**
-     * Penghalang untuk sesi yang sedang berjalan: hentikan bila dikunci admin
-     * atau bila absensi dinonaktifkan karena pelanggaran otomatis. Sesi
-     * in_progress yang belum diabsen tanpa pelanggaran tetap diizinkan
-     * (mis. saat pengawas mengubah absensi di tengah ujian).
+     * Penghalang untuk sesi yang sedang berjalan (tiered enforcement - loose):
+     * - locked_by_admin selalu diblokir.
+     * - absensi dinonaktifkan karena pelanggaran (attendance_confirmed=false + violation>0) diblokir.
+     * - absensi dicabut manual tanpa pelanggaran (attendanceRevoked) tetap diizinkan
+     *   lanjut baca/simpan jawaban dengan warning; pemblokiran hanya di submit/finalize
+     *   yang memakai accessBlock() strict. Ini mencegah kick mendadak di tengah ujian
+     *   akibat salah klik pengawas, namun submit tetap strict.
      */
     private function midExamBlock(ExamSession $session): ?string
     {
@@ -540,6 +584,16 @@ class ExamController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Helper tiered: absensi dicabut manual tanpa pelanggaran.
+     * True = attendance_confirmed false dan tidak ada violation aktif.
+     * Dipakai untuk grace warning di work/saveAnswer/toggleDoubtful/status.
+     */
+    private function attendanceRevoked(ExamSession $session): bool
+    {
+        return ! $session->attendance_confirmed && $session->activeViolationFlags() === 0;
     }
 
     private function hasActiveSessionInPeriod(): bool

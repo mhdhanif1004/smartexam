@@ -1,5 +1,9 @@
 <x-layouts.pengawas title="Absensi Peserta">
-    <div class="space-y-6">
+    <div
+        class="space-y-6"
+        x-data="{ _attendanceRefresh: null }"
+        x-init="_attendanceRefresh = setInterval(() => { if (document.visibilityState !== 'visible') return; if (document.querySelector('input[disabled]')) return; window.location.reload(); }, 90000)"
+    >
         <div>
             <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Absensi Peserta</h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -94,33 +98,59 @@
                                         confirmed: @js($session?->attendance_confirmed ?? false),
                                         saving: false,
                                         error: '',
+                                        controller: null,
                                         async toggle(target) {
+                                            if (this.controller) { try { this.controller.abort(); } catch (_) {} }
+                                            const myController = new AbortController();
+                                            this.controller = myController;
                                             this.saving = true;
                                             this.error = '';
+                                            this.confirmed = target;
+                                            const url = '{{ route('pengawas.attendance.confirm', $anchorSchedule->id) }}';
+                                            const csrfUrl = '{{ route('csrf-token') }}';
+                                            const getToken = () => document.querySelector('meta[name=&quot;csrf-token&quot;]')?.content ?? '';
+                                            const doFetch = (token) => fetch(url, {
+                                                method: 'PATCH',
+                                                headers: {
+                                                    'Content-Type': 'application/json',
+                                                    'Accept': 'application/json',
+                                                    'X-CSRF-TOKEN': token,
+                                                },
+                                                body: JSON.stringify({ student_id: {{ $student->id }}, confirmed: target }),
+                                                signal: myController.signal,
+                                            });
                                             try {
-                                                const res = await fetch('{{ route('pengawas.attendance.confirm', $anchorSchedule->id) }}', {
-                                                    method: 'PATCH',
-                                                    headers: {
-                                                        'Content-Type': 'application/json',
-                                                        'Accept': 'application/json',
-                                                        'X-CSRF-TOKEN': document.querySelector('meta[name=&quot;csrf-token&quot;]').content,
-                                                    },
-                                                    body: JSON.stringify({ student_id: {{ $student->id }}, confirmed: target }),
-                                                });
+                                                let res = await doFetch(getToken());
                                                 if (res.status === 419) {
-                                                    window.location.reload();
-                                                    return;
+                                                    try {
+                                                        const tokRes = await fetch(csrfUrl, { headers: { 'Accept': 'application/json' }, signal: myController.signal });
+                                                        const tokData = await tokRes.json().catch(() => ({}));
+                                                        const newToken = tokData.csrf_token ?? tokData.token ?? '';
+                                                        if (newToken) {
+                                                            const meta = document.querySelector('meta[name=&quot;csrf-token&quot;]');
+                                                            if (meta) meta.content = newToken;
+                                                            res = await doFetch(newToken);
+                                                        }
+                                                        if (res.status === 419) { window.location.reload(); return; }
+                                                    } catch (retryErr) {
+                                                        if (retryErr?.name === 'AbortError') return;
+                                                        window.location.reload();
+                                                        return;
+                                                    }
                                                 }
+                                                if (myController !== this.controller) return;
                                                 const data = await res.json().catch(() => ({}));
                                                 if (!res.ok) {
                                                     this.confirmed = !target;
-                                                    this.error = data.error ?? 'Gagal menyimpan absensi.';
+                                                    this.error = data.error ?? data.message ?? 'Gagal menyimpan absensi.';
                                                 }
                                             } catch (e) {
+                                                if (e?.name === 'AbortError') return;
+                                                if (myController !== this.controller) return;
                                                 this.confirmed = !target;
-                                                this.error = 'Gagal menyimpan absensi.';
+                                                this.error = 'Gagal menyimpan absensi. Periksa koneksi Anda.';
                                             } finally {
-                                                this.saving = false;
+                                                if (myController === this.controller) this.saving = false;
                                             }
                                         }
                                     }"
