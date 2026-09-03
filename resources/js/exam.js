@@ -48,6 +48,8 @@ export function examApp(config) {
         mapelWarningShown: false,
         sesiWarningShown: false,
         graceWarningShown: false,
+        attendanceRevoked: !!config.attendanceRevoked,
+        attendanceWarning: config.attendanceWarning || null,
 
         get inGracePeriod() {
             // Tahap 2: waktu resmi (periodEnd) habis, tapi masa toleransi (grace) masih berjalan.
@@ -58,6 +60,10 @@ export function examApp(config) {
             window.__smartExamApp = this;
             this.trackViolations();
             this.csrfRefreshTimer = setInterval(() => this.refreshCsrf(), 15 * 60 * 1000);
+            // Tampilkan peringatan absensi dicabut saat load awal (delay agar tidak bentrok toast lain).
+            if (this.attendanceRevoked && this.attendanceWarning) {
+                setTimeout(() => this.showToast(this.attendanceWarning), 800);
+            }
         },
 
         /**
@@ -256,6 +262,13 @@ export function examApp(config) {
                     }, 1500);
                     return;
                 }
+                // Sinkron banner absensi dicabut (reaktif via polling 10 detik).
+                if (typeof data.attendance_revoked !== 'undefined') {
+                    const was = this.attendanceRevoked;
+                    this.attendanceRevoked = !!data.attendance_revoked;
+                    this.attendanceWarning = data.attendance_revoked_message || this.attendanceWarning;
+                    if (this.attendanceRevoked && !was) this.showToast(this.attendanceWarning);
+                }
                 if (data.mapel) {
                     const serverRemaining = data.mapel.remaining_seconds;
                     const drift = Math.abs(this.remaining - serverRemaining);
@@ -352,8 +365,14 @@ export function examApp(config) {
                     return;
                 }
                 if (response.ok) {
-                    const data = await response.json();
+                    const data = await response.json().catch(() => ({}));
                     this.doubtful[q.id] = !!data.is_doubtful;
+                    // Cek peringatan absensi dicabut.
+                    if (data.warning) {
+                        this.attendanceRevoked = true;
+                        this.attendanceWarning = data.warning;
+                        this.showToast(data.warning);
+                    }
                 }
             } catch (e) {
                 this.showToast('Gagal menyimpan status ragu-ragu. Coba lagi.');
@@ -456,6 +475,17 @@ export function examApp(config) {
                     return;
                 }
                 if (response.ok) {
+                    // Cek peringatan absensi dicabut tanpa merusak lastSaved.
+                    try {
+                        const data = await (typeof response.clone === 'function' ? response.clone().json() : response.json());
+                        if (data && data.warning) {
+                            this.attendanceRevoked = true;
+                            this.attendanceWarning = data.warning;
+                            this.showToast(data.warning);
+                        }
+                    } catch (_) {
+                        // Bukan JSON atau body kosong — abaikan, tetap set lastSaved.
+                    }
                     this.lastSaved = new Date().toLocaleTimeString('id-ID', {
                         hour: '2-digit',
                         minute: '2-digit',

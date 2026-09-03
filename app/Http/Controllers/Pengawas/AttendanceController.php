@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -123,9 +124,7 @@ class AttendanceController extends Controller
             'attendance_status' => $confirmed ? ExamSession::ATTENDANCE_PRESENT : ExamSession::ATTENDANCE_ABSENT,
         ]);
 
-        if ($confirmed) {
-            $this->propagateAttendance($student, $schedule, true);
-        }
+        $this->propagateAttendance($student, $schedule, $confirmed);
 
         return response()->json(['ok' => true]);
     }
@@ -174,6 +173,7 @@ class AttendanceController extends Controller
         })->validate();
 
         $confirmedStatuses = [];
+        $absentStatuses = [];
 
         foreach ($request->input('attendance') as $studentId => $status) {
             $confirmed = $status === ExamSession::ATTENDANCE_PRESENT;
@@ -190,6 +190,8 @@ class AttendanceController extends Controller
 
             if ($confirmed) {
                 $confirmedStatuses[] = $studentId;
+            } else {
+                $absentStatuses[] = $studentId;
             }
         }
 
@@ -197,6 +199,13 @@ class AttendanceController extends Controller
             $students = Student::whereIn('id', $confirmedStatuses)->get();
             foreach ($students as $student) {
                 $this->propagateAttendance($student, $anchorSchedule, true);
+            }
+        }
+
+        if ($absentStatuses !== []) {
+            $students = Student::whereIn('id', $absentStatuses)->get();
+            foreach ($students as $student) {
+                $this->propagateAttendance($student, $anchorSchedule, false);
             }
         }
 
@@ -259,18 +268,21 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Propagate attendance dalam satu ExamPeriod / ruangan.
+     * Propagasi absensi dalam satu ExamPeriod / ruangan yang sama.
      *
-     * - overwriteExisting = true (dari confirm/update): schedule saat ini
-     *   sudah di-confirm → PUSH ke semua schedule lain (create/update).
-     * - overwriteExisting = false (dari attendanceRows): session baru
-     *   dibuat untuk schedule ini → PULL dari schedule lain yang sudah
-     *   di-confirm.
+     * Aturan oracle: virgin-only, NEVER downgrade hadir.
      *
-     * Hanya mengisi sesi yang BELUM di-attend supaya data manual
-     * pengawas tidak ter-overwrite.
+     * - Jika $confirmed === true (hadir): upgrade-only. Buat sesi baru jika
+     *   target belum ada, atau upgrade target yang masih tidak_hadir / belum
+     *   dikonfirmasi menjadi hadir. Jangan pernah overwrite target yang sudah
+     *   hadir (attendance_confirmed === true). Lewati baris yang dikunci admin.
+     * - Jika $confirmed === false (tidak_hadir): virgin-only. Jangan pernah
+     *   downgrade hadir. Hanya ubah target yang sudah ada (existing !== null)
+     *   dan masih virgin (attendance_status === null). Jangan CREATE baris
+     *   tidak_hadir prematur, jangan ubah baris yang sudah hadir atau sudah
+     *   tidak_hadir. Lewati baris yang dikunci admin.
      */
-    private function propagateAttendance(Student $student, ExamSchedule $currentSchedule, bool $overwriteExisting): void
+    private function propagateAttendance(Student $student, ExamSchedule $currentSchedule, bool $confirmed): void
     {
         $period = $currentSchedule->examPeriod;
 
@@ -288,7 +300,8 @@ class AttendanceController extends Controller
             return;
         }
 
-        if ($overwriteExisting) {
+        // Cabang hadir: upgrade-only
+        if ($confirmed === true) {
             $sourceSession = ExamSession::query()
                 ->where('student_id', $student->id)
                 ->where('exam_schedule_id', $currentSchedule->id)
@@ -299,23 +312,35 @@ class AttendanceController extends Controller
                 return;
             }
 
-            foreach ($otherScheduleIds as $otherId) {
-                $existing = ExamSession::query()
-                    ->where('student_id', $student->id)
-                    ->where('exam_schedule_id', $otherId)
-                    ->first();
+            DB::transaction(function () use ($student, $sourceSession, $otherScheduleIds): void {
+                foreach ($otherScheduleIds as $otherId) {
+                    $existing = ExamSession::query()
+                        ->where('student_id', $student->id)
+                        ->where('exam_schedule_id', $otherId)
+                        ->first();
 
-                if ($existing === null) {
-                    ExamSession::query()->create([
-                        'student_id' => $student->id,
-                        'exam_schedule_id' => $otherId,
-                        'status' => ExamSession::STATUS_NOT_STARTED,
-                        'attendance_confirmed' => true,
-                        'attendance_confirmed_at' => $sourceSession->attendance_confirmed_at,
-                        'attendance_confirmed_by' => $sourceSession->attendance_confirmed_by,
-                        'attendance_status' => ExamSession::ATTENDANCE_PRESENT,
-                    ]);
-                } elseif (! $existing->attendance_confirmed) {
+                    if ($existing === null) {
+                        ExamSession::query()->create([
+                            'student_id' => $student->id,
+                            'exam_schedule_id' => $otherId,
+                            'status' => ExamSession::STATUS_NOT_STARTED,
+                            'attendance_confirmed' => true,
+                            'attendance_confirmed_at' => $sourceSession->attendance_confirmed_at,
+                            'attendance_confirmed_by' => $sourceSession->attendance_confirmed_by,
+                            'attendance_status' => ExamSession::ATTENDANCE_PRESENT,
+                        ]);
+                        continue;
+                    }
+
+                    if ($existing->locked_by_admin) {
+                        continue;
+                    }
+
+                    // Jangan pernah overwrite yang sudah hadir
+                    if ($existing->attendance_confirmed) {
+                        continue;
+                    }
+
                     $existing->update([
                         'attendance_confirmed' => true,
                         'attendance_confirmed_at' => $sourceSession->attendance_confirmed_at,
@@ -323,31 +348,61 @@ class AttendanceController extends Controller
                         'attendance_status' => ExamSession::ATTENDANCE_PRESENT,
                     ]);
                 }
-            }
-        } else {
-            $sourceSession = ExamSession::query()
-                ->where('student_id', $student->id)
-                ->whereIn('exam_schedule_id', $otherScheduleIds)
-                ->where('attendance_confirmed', true)
-                ->first();
+            });
 
-            if ($sourceSession === null) {
-                return;
-            }
-
-            ExamSession::query()
-                ->where('student_id', $student->id)
-                ->where('exam_schedule_id', $currentSchedule->id)
-                ->where(function ($q) {
-                    $q->whereNull('attendance_confirmed')
-                        ->orWhere('attendance_confirmed', false);
-                })
-                ->update([
-                    'attendance_confirmed' => true,
-                    'attendance_confirmed_at' => $sourceSession->attendance_confirmed_at,
-                    'attendance_confirmed_by' => $sourceSession->attendance_confirmed_by,
-                    'attendance_status' => ExamSession::ATTENDANCE_PRESENT,
-                ]);
+            return;
         }
+
+        // Cabang tidak_hadir: virgin-only, NEVER downgrade hadir
+        $sourceSession = ExamSession::query()
+            ->where('student_id', $student->id)
+            ->where('exam_schedule_id', $currentSchedule->id)
+            ->where('attendance_confirmed', false)
+            ->where('attendance_status', ExamSession::ATTENDANCE_ABSENT)
+            ->first();
+
+        if ($sourceSession === null) {
+            return;
+        }
+
+        DB::transaction(function () use ($student, $otherScheduleIds): void {
+            foreach ($otherScheduleIds as $otherId) {
+                $existing = ExamSession::query()
+                    ->where('student_id', $student->id)
+                    ->where('exam_schedule_id', $otherId)
+                    ->first();
+
+                // Virgin-only: jangan CREATE baris tidak_hadir prematur
+                if ($existing === null) {
+                    continue;
+                }
+
+                if ($existing->locked_by_admin) {
+                    continue;
+                }
+
+                // NEVER downgrade hadir
+                if ($existing->attendance_confirmed === true) {
+                    continue;
+                }
+
+                // Sudah tidak_hadir → NO-OP
+                if ($existing->attendance_status === ExamSession::ATTENDANCE_ABSENT) {
+                    continue;
+                }
+
+                // Hanya virgin (belum pernah di-set) yang boleh diubah menjadi tidak_hadir
+                if ($existing->attendance_status !== null) {
+                    continue;
+                }
+
+                $existing->update([
+                    'attendance_confirmed' => false,
+                    'attendance_confirmed_at' => now(),
+                    'attendance_confirmed_by' => auth()->id(),
+                    'attendance_status' => ExamSession::ATTENDANCE_ABSENT,
+                ]);
+            }
+        });
     }
 }

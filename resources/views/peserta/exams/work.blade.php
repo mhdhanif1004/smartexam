@@ -19,8 +19,31 @@
              csrf: {{ Js::from(csrf_token()) }},
              csrfUrl: {{ Js::from(route('csrf-token')) }},
               loginUrl: {{ Js::from(route('login')) }},
-         })"> 
+              attendanceRevoked: {{ Js::from($attendanceRevoked ?? false) }},
+              attendanceWarning: {{ Js::from($attendanceWarning ?? null) }},
+          })">
 
+
+        {{-- Banner Absensi Dicabut: reaktif via Alpine (attendanceRevoked) + SSR fallback Js::from --}}
+        <div x-show="attendanceRevoked" x-cloak x-transition.opacity
+             role="alert" aria-live="assertive"
+             class="sticky top-4 z-30 rounded-xl border-2 border-rose-300 bg-rose-50 p-4 shadow-sm dark:border-rose-500/40 dark:bg-rose-500/10">
+            <div class="flex items-start gap-3">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-500/20">
+                    <svg class="h-5 w-5 text-rose-600 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374H4.749c-1.73 0-2.813-1.874-1.948-3.374L10.052 3.378c.866-1.5 3.032-1.5 3.898 0l7.303 13.748zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                </div>
+                <div class="min-w-0 flex-1">
+                    <p class="text-sm font-bold text-rose-700 dark:text-rose-300">Absensi Dicabut</p>
+                    <p class="mt-1 text-sm leading-relaxed text-rose-600 dark:text-rose-300/90" x-text="attendanceWarning || 'Absensi Anda untuk sesi ini telah dicabut oleh pengawas. Hubungi pengawas untuk penjelasan lebih lanjut.'"></p>
+                </div>
+                <span class="hidden shrink-0 items-center rounded-full border border-rose-200 bg-white px-3 py-1 text-xs font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300 sm:inline-flex">
+                    Hubungi Pengawas
+                </span>
+            </div>
+            <p class="mt-2 text-xs font-medium text-rose-500 dark:text-rose-400 sm:hidden">Hubungi pengawas jika perlu klarifikasi.</p>
+        </div>
 
         <div :class="fullscreenLost ? 'pointer-events-none opacity-60' : ''">
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
