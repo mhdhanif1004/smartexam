@@ -247,8 +247,12 @@ class AttendanceController extends Controller
     {
         $students = Student::query()
             ->with('user')
-            ->whereIn('id', $studentIds)
-            ->orderBy('nisn')
+            ->join('users', 'users.id', '=', 'students.user_id')
+            ->whereIn('students.id', $studentIds)
+            ->orderBy('students.class_name')
+            ->orderBy('users.name')
+            ->orderBy('students.nisn')
+            ->select('students.*')
             ->get();
 
         $sessions = ExamSession::query()

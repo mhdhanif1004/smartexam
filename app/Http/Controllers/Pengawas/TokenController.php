@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Pengawas;
 
 use App\Http\Controllers\Controller;
+use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\ExamToken;
 use App\Models\Student;
@@ -64,10 +65,26 @@ class TokenController extends Controller
             ->where('room_id', $room->id)
             ->pluck('id');
 
+        // Peserta sesi ini di ruangan pengawas berasal dari penempatan
+        // exam_room_assignments (sama seperti halaman absensi), BUKAN dari
+        // home-room students.room_id — siswa bisa ditempatkan ke ruangan ujian
+        // yang berbeda dari ruangan asalnya.
+        $participantIds = $period->schedules()
+            ->where('room_id', $room->id)
+            ->get()
+            ->pipe(fn ($schedules) => ExamSchedule::participantStudentIdsBySchedules($schedules))
+            ->flatten()
+            ->unique()
+            ->values();
+
         $students = Student::query()
             ->with(['user', 'examSessions' => fn ($q) => $q->whereIn('exam_schedule_id', $scheduleIds)])
-            ->where('room_id', $room->id)
-            ->orderBy('nisn')
+            ->join('users', 'users.id', '=', 'students.user_id')
+            ->whereIn('students.id', $participantIds)
+            ->orderBy('students.class_name')
+            ->orderBy('users.name')
+            ->orderBy('students.nisn')
+            ->select('students.*')
             ->get();
 
         $stats = ['sudah_token' => 0, 'belum_token' => 0];
