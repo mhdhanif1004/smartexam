@@ -4,6 +4,7 @@
     @endphp
     <div x-data="{
         openRooms: {},
+        deleteUrl: '',
         toggleRoom(id) {
             this.openRooms[id] = !this.openRooms[id];
         },
@@ -242,11 +243,9 @@
                                     <td class="px-4 py-3 text-sm">
                                         <div class="flex items-center gap-2">
                                             <a href="{{ route('admin.exam-schedules.edit', $schedule) }}" class="rounded-md bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20">Edit</a>
-                                            <form method="POST" action="{{ route('admin.exam-schedules.destroy', $schedule) }}" onsubmit="return confirm('Hapus jadwal ini?')" class="inline">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="rounded-md bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20">Hapus</button>
-                                            </form>
+                                            <button type="button"
+                                                    @click="deleteUrl = @js(route('admin.exam-schedules.destroy', $schedule)); deleteDescription = @js('Hapus jadwal ' . ($schedule->subject?->name ?? '') . ' (' . \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) . ' - ' . \Illuminate\Support\Str::substr($schedule->end_time, 0, 5) . ')?'); $dispatch('open-modal', 'confirm-delete')"
+                                                    class="rounded-md bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20">Hapus</button>
                                         </div>
                                     </td>
                                 </tr>
@@ -431,5 +430,7 @@
             </div>
         </div>
     </x-modal>
+
+    @include('admin.partials.delete-modal')
     </div>
 </x-layouts.admin>

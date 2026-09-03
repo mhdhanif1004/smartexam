@@ -1,5 +1,5 @@
 <x-layouts.admin :title="'Kelola Mapel Guru - '.($guruMapel->user?->name ?? 'Guru Mapel')">
-    <div class="space-y-6">
+    <div class="space-y-6" x-data="{ deleteUrl: '' }">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Kelola Mata Pelajaran</h2>
@@ -78,11 +78,9 @@
                                                 <span x-show="! open">Pilih Kelas</span>
                                                 <span x-show="open" x-cloak>Tutup</span>
                                             </button>
-                                            <form method="POST" action="{{ route('admin.guru-mapels.assignments.destroy-subject', [$guruMapel, $assignment['subject']]) }}" onsubmit="return confirm('Hapus mapel ini (beserta kelasnya) dari guru?');">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="rounded-md bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20">Hapus</button>
-                                            </form>
+                                            <button type="button"
+                                                    @click="deleteUrl = @js(route('admin.guru-mapels.assignments.destroy-subject', [$guruMapel, $assignment['subject']])); deleteDescription = @js('Hapus mapel ' . ($assignment['subject']?->name ?? '') . ' (beserta kelasnya) dari guru ini?'); $dispatch('open-modal', 'confirm-delete')"
+                                                    class="rounded-md bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20">Hapus</button>
                                         </div>
                                     </td>
                                 </tr>
@@ -142,5 +140,7 @@
                 @endforelse
             </div>
         </div>
+
+        @include('admin.partials.delete-modal')
     </div>
 </x-layouts.admin>

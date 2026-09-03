@@ -190,6 +190,8 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
 
         Route::resource('questions', GuruMapelQuestionController::class)->except(['show']);
 
+        Route::post('questions/bulk-destroy', [GuruMapelQuestionController::class, 'bulkDestroy'])->name('questions.bulk-destroy');
+
         Route::controller(GuruMapelQuestionImportExportController::class)->prefix('questions')->name('questions.')->group(function () {
             Route::get('/export', 'export')->name('export');
             Route::get('/import-template/{type}', 'importTemplate')->name('import-template');

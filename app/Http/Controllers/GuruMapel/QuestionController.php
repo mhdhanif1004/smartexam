@@ -141,6 +141,61 @@ class QuestionController extends Controller
     }
 
     /**
+     * Hapus banyak soal sekaligus. Hanya soal milik guru ini dalam mapel yang
+     * diampu yang diproses; soal yang sudah pernah dijawab peserta dilewati
+     * (data integrity), dan file gambar ikut dihapus. Mengembalikan laporan
+     * jumlah soal terhapus & yang dilewati.
+     */
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $guru = $this->currentGuru();
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+        ]);
+
+        $ids = array_map('intval', $validated['ids']);
+
+        $questions = Question::query()
+            ->whereIn('id', $ids)
+            ->ownedBy($request->user())
+            ->whereIn('subject_id', $guru->ampuSubjectIds())
+            ->get();
+
+        if ($questions->isEmpty()) {
+            return back()->with('error', 'Tidak ada soal valid yang dipilih untuk dihapus.');
+        }
+
+        // Soal yang sudah pernah dijawab tidak boleh dihapus.
+        $answeredIds = ExamAnswer::query()
+            ->whereIn('question_id', $questions->pluck('id'))
+            ->distinct()
+            ->pluck('question_id');
+
+        $deletable = $questions->reject(fn ($question) => $answeredIds->contains($question->id));
+
+        foreach ($deletable as $question) {
+            $this->deleteImageFile($question->image_path);
+            $question->delete();
+        }
+
+        $deletedCount = $deletable->count();
+        $skippedCount = $questions->count() - $deletedCount;
+
+        if ($deletedCount === 0) {
+            return back()->with('error', 'Tidak ada soal yang bisa dihapus (soal yang sudah pernah dijawab peserta tidak dapat dihapus).');
+        }
+
+        $message = $deletedCount.' soal berhasil dihapus.';
+        if ($skippedCount > 0) {
+            $message .= ' '.$skippedCount.' soal dilewati karena sudah pernah dijawab peserta.';
+        }
+
+        return redirect()->route('guru_mapel.questions.index')->with('success', $message);
+    }
+
+    /**
      * Aborsi 403 bila soal bukan milik guru ini atau mapelnya di luar ampu-an.
      */
     private function authorizeQuestion(Question $question, GuruMapel $guru): void
