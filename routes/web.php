@@ -47,6 +47,11 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         return response()->json(['csrf_token' => csrf_token()]);
     })->name('csrf-token');
 
+    // Halaman legal/informasi publik (tidak memerlukan login)
+    Route::get('/privacy-policy', fn () => view('legal.privacy-policy'))->name('privacy-policy');
+    Route::get('/terms-of-service', fn () => view('legal.terms-of-service'))->name('terms-of-service');
+    Route::get('/cbt-guidelines', fn () => view('legal.cbt-guidelines'))->name('cbt-guidelines');
+
     Route::prefix('admin')->middleware(['auth', 'verified', 'role:admin'])->name('admin.')->group(function () {
         Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
