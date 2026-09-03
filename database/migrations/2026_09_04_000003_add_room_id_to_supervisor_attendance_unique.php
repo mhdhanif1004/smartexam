@@ -15,32 +15,33 @@ return new class extends Migration
      * Sesudah: unique [supervisor_id, exam_schedule_id, room_id] — cegah
      * duplikasi hanya untuk kombinasi pengawas + jadwal + ruangan yang sama.
      *
-     * Migrasi aman/idempoten: tidak menghapus data, tidak mengubah kolom lain,
-     * dibungkus try/catch agar tidak error jika di-run dua kali.
+     * Catatan MySQL 1553: FK supervisor_id membutuhkan index yang diawali
+     * kolom supervisor_id. Unique lama adalah satu-satunya index yang
+     * meng-cover supervisor_id, jadi harus buat unique baru DULU baru hapus
+     * yang lama — kalau dibalik akan error "needed in a foreign key constraint".
      */
     public function up(): void
     {
-        // Hapus unique lama [supervisor_id, exam_schedule_id] jika ada.
-        // Nama index default Laravel: supervisor_attendances_supervisor_id_exam_schedule_id_unique
-        Schema::table('supervisor_attendances', function (Blueprint $table) {
-            try {
-                $table->dropUnique(['supervisor_id', 'exam_schedule_id']);
-            } catch (\Throwable $e) {
-                // Abaikan jika index sudah tidak ada (idempoten / sudah di-migrate sebelumnya).
-            }
-        });
-
-        // Buat unique baru [supervisor_id, exam_schedule_id, room_id].
-        Schema::table('supervisor_attendances', function (Blueprint $table) {
-            try {
+        // 1) Buat unique baru dulu agar FK tetap punya index.
+        try {
+            Schema::table('supervisor_attendances', function (Blueprint $table) {
                 $table->unique(
                     ['supervisor_id', 'exam_schedule_id', 'room_id'],
                     'supervisor_attendances_supervisor_schedule_room_unique'
                 );
-            } catch (\Throwable $e) {
-                // Abaikan jika index sudah ada (idempoten — aman di-run dua kali).
-            }
-        });
+            });
+        } catch (\Throwable $e) {
+            // Abaikan jika index sudah ada (idempoten — aman di-run dua kali).
+        }
+
+        // 2) Baru hapus unique lama.
+        try {
+            Schema::table('supervisor_attendances', function (Blueprint $table) {
+                $table->dropUnique('supervisor_attendances_supervisor_id_exam_schedule_id_unique');
+            });
+        } catch (\Throwable $e) {
+            // Abaikan jika index sudah tidak ada.
+        }
     }
 
     /**
@@ -48,25 +49,25 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Hapus unique baru [supervisor_id, exam_schedule_id, room_id] jika ada.
-        Schema::table('supervisor_attendances', function (Blueprint $table) {
-            try {
-                $table->dropUnique('supervisor_attendances_supervisor_schedule_room_unique');
-            } catch (\Throwable $e) {
-                // Abaikan jika index sudah tidak ada.
-            }
-        });
-
-        // Kembalikan unique lama [supervisor_id, exam_schedule_id].
-        Schema::table('supervisor_attendances', function (Blueprint $table) {
-            try {
+        // 1) Kembalikan unique lama dulu agar FK tetap punya index sebelum yang baru dihapus.
+        try {
+            Schema::table('supervisor_attendances', function (Blueprint $table) {
                 $table->unique(
                     ['supervisor_id', 'exam_schedule_id'],
                     'supervisor_attendances_supervisor_id_exam_schedule_id_unique'
                 );
-            } catch (\Throwable $e) {
-                // Abaikan jika index sudah ada.
-            }
-        });
+            });
+        } catch (\Throwable $e) {
+            // Abaikan jika index sudah ada.
+        }
+
+        // 2) Baru hapus unique baru.
+        try {
+            Schema::table('supervisor_attendances', function (Blueprint $table) {
+                $table->dropUnique('supervisor_attendances_supervisor_schedule_room_unique');
+            });
+        } catch (\Throwable $e) {
+            // Abaikan jika index sudah tidak ada.
+        }
     }
 };
