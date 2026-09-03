@@ -31,14 +31,6 @@
                     <dt class="text-gray-500 dark:text-gray-400">Soal Dijawab</dt>
                     <dd class="font-semibold text-gray-900 dark:text-gray-100">{{ $answeredCount }} soal</dd>
                 </div>
-                @if ($result !== null)
-                    <div class="flex justify-between gap-4 border-t border-gray-100 pt-3 dark:border-gray-800">
-                        <dt class="text-gray-500 dark:text-gray-400">Skor Sementara</dt>
-                        <dd class="font-semibold {{ $result->is_passed ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400' }}">
-                            {{ number_format((float) $result->total_score, 2) }}
-                        </dd>
-                    </div>
-                @endif
             </dl>
             <p class="mt-4 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
                 Nilai soal essay akan dikoreksi manual oleh guru/pengawas sebelum hasil akhir diumumkan.

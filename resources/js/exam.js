@@ -46,10 +46,15 @@ export function examApp(config) {
         hasEnteredFullscreen: false,
         violationListeners: [],
         mapelWarningShown: false,
+        showMapelWarning: false,
         sesiWarningShown: false,
         graceWarningShown: false,
         attendanceRevoked: !!config.attendanceRevoked,
         attendanceWarning: config.attendanceWarning || null,
+
+        dismissMapelWarning() {
+            this.showMapelWarning = false;
+        },
 
         get inGracePeriod() {
             // Tahap 2: waktu resmi (periodEnd) habis, tapi masa toleransi (grace) masih berjalan.
@@ -77,13 +82,15 @@ export function examApp(config) {
             this.remainingSesi = Math.max(0, config.remainingSession || 0);
             this.remainingGrace = Math.max(0, config.remainingGrace || 0);
             this.timer = setInterval(() => {
-                this.remaining -= 1;
+                // Waktu mapel dihitung ulang dari timestamp deadline server (anti-drift):
+                // tetap akurat walau browser disembunyikan / CPU sibuk / interval di-throttle.
+                this.remaining = Math.max(0, config.deadline - Math.floor(Date.now() / 1000));
                 this.remainingSesi = Math.max(0, this.remainingSesi - 1);
                 this.remainingGrace = Math.max(0, this.remainingGrace - 1);
 
-                if (this.remaining === 300 && !this.isFinalMapel && !this.mapelWarningShown) {
+                if (this.remaining <= 300 && !this.isFinalMapel && !this.mapelWarningShown) {
                     this.mapelWarningShown = true;
-                    this.showToast('Sisa waktu mapel tinggal 5 menit.');
+                    this.showMapelWarning = true;
                 }
                 if (this.remainingSesi === 300 && !this.sesiWarningShown) {
                     this.sesiWarningShown = true;

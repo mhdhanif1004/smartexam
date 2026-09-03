@@ -61,7 +61,6 @@
                     <div x-show="!isFinalMapel" class="text-center">
                         <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Sisa Waktu Mapel</p>
                         <p class="font-mono text-2xl font-bold tabular-nums" :class="remaining < 300 ? 'text-rose-600 dark:text-rose-400' : 'text-gray-900 dark:text-gray-100'" x-text="formatTime(remaining)"></p>
-                        <p class="text-[9px] text-gray-400 dark:text-gray-500">Dihitung sejak Anda mulai</p>
                     </div>
 
                     {{-- Timer Sesi (normal atau takeover slot mapel saat isFinalMapel) --}}
@@ -77,12 +76,6 @@
                         <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Terjawab</p>
                         <p class="text-2xl font-bold tabular-nums text-gray-900 dark:text-gray-100"><span x-text="answeredCount()"></span><span class="text-base text-gray-400 dark:text-gray-500">/</span><span class="text-base text-gray-400 dark:text-gray-500" x-text="total()"></span></p>
                     </div>
-                    <button type="button" @click="submit(false)"
-                            class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-500"
-                            :disabled="submitting">
-                        <span x-show="!submitting">Kumpulkan</span>
-                        <span x-show="submitting">Mengirim...</span>
-                    </button>
                 </div>
             </div>
 
@@ -91,6 +84,22 @@
                 <span x-show="!saving && lastSaved" class="text-emerald-600 dark:text-emerald-400">Tersimpan otomatis pukul <span x-text="lastSaved"></span></span>
                 <span x-show="!saving && !lastSaved">Jawaban disimpan otomatis saat dipilih.</span>
             </div>
+        </div>
+
+        {{-- Peringatan Waktu Mapel < 5 menit: percepat & pindah mapel --}}
+        <div x-show="showMapelWarning" x-cloak x-transition.opacity role="alert" class="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-rose-300 bg-rose-50 px-4 py-3 shadow-sm dark:border-rose-500/40 dark:bg-rose-500/10">
+            <div class="flex items-start gap-3">
+                <svg class="h-6 w-6 shrink-0 text-rose-600 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+                <div>
+                    <p class="text-sm font-bold text-rose-700 dark:text-rose-300">Waktu mapel tersisa kurang dari 5 menit</p>
+                    <p class="mt-0.5 text-sm text-rose-600 dark:text-rose-300/90">Percepat mengerjakan soal dan bersiap untuk pindah ke mapel berikutnya.</p>
+                </div>
+            </div>
+            <button type="button" @click="dismissMapelWarning()" class="rounded-md p-1.5 text-rose-500 hover:bg-rose-100 hover:text-rose-700 dark:hover:bg-rose-500/20 dark:hover:text-rose-300" title="Tutup">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
         </div>
 
         @if ($questionsData->isEmpty())
