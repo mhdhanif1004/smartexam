@@ -25,6 +25,17 @@ class DashboardController extends Controller
             ->get()
             ->keyBy('id');
 
+        // Daftar lengkap mapel yang diampu guru ini, berikut jumlah kelas yang
+        // terpetakan per mapel (diturunkan dari pivot soal -> kelas).
+        $classScope = $guru->classScopeBySubject();
+
+        $subjects = $subjectModels
+            ->map(fn (Subject $subject) => [
+                'subject' => $subject,
+                'class_count' => count($classScope[$subject->id] ?? []),
+            ])
+            ->values();
+
         // Cakupan kelas per mapel diturunkan live dari soal yang dibuat guru
         // (kelas target pada pivot question_classroom). Baris penugasan =
         // (mapel, kelas) beserta jumlah siswa; mapel tanpa soal tidak punya
@@ -79,6 +90,7 @@ class DashboardController extends Controller
             'subjectCount',
             'classCount',
             'assignments',
+            'subjects',
             'recentGrades',
             'totalQuestions',
             'gradesThisMonth',
