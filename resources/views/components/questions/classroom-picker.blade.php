@@ -2,6 +2,7 @@
     'mode' => 'all',
     'classrooms' => collect(),
     'classroomsBySubject' => [],
+    'allGuruClassroomsBySubject' => [],
     'selected' => [],
     'description' => null,
     'bind' => null,
@@ -24,30 +25,25 @@
         }
     }
 
-    // Untuk mode scoped: subyek => kelas (dengan level) agar UI bisa
-    // dikelompokkan per tingkat secara reaktif di sisi klien.
-    $scopedGroups = [];
-    if ($mode === 'scoped') {
-        foreach ($classroomsBySubject as $subjectId => $classrooms) {
-            foreach ($classrooms as $classroom) {
-                $level = preg_match('/^[A-Z]+/', (string) $classroom['name'], $matches) ? $matches[0] : 'Lainnya';
-                $scopedGroups[$subjectId][] = [
-                    'id' => (int) $classroom['id'],
-                    'name' => (string) $classroom['name'],
-                    'level' => $level,
-                ];
-            }
-        }
-    }
+    // Untuk mode scoped: data kelas per guru (user_id => subject_id => kelas)
+    // disediakan utuh dari scope form (allGuruData) lalu difilter reaktif di
+    // sisi klien berdasarkan guru & mapel yang dipilih.
 @endphp
 
 @if ($mode === 'scoped')
     <div
         class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900"
         x-data="{
-            subjects: @js($scopedGroups),
+            allGuruData: @js($allGuruClassroomsBySubject),
+            get subjects() {
+                return this.allGuruData[this.guru] || {};
+            },
             groupedScoped() {
-                return Object.groupBy ? Object.groupBy(this.subjects[this.subject] ?? [], c => c.level) : this.groupByPolyfill(this.subjects[this.subject] ?? []);
+                const items = (this.subjects[this.subject] ?? []).map(c => ({
+                    ...c,
+                    level: (c.name.match(/^[A-Z]+/) || ['Lainnya'])[0],
+                }));
+                return Object.groupBy ? Object.groupBy(items, c => c.level) : this.groupByPolyfill(items);
             },
             groupByPolyfill(items) {
                 const map = {};

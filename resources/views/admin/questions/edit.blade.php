@@ -22,7 +22,7 @@
             action="{{ route('admin.questions.update', $question) }}"
             enctype="multipart/form-data"
             class="max-w-3xl space-y-6"
-            x-data="{ type: @js(old('type', $question->type)), guru: @js((string) old('creator_user_id', $question->created_by_user_id ?? '')), pairs: @js($pairs), img: { preview: '', hasExisting: @js((bool) $question->image_path), existingUrl: @js($question->image_path ? asset('storage/'.$question->image_path) : ''), remove() { this.hasExisting = false; this.preview = ''; } } }"
+            x-data="{ type: @js(old('type', $question->type)), guru: @js((string) old('creator_user_id', $question->created_by_user_id ?? '')), subject: @js((string) old('subject_id', $question->subject_id)), selected: @js(old('classroom_ids', $question->classrooms->pluck('id')->all())), pairs: @js($pairs), img: { preview: '', hasExisting: @js((bool) $question->image_path), existingUrl: @js($question->image_path ? asset('storage/'.$question->image_path) : ''), remove() { this.hasExisting = false; this.preview = ''; } } }"
         >
             @csrf
             @method('PUT')
@@ -31,7 +31,7 @@
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div>
                         <x-input-label for="subject_id" :value="__('Mata Pelajaran')" />
-                        <select id="subject_id" name="subject_id" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                        <select id="subject_id" name="subject_id" required x-model="subject" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                             <option value="">-- Pilih Mata Pelajaran --</option>
                             @foreach ($subjects as $subject)
                                 <option value="{{ $subject->id }}" @selected(old('subject_id', $question->subject_id) == $subject->id)>{{ $subject->name }} ({{ $subject->code }})</option>
@@ -73,8 +73,6 @@
             </div>
 
             {{-- Kelas Target --}}
-            @php($selectedGuruUserId = old('creator_user_id', $question->created_by_user_id) ? (int) old('creator_user_id', $question->created_by_user_id) : null)
-            @php($classroomsBySubjectForSelected = $selectedGuruUserId ? ($guruClassroomsBySubject[$selectedGuruUserId] ?? []) : [])
             <template x-if="guru === ''">
                 <x-questions.classroom-picker
                     mode="all"
@@ -85,7 +83,7 @@
             <template x-if="guru !== ''">
                 <x-questions.classroom-picker
                     mode="scoped"
-                    :classroomsBySubject="$classroomsBySubjectForSelected"
+                    :allGuruClassroomsBySubject="$guruClassroomsBySubject"
                     :selected="old('classroom_ids', $question->classrooms->pluck('id')->all())"
                 />
             </template>
