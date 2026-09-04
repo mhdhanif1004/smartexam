@@ -42,7 +42,17 @@ class DashboardController extends Controller
             'upcoming' => $schedules->where('display.key', 'belum_mulai')->count(),
         ];
 
-        return view('peserta.dashboard', compact('schedules', 'stats'));
+        // Banner persistent untuk pelanggaran: tidak bergantung pada flash session
+        // (flash sekali-pakai bikin banner hilang setelah refresh/redirect JS).
+        $hasViolationAlert = $schedules->contains(function (ExamSchedule $schedule) {
+            $session = $schedule->exam_session;
+            return $session !== null
+                && ! $session->attendance_confirmed
+                && $session->activeViolationFlags() > 0;
+        });
+        $hasLockedAlert = $schedules->contains(fn (ExamSchedule $s) => (bool) ($s->exam_session?->locked_by_admin));
+
+        return view('peserta.dashboard', compact('schedules', 'stats', 'hasViolationAlert', 'hasLockedAlert'));
     }
 
     /**
@@ -129,7 +139,7 @@ class DashboardController extends Controller
      * Guard absensi untuk dashboard agar konsisten dengan ExamController::accessBlock().
      * - session null         → belum diabsen (NOT_CONFIRMED di token)
      * - !confirmed + violation && window tutup → absensi_tertutup (Sesi Berakhir)
-     * - !confirmed + violation && window buka  → tidak_hadir (Dinonaktifkan)
+     * - !confirmed + violation && window buka  → pelanggaran (Pelanggaran)
      * - !confirmed tanpa violation               → tidak_hadir (Belum Diabsen)
      * Mengembalikan null jika boleh lanjut (attendance_confirmed = true).
      *
@@ -141,6 +151,15 @@ class DashboardController extends Controller
             return [
                 'key' => 'tidak_hadir',
                 'label' => 'Belum Diabsen',
+                'can_start' => false,
+                'url' => null,
+            ];
+        }
+
+        if ($session->locked_by_admin) {
+            return [
+                'key' => 'terkunci',
+                'label' => 'Terkunci',
                 'can_start' => false,
                 'url' => null,
             ];
@@ -161,8 +180,8 @@ class DashboardController extends Controller
             }
 
             return [
-                'key' => 'tidak_hadir',
-                'label' => 'Dinonaktifkan',
+                'key' => 'pelanggaran',
+                'label' => 'Pelanggaran',
                 'can_start' => false,
                 'url' => null,
             ];

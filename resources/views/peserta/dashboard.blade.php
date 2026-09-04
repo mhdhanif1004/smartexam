@@ -7,6 +7,25 @@
 
         @include('admin.partials.flash')
 
+        {{-- Banner persistent untuk pelanggaran / terkunci: tidak mengandalkan flash --}}
+        @if (($hasLockedAlert ?? false) || ($hasViolationAlert ?? false))
+            @if ($hasLockedAlert ?? false)
+                <div role="alert" class="flex items-start gap-3 rounded-lg border border-zinc-300 bg-zinc-50 px-4 py-3 text-sm text-zinc-800 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100">
+                    <svg class="mt-0.5 h-5 w-5 shrink-0 text-zinc-600 dark:text-zinc-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 00-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                    </svg>
+                    <p class="flex-1 font-medium">Ujian Anda dihentikan oleh Administrator. Silakan hubungi Administrator secara langsung untuk melanjutkan ujian mata pelajaran ini.</p>
+                </div>
+            @else
+                <div role="alert" class="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-500/10 dark:text-rose-200">
+                    <svg class="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                    <p class="flex-1 font-medium">Absensi Anda dinonaktifkan sistem karena terdeteksi melakukan pelanggaran. Silakan hubungi pengawas ruangan untuk diaktifkan kembali sebelum melanjutkan ujian.</p>
+                </div>
+            @endif
+        @endif
+
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <x-card-stat label="Ujian Hari Ini" :value="$stats['today']" color="indigo" icon="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
             <x-card-stat label="Selesai" :value="$stats['done']" color="emerald" icon="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -35,7 +54,7 @@
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $schedule->duration_minutes }} menit</td>
                             <td class="px-4 py-3 text-sm">
-                                <x-badge-status :status="$display['key']" />
+                                <x-badge-status :status="$display['key']" :label="$display['label']" />
                             </td>
                             <td class="px-4 py-3 text-sm">
                                 @if ($display['can_start'] && $display['url'])
@@ -51,6 +70,16 @@
                                     <span class="cursor-not-allowed rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-400 dark:bg-gray-800 dark:text-gray-500"
                                           title="Sesi ujian telah berakhir, absensi ulang tidak lagi tersedia">
                                         Sesi Berakhir
+                                    </span>
+                                @elseif ($display['key'] === 'pelanggaran')
+                                    <span class="cursor-not-allowed rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-200 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-400/30"
+                                          title="Absensi dinonaktifkan karena pelanggaran — hubungi pengawas untuk diaktifkan kembali">
+                                        Hubungi Pengawas
+                                    </span>
+                                @elseif ($display['key'] === 'terkunci')
+                                    <span class="cursor-not-allowed rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-600 ring-1 ring-inset ring-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-600"
+                                          title="Ujian dihentikan administrator — hubungi administrator">
+                                        Terkunci
                                     </span>
                                 @elseif ($display['key'] === 'selesai' && $display['url'])
                                     <a href="{{ $display['url'] }}" class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90">

@@ -18,6 +18,8 @@
         'dilaporkan' => 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-400/30',
         'hadir' => 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/30',
         'tidak_hadir' => 'bg-rose-600 text-white ring-rose-600 shadow-sm dark:bg-rose-500 dark:text-white dark:ring-rose-400',
+        'pelanggaran' => 'bg-red-800 text-white ring-red-800 shadow-sm dark:bg-red-700 dark:text-white dark:ring-red-600',
+        'terkunci' => 'bg-zinc-800 text-white ring-zinc-800 shadow-sm dark:bg-zinc-700 dark:text-white dark:ring-zinc-600',
         'izin' => 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-400/30',
         'bisa_dimulai' => 'bg-sky-50 text-sky-700 ring-sky-600/20 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-400/30',
         'susulan' => 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-400/30',
@@ -31,6 +33,14 @@
     @if ($status === 'tidak_hadir')
         <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
+    @elseif ($status === 'pelanggaran')
+        <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </svg>
+    @elseif ($status === 'terkunci')
+        <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 00-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
         </svg>
     @elseif ($status === 'hadir')
         <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-600 dark:bg-emerald-300" aria-hidden="true"></span>
