@@ -26,6 +26,8 @@ class ExamController extends Controller
 
     public const ACCESS_ERROR_LOCKED_ADMIN = 'Ujian Anda dihentikan oleh Administrator. Silakan hubungi Administrator secara langsung untuk melanjutkan ujian mata pelajaran ini.';
 
+    public const ACCESS_ERROR_ABSENT = 'Anda dinyatakan tidak hadir oleh pengawas ruangan untuk sesi ujian ini, sehingga tidak dapat mengikuti ujian. Jika ini kekeliruan, segera hubungi pengawas ruangan.';
+
     private ?Student $student = null;
 
     private ?ExamSchedule $schedule = null;
@@ -371,6 +373,26 @@ class ExamController extends Controller
             ]);
         }
 
+        if ($session->attendance_status === ExamSession::ATTENDANCE_ABSENT) {
+            return response()->json([
+                'locked' => false,
+                'attendance_absent' => true,
+                'attendance_absent_message' => self::ACCESS_ERROR_ABSENT,
+                'attendance_revoked' => false,
+                'attendance_revoked_message' => null,
+                'mapel' => [
+                    'remaining_seconds' => 0,
+                    'is_final' => true,
+                ],
+                'sesi' => [
+                    'remaining_seconds' => 0,
+                    'remaining_grace' => 0,
+                    'in_grace' => false,
+                    'total_seconds' => 0,
+                ],
+            ]);
+        }
+
         $remainingMapel = max(0, $this->deadline($session, $schedule)->getTimestamp() - now()->getTimestamp());
 
         $period = $schedule->examPeriod;
@@ -398,6 +420,8 @@ class ExamController extends Controller
 
         return response()->json([
             'locked' => false,
+            'attendance_absent' => false,
+            'attendance_absent_message' => null,
             'attendance_revoked' => $attendanceRevoked,
             'attendance_revoked_message' => $attendanceRevoked
                 ? 'Absensi Anda dicabut pengawas. Segera hubungi pengawas untuk diabsen kembali, jawaban tetap tersimpan sementara.'
@@ -567,6 +591,10 @@ class ExamController extends Controller
             return self::ACCESS_ERROR_LOCKED_ADMIN;
         }
 
+        if ($session->attendance_status === ExamSession::ATTENDANCE_ABSENT) {
+            return self::ACCESS_ERROR_ABSENT;
+        }
+
         if (! $session->attendance_confirmed) {
             return $session->activeViolationFlags() > 0
                 ? self::ACCESS_ERROR_DISABLED_BY_VIOLATION
@@ -591,6 +619,10 @@ class ExamController extends Controller
             return self::ACCESS_ERROR_LOCKED_ADMIN;
         }
 
+        if ($session->attendance_status === ExamSession::ATTENDANCE_ABSENT) {
+            return self::ACCESS_ERROR_ABSENT;
+        }
+
         if (! $session->attendance_confirmed && $session->activeViolationFlags() > 0) {
             return self::ACCESS_ERROR_DISABLED_BY_VIOLATION;
         }
@@ -605,6 +637,10 @@ class ExamController extends Controller
      */
     private function attendanceRevoked(ExamSession $session): bool
     {
+        if ($session->attendance_status === ExamSession::ATTENDANCE_ABSENT) {
+            return false;
+        }
+
         return ! $session->attendance_confirmed && $session->activeViolationFlags() === 0;
     }
 

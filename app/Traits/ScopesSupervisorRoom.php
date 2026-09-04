@@ -168,16 +168,28 @@ trait ScopesSupervisorRoom
     }
 
     /**
-     * Daftar peserta (dari penempatan tetap students.room_id di ruangan tempat
-     * jadwal diselenggarakan) beserta sesi ujiannya untuk jadwal tertentu.
+     * Daftar peserta untuk jadwal tertentu beserta sesi ujiannya.
+     * Sumber kebenaran tunggal (SOT) adalah ExamSchedule::participantStudentIds()
+     * — untuk jadwal berperiode (exam_period_id terisi) diambil dari
+     * exam_room_assignments, untuk jadwal legacy tanpa periode fallback ke
+     * students.room_id. Jika $participantIds diberikan (sudah di-fetch agregat
+     * via participantStudentIdsBySchedules), dipakai langsung via whereIn
+     * agar konsisten dengan angka ringkasan di card.
      *
+     * @param  array<int, int>|null  $participantIds  Daftar ID yang sudah di-fetch; null = resolve sendiri.
      * @return Collection<int, Student>
      */
-    protected function participants(ExamSchedule $schedule): Collection
+    protected function participants(ExamSchedule $schedule, ?array $participantIds = null): Collection
     {
+        $ids = $participantIds ?? $schedule->participantStudentIds();
+
+        if ($ids === []) {
+            return collect();
+        }
+
         return Student::query()
             ->with(['user', 'examSessions' => fn ($query) => $query->where('exam_schedule_id', $schedule->id)])
-            ->where('room_id', $schedule->room_id)
+            ->whereIn('id', $ids)
             ->orderBy('nisn')
             ->get();
     }

@@ -269,6 +269,15 @@ export function examApp(config) {
                     }, 1500);
                     return;
                 }
+                // Hard block: peserta dinyatakan tidak hadir — tampilkan banner & redirect ke dashboard.
+                if (data.attendance_absent) {
+                    const banner = document.getElementById('absent-banner');
+                    if (banner) banner.classList.remove('hidden');
+                    this.leaving = true;
+                    this.showToast(data.attendance_absent_message || 'Anda dinyatakan tidak hadir oleh pengawas untuk sesi ini. Pengerjaan dihentikan.');
+                    setTimeout(() => window.location.assign(config.dashboardUrl), 2000);
+                    return;
+                }
                 // Sinkron banner absensi dicabut (reaktif via polling 10 detik).
                 if (typeof data.attendance_revoked !== 'undefined') {
                     const was = this.attendanceRevoked;

@@ -54,6 +54,7 @@
                         @if ($allSchedules->count() > 1)
                             &middot; {{ $allSchedules->count() }} mata pelajaran
                         @endif
+                        &middot; {{ $students->count() }} Peserta
                     </p>
                 </div>
                 <x-badge-status :status="$earlyWindow ? 'belum_mulai' : 'berlangsung'" :label="$earlyWindow ? 'Jendela Absensi' : 'Sedang Berlangsung'" />
@@ -95,17 +96,20 @@
                             @else
                                 <div
                                     x-data="{
-                                        confirmed: @js($session?->attendance_confirmed ?? false),
+                                        status: @js($session?->attendance_status),
                                         saving: false,
                                         error: '',
                                         controller: null,
-                                        async toggle(target) {
+                                        showConfirm: false,
+                                        pendingNext: null,
+                                        pendingPrev: null,
+                                        confirmName: @js($student->user?->name ?? $student->nisn),
+                                        async doToggle(next, previous) {
                                             if (this.controller) { try { this.controller.abort(); } catch (_) {} }
                                             const myController = new AbortController();
                                             this.controller = myController;
                                             this.saving = true;
                                             this.error = '';
-                                            this.confirmed = target;
                                             const url = '{{ route('pengawas.attendance.confirm', $anchorSchedule->id) }}';
                                             const csrfUrl = '{{ route('csrf-token') }}';
                                             const getToken = () => document.querySelector('meta[name=&quot;csrf-token&quot;]')?.content ?? '';
@@ -116,7 +120,7 @@
                                                     'Accept': 'application/json',
                                                     'X-CSRF-TOKEN': token,
                                                 },
-                                                body: JSON.stringify({ student_id: {{ $student->id }}, confirmed: target }),
+                                                body: JSON.stringify({ student_id: {{ $student->id }}, status: next }),
                                                 signal: myController.signal,
                                             });
                                             try {
@@ -141,17 +145,45 @@
                                                 if (myController !== this.controller) return;
                                                 const data = await res.json().catch(() => ({}));
                                                 if (!res.ok) {
-                                                    this.confirmed = !target;
+                                                    this.status = previous;
                                                     this.error = data.error ?? data.message ?? 'Gagal menyimpan absensi.';
+                                                } else if (data.status !== undefined) {
+                                                    this.status = data.status;
                                                 }
                                             } catch (e) {
                                                 if (e?.name === 'AbortError') return;
                                                 if (myController !== this.controller) return;
-                                                this.confirmed = !target;
+                                                this.status = previous;
                                                 this.error = 'Gagal menyimpan absensi. Periksa koneksi Anda.';
                                             } finally {
                                                 if (myController === this.controller) this.saving = false;
                                             }
+                                        },
+                                        async toggle(targetStatus) {
+                                            const next = this.status === targetStatus ? null : targetStatus;
+                                            if (next === 'tidak_hadir') {
+                                                this.pendingNext = next;
+                                                this.pendingPrev = this.status;
+                                                this.showConfirm = true;
+                                                return;
+                                            }
+                                            const previous = this.status;
+                                            this.status = next;
+                                            await this.doToggle(next, previous);
+                                        },
+                                        async confirmAbsent() {
+                                            const next = this.pendingNext;
+                                            const previous = this.pendingPrev ?? this.status;
+                                            this.showConfirm = false;
+                                            this.status = next;
+                                            await this.doToggle(next, previous);
+                                            this.pendingNext = null;
+                                            this.pendingPrev = null;
+                                        },
+                                        cancelConfirm() {
+                                            this.showConfirm = false;
+                                            this.pendingNext = null;
+                                            this.pendingPrev = null;
                                         }
                                     }"
                                     class="flex flex-wrap items-center gap-2"
@@ -171,12 +203,23 @@
                                     <label class="inline-flex cursor-pointer items-center gap-2">
                                         <input
                                             type="checkbox"
-                                            x-model="confirmed"
-                                            @change="toggle($event.target.checked)"
+                                            :checked="status === 'hadir'"
+                                            @change="toggle('hadir')"
                                             :disabled="saving"
                                             class="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800"
                                         >
-                                        <span class="text-sm" x-text="confirmed ? 'Hadir' : 'Tidak Hadir'"></span>
+                                        <span class="text-sm">Hadir</span>
+                                    </label>
+
+                                    <label class="inline-flex cursor-pointer items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            :checked="status === 'tidak_hadir'"
+                                            @change="toggle('tidak_hadir')"
+                                            :disabled="saving"
+                                            class="h-5 w-5 rounded border-gray-300 text-amber-600 focus:ring-amber-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800"
+                                        >
+                                        <span class="text-sm">Tidak Hadir</span>
                                     </label>
 
                                     <svg x-show="saving" class="h-4 w-4 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
@@ -185,6 +228,25 @@
                                     </svg>
 
                                     <p x-show="error" x-text="error" class="text-xs font-medium text-rose-600 dark:text-rose-400"></p>
+
+                                    <div x-show="showConfirm" x-cloak x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="cancelConfirm()" @keydown.escape.window="cancelConfirm()">
+                                        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900" @click.stop>
+                                            <div class="flex items-start gap-3">
+                                                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-500/20">
+                                                    <svg class="h-6 w-6 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+                                                </div>
+                                                <div class="flex-1">
+                                                    <h4 class="text-sm font-bold text-gray-900 dark:text-gray-100">Tandai Tidak Hadir?</h4>
+                                                    <p class="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">Siswa <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="confirmName"></span> akan <span class="font-semibold text-amber-700 dark:text-amber-400">langsung tidak bisa masuk/mengerjakan ujian</span>. Aksi ini mengunci akses di semua mata pelajaran dalam sesi ini.</p>
+                                                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-500">Klik lagi checkbox untuk membatalkan (ubah ke Hadir/kosong) jika terjadi kesalahan input. Riwayat tercatat via pencatat absensi.</p>
+                                                </div>
+                                            </div>
+                                            <div class="mt-5 flex justify-end gap-2">
+                                                <button type="button" @click="cancelConfirm()" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">Batal</button>
+                                                <button type="button" @click="confirmAbsent()" :disabled="saving" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50">Ya, Tandai Tidak Hadir</button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             @endif
                         </td>

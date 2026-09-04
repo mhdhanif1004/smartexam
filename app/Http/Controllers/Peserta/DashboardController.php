@@ -51,8 +51,9 @@ class DashboardController extends Controller
                 && $session->activeViolationFlags() > 0;
         });
         $hasLockedAlert = $schedules->contains(fn (ExamSchedule $s) => (bool) ($s->exam_session?->locked_by_admin));
+        $hasAbsentAlert = $schedules->contains(fn (ExamSchedule $s) => $s->exam_session?->attendance_status === ExamSession::ATTENDANCE_ABSENT);
 
-        return view('peserta.dashboard', compact('schedules', 'stats', 'hasViolationAlert', 'hasLockedAlert'));
+        return view('peserta.dashboard', compact('schedules', 'stats', 'hasViolationAlert', 'hasLockedAlert', 'hasAbsentAlert'));
     }
 
     /**
@@ -138,10 +139,12 @@ class DashboardController extends Controller
     /**
      * Guard absensi untuk dashboard agar konsisten dengan ExamController::accessBlock().
      * - session null         → belum diabsen (NOT_CONFIRMED di token)
+     * - tidak_hadir (hadir===tidak_hadir) → Tidak Hadir (hard block, butuh Hubungi Pengawas)
+     * - locked_by_admin      → terkunci
      * - !confirmed + violation && window tutup → absensi_tertutup (Sesi Berakhir)
      * - !confirmed + violation && window buka  → pelanggaran (Pelanggaran)
-     * - !confirmed tanpa violation               → tidak_hadir (Belum Diabsen)
-     * Mengembalikan null jika boleh lanjut (attendance_confirmed = true).
+     * - !confirmed tanpa violation               → belum_diabsen (Belum Diabsen)
+     * Mengembalikan null jika boleh lanjut (attendance_confirmed = true dan bukan tidak_hadir).
      *
      * @return array{key: string, label: string, can_start: bool, url: null}|null
      */
@@ -149,7 +152,7 @@ class DashboardController extends Controller
     {
         if ($session === null) {
             return [
-                'key' => 'tidak_hadir',
+                'key' => 'belum_diabsen',
                 'label' => 'Belum Diabsen',
                 'can_start' => false,
                 'url' => null,
@@ -160,6 +163,15 @@ class DashboardController extends Controller
             return [
                 'key' => 'terkunci',
                 'label' => 'Terkunci',
+                'can_start' => false,
+                'url' => null,
+            ];
+        }
+
+        if ($session->attendance_status === ExamSession::ATTENDANCE_ABSENT) {
+            return [
+                'key' => 'tidak_hadir',
+                'label' => 'Tidak Hadir',
                 'can_start' => false,
                 'url' => null,
             ];
@@ -188,7 +200,7 @@ class DashboardController extends Controller
         }
 
         return [
-            'key' => 'tidak_hadir',
+            'key' => 'belum_diabsen',
             'label' => 'Belum Diabsen',
             'can_start' => false,
             'url' => null,

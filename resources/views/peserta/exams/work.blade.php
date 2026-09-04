@@ -24,6 +24,12 @@
           })">
 
 
+        {{-- Banner Tidak Hadir: hidden by default, dimunculkan via JS polling attendance_absent --}}
+        <div id="absent-banner" class="hidden sticky top-4 z-30 rounded-xl border-2 border-amber-300 bg-amber-50 p-4 shadow-sm" role="alert" aria-live="assertive">
+            <p class="text-sm font-bold text-amber-700">Tidak Hadir</p>
+            <p class="mt-1 text-sm leading-relaxed text-amber-700">Anda dinyatakan tidak hadir oleh pengawas untuk sesi ini. Pengerjaan dihentikan. Hubungi pengawas jika ini kekeliruan.</p>
+        </div>
+
         {{-- Banner Absensi Dicabut: reaktif via Alpine (attendanceRevoked) + SSR fallback Js::from --}}
         <div x-show="attendanceRevoked" x-cloak x-transition.opacity
              role="alert" aria-live="assertive"
@@ -367,4 +373,5 @@
         <p class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">Klik di mana saja untuk menutup</p>
     </div>
     </div>
+
 </x-layouts.peserta-exam>

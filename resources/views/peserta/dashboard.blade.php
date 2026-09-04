@@ -7,8 +7,8 @@
 
         @include('admin.partials.flash')
 
-        {{-- Banner persistent untuk pelanggaran / terkunci: tidak mengandalkan flash --}}
-        @if (($hasLockedAlert ?? false) || ($hasViolationAlert ?? false))
+        {{-- Banner persistent 3-tier: terkunci (prioritas 1) > pelanggaran (2) > tidak hadir (3) --}}
+        @if (($hasLockedAlert ?? false) || ($hasViolationAlert ?? false) || ($hasAbsentAlert ?? false))
             @if ($hasLockedAlert ?? false)
                 <div role="alert" class="flex items-start gap-3 rounded-lg border border-zinc-300 bg-zinc-50 px-4 py-3 text-sm text-zinc-800 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100">
                     <svg class="mt-0.5 h-5 w-5 shrink-0 text-zinc-600 dark:text-zinc-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
@@ -16,12 +16,17 @@
                     </svg>
                     <p class="flex-1 font-medium">Ujian Anda dihentikan oleh Administrator. Silakan hubungi Administrator secara langsung untuk melanjutkan ujian mata pelajaran ini.</p>
                 </div>
-            @else
+            @elseif ($hasViolationAlert ?? false)
                 <div role="alert" class="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-500/10 dark:text-rose-200">
                     <svg class="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                     </svg>
                     <p class="flex-1 font-medium">Absensi Anda dinonaktifkan sistem karena terdeteksi melakukan pelanggaran. Silakan hubungi pengawas ruangan untuk diaktifkan kembali sebelum melanjutkan ujian.</p>
+                </div>
+            @else
+                <div role="alert" class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
+                    <svg class="h-5 w-5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+                    <p class="flex-1 font-medium">Anda dinyatakan tidak hadir oleh pengawas untuk salah satu sesi ujian hari ini, sehingga tidak dapat mengikuti ujian tersebut. Jika ini kekeliruan, segera hubungi pengawas ruangan.</p>
                 </div>
             @endif
         @endif
@@ -60,7 +65,7 @@
                                 @if ($display['can_start'] && $display['url'])
                                     <a href="{{ $display['url'] }}"
                                        data-no-instant
-                                       class="inline-flex items-center gap-1.5 rounded-lg {{ $display['key'] === 'sedang_mengerjakan' ? 'bg-amber-500' : 'bg-indigo-600' }} px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90">
+                                        class="inline-flex items-center gap-1.5 rounded-lg {{ $display['key'] === 'sedang_mengerjakan' ? 'bg-amber-500' : 'bg-indigo-600' }} px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90">
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                                         </svg>
@@ -71,6 +76,8 @@
                                           title="Sesi ujian telah berakhir, absensi ulang tidak lagi tersedia">
                                         Sesi Berakhir
                                     </span>
+                                @elseif ($display['key'] === 'tidak_hadir')
+                                    <span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-400" title="Anda dinyatakan tidak hadir oleh pengawas — hubungi pengawas jika ini kekeliruan">Tidak Hadir</span>
                                 @elseif ($display['key'] === 'pelanggaran')
                                     <span class="cursor-not-allowed rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-200 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-400/30"
                                           title="Absensi dinonaktifkan karena pelanggaran — hubungi pengawas untuk diaktifkan kembali">
@@ -90,7 +97,7 @@
                                     </a>
                                 @else
                                     <span class="cursor-not-allowed rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-400 dark:bg-gray-800 dark:text-gray-500">
-                                        {{ $display['key'] === 'terlewat' ? 'Tidak Diikuti' : 'Tunggu Jadwal' }}
+                                        {{ $display['key'] === 'terlewat' ? 'Tidak Diikuti' : ($display['label'] ?? 'Tunggu Jadwal') }}
                                     </span>
                                 @endif
                             </td>

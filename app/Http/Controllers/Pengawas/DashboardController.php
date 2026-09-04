@@ -8,6 +8,7 @@ use App\Models\ExamSession;
 use App\Models\Supervisor;
 use App\Traits\ScopesSupervisorRoom;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -69,12 +70,37 @@ class DashboardController extends Controller
             );
         }
 
+        $activeParticipantIds = $activeSchedule !== null
+            ? $participantIdsBySchedule->get($activeSchedule->id, [])
+            : [];
+        $students = $activeSchedule !== null
+            ? $this->participants($activeSchedule, $activeParticipantIds)
+            : collect();
+
+        if ($activeSchedule !== null) {
+            $total = $scheduleStats[$activeSchedule->id]['total'] ?? 0;
+            if ($total > 0 && $students->isEmpty()) {
+                Log::warning('Dashboard pengawas mismatch: total '.$total.' tapi students kosong', [
+                    'schedule_id' => $activeSchedule->id,
+                    'room_id' => $room->id,
+                    'exam_period_id' => $activeSchedule->exam_period_id,
+                    'participant_ids_count' => count($activeParticipantIds),
+                ]);
+            } elseif ($total !== $students->count()) {
+                Log::warning('Dashboard pengawas count mismatch: total '.$total.' vs students '.$students->count(), [
+                    'schedule_id' => $activeSchedule->id,
+                    'room_id' => $room->id,
+                    'exam_period_id' => $activeSchedule->exam_period_id,
+                ]);
+            }
+        }
+
         return view('pengawas.dashboard', [
             'room' => $room,
             'schedules' => $schedules,
             'scheduleStats' => $scheduleStats,
             'activeSchedule' => $activeSchedule,
-            'students' => $activeSchedule !== null ? $this->participants($activeSchedule) : collect(),
+            'students' => $students,
             'recentViolations' => $this->roomViolations($room, 5),
         ]);
     }

@@ -72,6 +72,8 @@ class AttendanceController extends Controller
 
     /**
      * Perbarui kehadiran satu siswa lewat AJAX (PATCH).
+     * Mendukung tri-state: hadir / tidak_hadir / null (clear).
+     * Backward compatible dengan payload lama { confirmed: boolean }.
      */
     public function confirm(Request $request, ExamSchedule $schedule): JsonResponse
     {
@@ -97,8 +99,21 @@ class AttendanceController extends Controller
 
         $validated = $request->validate([
             'student_id' => ['required', 'integer'],
-            'confirmed' => ['required', 'boolean'],
+            'status' => ['nullable', Rule::in(['hadir', 'tidak_hadir'])],
+            'confirmed' => ['nullable', 'boolean'],
         ]);
+
+        if (! $request->has('status') && ! $request->has('confirmed')) {
+            return response()->json(['message' => 'Status kehadiran wajib diisi.'], 422);
+        }
+
+        if ($request->has('status')) {
+            $status = $request->input('status'); // bisa null, 'hadir', 'tidak_hadir'
+        } elseif ($request->has('confirmed')) {
+            $status = $request->boolean('confirmed') ? ExamSession::ATTENDANCE_PRESENT : ExamSession::ATTENDANCE_ABSENT;
+        } else {
+            return response()->json(['message' => 'Status kehadiran wajib diisi.'], 422);
+        }
 
         $student = Student::find($validated['student_id']);
 
@@ -115,18 +130,28 @@ class AttendanceController extends Controller
             return response()->json(['error' => 'Siswa ini dikunci oleh Admin.'], 423);
         }
 
-        $confirmed = filter_var($validated['confirmed'], FILTER_VALIDATE_BOOLEAN);
+        if ($status === null) {
+            $session->attendance_status = null;
+            $session->attendance_confirmed = false;
+            $session->attendance_confirmed_at = null;
+            $session->attendance_confirmed_by = null;
+        } else {
+            $session->attendance_status = $status;
+            $session->attendance_confirmed = true;
+            $session->attendance_confirmed_at = now();
+            $session->attendance_confirmed_by = auth()->id();
+        }
 
-        $session->update([
-            'attendance_confirmed' => $confirmed,
-            'attendance_confirmed_at' => now(),
-            'attendance_confirmed_by' => auth()->id(),
-            'attendance_status' => $confirmed ? ExamSession::ATTENDANCE_PRESENT : ExamSession::ATTENDANCE_ABSENT,
+        $session->save();
+
+        $this->propagateAttendance($student, $schedule, $status);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Kehadiran berhasil diperbarui.',
+            'status' => $session->attendance_status,
+            'attendance_confirmed' => $session->attendance_confirmed,
         ]);
-
-        $this->propagateAttendance($student, $schedule, $confirmed);
-
-        return response()->json(['ok' => true]);
     }
 
     public function update(Request $request): RedirectResponse
@@ -176,19 +201,19 @@ class AttendanceController extends Controller
         $absentStatuses = [];
 
         foreach ($request->input('attendance') as $studentId => $status) {
-            $confirmed = $status === ExamSession::ATTENDANCE_PRESENT;
+            $isPresent = $status === ExamSession::ATTENDANCE_PRESENT;
 
             ExamSession::updateOrCreate(
                 ['student_id' => $studentId, 'exam_schedule_id' => $anchorSchedule->id],
                 [
                     'attendance_status' => $status,
-                    'attendance_confirmed' => $confirmed,
+                    'attendance_confirmed' => true,
                     'attendance_confirmed_at' => now(),
                     'attendance_confirmed_by' => auth()->id(),
                 ]
             );
 
-            if ($confirmed) {
+            if ($isPresent) {
                 $confirmedStatuses[] = $studentId;
             } else {
                 $absentStatuses[] = $studentId;
@@ -198,14 +223,14 @@ class AttendanceController extends Controller
         if ($confirmedStatuses !== []) {
             $students = Student::whereIn('id', $confirmedStatuses)->get();
             foreach ($students as $student) {
-                $this->propagateAttendance($student, $anchorSchedule, true);
+                $this->propagateAttendance($student, $anchorSchedule, ExamSession::ATTENDANCE_PRESENT);
             }
         }
 
         if ($absentStatuses !== []) {
             $students = Student::whereIn('id', $absentStatuses)->get();
             foreach ($students as $student) {
-                $this->propagateAttendance($student, $anchorSchedule, false);
+                $this->propagateAttendance($student, $anchorSchedule, ExamSession::ATTENDANCE_ABSENT);
             }
         }
 
@@ -276,17 +301,21 @@ class AttendanceController extends Controller
      *
      * Aturan oracle: virgin-only, NEVER downgrade hadir.
      *
-     * - Jika $confirmed === true (hadir): upgrade-only. Buat sesi baru jika
+     * - Jika $status === 'hadir': upgrade-only. Buat sesi baru jika
      *   target belum ada, atau upgrade target yang masih tidak_hadir / belum
      *   dikonfirmasi menjadi hadir. Jangan pernah overwrite target yang sudah
      *   hadir (attendance_confirmed === true). Lewati baris yang dikunci admin.
-     * - Jika $confirmed === false (tidak_hadir): virgin-only. Jangan pernah
+     * - Jika $status === 'tidak_hadir': virgin-only. Jangan pernah
      *   downgrade hadir. Hanya ubah target yang sudah ada (existing !== null)
      *   dan masih virgin (attendance_status === null). Jangan CREATE baris
      *   tidak_hadir prematur, jangan ubah baris yang sudah hadir atau sudah
      *   tidak_hadir. Lewati baris yang dikunci admin.
+     * - Jika $status === null (clear): propagasi clear ke semua jadwal lain
+     *   di periode/ruang yang sama. Set attendance_status=null,
+     *   attendance_confirmed=false, attendance_confirmed_at/by=null pada
+     *   session yang ada. Jangan create baru. Lewati baris yang dikunci admin.
      */
-    private function propagateAttendance(Student $student, ExamSchedule $currentSchedule, bool $confirmed): void
+    private function propagateAttendance(Student $student, ExamSchedule $currentSchedule, ?string $status): void
     {
         $period = $currentSchedule->examPeriod;
 
@@ -304,12 +333,41 @@ class AttendanceController extends Controller
             return;
         }
 
+        // Cabang clear (null): propagasi clear, jangan create baru, skip locked_by_admin
+        if ($status === null) {
+            DB::transaction(function () use ($student, $otherScheduleIds): void {
+                foreach ($otherScheduleIds as $otherId) {
+                    $existing = ExamSession::query()
+                        ->where('student_id', $student->id)
+                        ->where('exam_schedule_id', $otherId)
+                        ->first();
+
+                    if ($existing === null) {
+                        continue;
+                    }
+
+                    if ($existing->locked_by_admin) {
+                        continue;
+                    }
+
+                    $existing->update([
+                        'attendance_status' => null,
+                        'attendance_confirmed' => false,
+                        'attendance_confirmed_at' => null,
+                        'attendance_confirmed_by' => null,
+                    ]);
+                }
+            });
+
+            return;
+        }
+
         // Cabang hadir: upgrade-only
-        if ($confirmed === true) {
+        if ($status === ExamSession::ATTENDANCE_PRESENT) {
             $sourceSession = ExamSession::query()
                 ->where('student_id', $student->id)
                 ->where('exam_schedule_id', $currentSchedule->id)
-                ->where('attendance_confirmed', true)
+                ->where('attendance_status', ExamSession::ATTENDANCE_PRESENT)
                 ->first();
 
             if ($sourceSession === null) {
@@ -341,7 +399,7 @@ class AttendanceController extends Controller
                     }
 
                     // Jangan pernah overwrite yang sudah hadir
-                    if ($existing->attendance_confirmed) {
+                    if ($existing->attendance_status === ExamSession::ATTENDANCE_PRESENT) {
                         continue;
                     }
 
@@ -358,10 +416,13 @@ class AttendanceController extends Controller
         }
 
         // Cabang tidak_hadir: virgin-only, NEVER downgrade hadir
+        if ($status !== ExamSession::ATTENDANCE_ABSENT) {
+            return;
+        }
+
         $sourceSession = ExamSession::query()
             ->where('student_id', $student->id)
             ->where('exam_schedule_id', $currentSchedule->id)
-            ->where('attendance_confirmed', false)
             ->where('attendance_status', ExamSession::ATTENDANCE_ABSENT)
             ->first();
 
@@ -385,8 +446,8 @@ class AttendanceController extends Controller
                     continue;
                 }
 
-                // NEVER downgrade hadir
-                if ($existing->attendance_confirmed === true) {
+                // NEVER downgrade hadir (hadir = confirmed true + status hadir)
+                if ($existing->attendance_status === ExamSession::ATTENDANCE_PRESENT) {
                     continue;
                 }
 
@@ -401,7 +462,7 @@ class AttendanceController extends Controller
                 }
 
                 $existing->update([
-                    'attendance_confirmed' => false,
+                    'attendance_confirmed' => true,
                     'attendance_confirmed_at' => now(),
                     'attendance_confirmed_by' => auth()->id(),
                     'attendance_status' => ExamSession::ATTENDANCE_ABSENT,
