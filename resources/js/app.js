@@ -7,15 +7,19 @@ import './echo';
 // otomatis dikecualikan dari prefetch oleh pustaka ini.
 import 'instant.page/instantpage.js';
 
-import Alpine from 'alpinejs';
 import Chart from 'chart.js/auto';
+
+window.Chart = Chart;
+
+import Alpine from 'alpinejs';
 import { examApp } from './exam';
 import { selectionManager } from './selection';
 import { cardSettingsPreview } from './admin/card-settings-preview';
 import { violationPolling } from './violation-polling';
 
 window.Alpine = Alpine;
-window.Chart = Chart;
+
+Alpine.store('sidebar', { open: false });
 
 Alpine.data('examApp', examApp);
 Alpine.data('selectionManager', selectionManager);
@@ -28,16 +32,25 @@ Alpine.start();
 // Turbo dimuat DINAMIS dan HANYA jika layout menyetel window.SMARTEXAM_TURBO_ENABLED
 // (baca dari config('app.turbo_enabled')). Rollback cepat: set TURBO_ENABLED=false di
 // .env => flag false => Turbo tidak pernah dimuat => perilaku full-reload normal.
+//
+// Catatan sidebar permanent (fix flicker lintas navigasi):
+// Alpine 3.4.2 -> destroyTree(root, walker=walk) hanya 2 param, TIDAK ada predicate
+// filter. Jadi tidak bisa Alpine.destroyTree(body, el=>!el.closest('[data-turbo-permanent]')).
+// Fallback aman: destroy scoped HANYA ke <main> (konten halaman). Elemen
+// [data-turbo-permanent] (sidebar + overlay) tidak dihancurkan -> tidak slide-in ulang.
+// Sidebar sendiri pakai global Alpine.store('sidebar') + $store.sidebar.open.
 if (window.SMARTEXAM_TURBO_ENABLED === true) {
     import('@hotwired/turbo').then(() => {
-        // Hancurkan tree Alpine lama SEBELUM body diganti Turbo, sehingga hook
-        // `destroy()` pada tiap komponen (mis. pembersih setInterval) ikut berjalan.
+        // Hancurkan tree Alpine lama SEBELUM body diganti Turbo, tapi HANYA
+        // di <main> agar [data-turbo-permanent] (sidebar/overlay) tetap hidup.
         document.addEventListener('turbo:before-render', () => {
-            Alpine.destroyTree(document.body);
+            document.querySelectorAll('main').forEach((el) => {
+                try { Alpine.destroyTree(el); } catch (e) {}
+            });
         });
 
-        // Setelah body baru dipasang, pastikan semua komponen Alpine ter-init ulang.
-        // Alpine.start() hanya berjalan sekali, jadi kami re-scan DOM baru secara eksplisit.
+        // Setelah body baru dipasang, re-scan DOM baru. initTree(body) aman:
+        // elemen permanent sudah ter-init akan di-skip Alpine (via _x_dataStack).
         document.addEventListener('turbo:render', () => {
             Alpine.initTree(document.body);
         });

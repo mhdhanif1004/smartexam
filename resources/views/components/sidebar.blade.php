@@ -27,6 +27,7 @@
             ['label' => 'Kelas', 'route' => 'admin.classrooms.index', 'icon' => 'users'],
             ['label' => 'Pengawas', 'route' => 'admin.supervisors.index', 'icon' => 'user-group'],
             ['label' => 'Guru Mapel', 'route' => 'admin.guru-mapels.index', 'icon' => 'academic-cap'],
+            ['label' => 'Kepala Sekolah', 'route' => 'admin.kepala-sekolahs.index', 'icon' => 'academic-cap'],
             ['label' => 'Mata Pelajaran', 'route' => 'admin.subjects.index', 'icon' => 'book-open'],
             ['label' => 'Ruangan', 'route' => 'admin.rooms.index', 'icon' => 'building-office'],
             ['label' => 'Soal', 'route' => 'admin.questions.index', 'icon' => 'question-mark'],
@@ -49,6 +50,13 @@
             ['label' => 'Nilai', 'route' => 'guru_mapel.grades.index', 'icon' => 'chart-bar'],
             ['label' => 'Absensi Ujian', 'route' => 'guru_mapel.attendances.index', 'icon' => 'clipboard-check'],
         ],
+        'kepala_sekolah' => [
+            ['label' => 'Dashboard', 'route' => 'kepala_sekolah.dashboard', 'icon' => 'dashboard'],
+            ['label' => 'Data Siswa', 'route' => 'kepala_sekolah.students.index', 'icon' => 'academic-cap'],
+            ['label' => 'Data Pengawas', 'route' => 'kepala_sekolah.supervisors.index', 'icon' => 'user-group'],
+            ['label' => 'Data Guru Mapel', 'route' => 'kepala_sekolah.guru-mapels.index', 'icon' => 'academic-cap'],
+            ['label' => 'Absensi', 'route' => 'kepala_sekolah.attendance.index', 'icon' => 'clipboard-check'],
+        ],
         'peserta' => [
             ['label' => 'Dashboard', 'route' => 'peserta.dashboard', 'icon' => 'dashboard'],
         ],
@@ -59,13 +67,17 @@
         'pengawas' => 'Pengawas',
         'peserta' => 'Peserta',
         'guru_mapel' => 'Guru Mapel',
+        'kepala_sekolah' => 'Kepala Sekolah',
     ];
 
     $items = $menuGroups[$role] ?? [];
 @endphp
 
 <aside
-    :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+    x-data
+    id="smartexam-sidebar-{{ $role }}"
+    data-turbo-permanent
+    :class="$store.sidebar.open ? 'translate-x-0' : '-translate-x-full'"
     class="fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-white shadow-xl transition-transform duration-200 dark:bg-gray-900 dark:shadow-none md:static md:z-auto md:translate-x-0 md:shadow-none"
 >
     <div class="flex h-full flex-col overscroll-contain overflow-y-auto border-r border-gray-200 dark:border-gray-800">
@@ -74,7 +86,7 @@
                 <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">SE</span>
                 <span class="text-lg font-bold tracking-tight text-gray-800 dark:text-gray-100">SmartExam</span>
             </a>
-            <button type="button" @click="sidebarOpen = false" class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300 md:hidden">
+            <button type="button" @click="$store.sidebar.open = false" class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300 md:hidden">
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>

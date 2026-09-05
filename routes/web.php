@@ -17,10 +17,17 @@ use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\StudentController;
 use App\Http\Controllers\Admin\StudentImportExportController;
 use App\Http\Controllers\Admin\SubjectController;
+use App\Http\Controllers\Admin\KepalaSekolahController;
 use App\Http\Controllers\Admin\SupervisorController;
 use App\Http\Controllers\Admin\SupervisorImportExportController;
 use App\Http\Controllers\Admin\ViolationController;
 use App\Http\Controllers\GuruMapel\AttendanceController;
+use App\Http\Controllers\KepalaSekolah\AttendanceController as KepalaSekolahAttendanceController;
+use App\Http\Controllers\KepalaSekolah\AttendanceDetailController as KepalaSekolahAttendanceDetailController;
+use App\Http\Controllers\KepalaSekolah\DashboardController as KepalaSekolahDashboardController;
+use App\Http\Controllers\KepalaSekolah\GuruMapelController as KepalaSekolahGuruMapelController;
+use App\Http\Controllers\KepalaSekolah\StudentController as KepalaSekolahStudentController;
+use App\Http\Controllers\KepalaSekolah\SupervisorController as KepalaSekolahSupervisorController;
 use App\Http\Controllers\GuruMapel\DashboardController as GuruMapelDashboardController;
 use App\Http\Controllers\GuruMapel\GradeController;
 use App\Http\Controllers\GuruMapel\QuestionController as GuruMapelQuestionController;
@@ -86,6 +93,9 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
 
         Route::resource('guru-mapels', GuruMapelController::class);
         Route::post('guru-mapels/bulk-delete', [GuruMapelController::class, 'bulkDelete'])->name('guru-mapels.bulk-delete');
+
+        Route::resource('kepala-sekolahs', KepalaSekolahController::class)->except(['show']);
+        Route::post('kepala-sekolahs/bulk-delete', [KepalaSekolahController::class, 'bulkDelete'])->name('kepala-sekolahs.bulk-delete');
         Route::get('guru-mapels/{guru_mapel}/assignments', [GuruMapelController::class, 'editAssignments'])->name('guru-mapels.assignments.edit');
         Route::post('guru-mapels/{guru_mapel}/assignments', [GuruMapelController::class, 'storeAssignment'])->name('guru-mapels.assignments.store');
         Route::delete('teacher-assignments/{assignment}', [GuruMapelController::class, 'destroyAssignment'])->name('guru-mapels.assignments.destroy');
@@ -215,6 +225,19 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('/{schedule}', 'schedule')->name('schedule');
         });
+    });
+
+    Route::prefix('kepala_sekolah')->middleware(['auth', 'verified', 'role:kepala_sekolah'])->name('kepala_sekolah.')->group(function () {
+        Route::get('/dashboard', [KepalaSekolahDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/students', [KepalaSekolahStudentController::class, 'index'])->name('students.index');
+        Route::get('/supervisors', [KepalaSekolahSupervisorController::class, 'index'])->name('supervisors.index');
+        Route::get('/guru-mapels', [KepalaSekolahGuruMapelController::class, 'index'])->name('guru-mapels.index');
+        Route::get('/attendance', [KepalaSekolahAttendanceController::class, 'index'])->name('attendance.index');
+        Route::get('/attendance/summary', [KepalaSekolahAttendanceController::class, 'summary'])->name('attendance.summary');
+        Route::get('/attendance/students/present', [KepalaSekolahAttendanceDetailController::class, 'studentsPresent'])->name('attendance.students.present');
+        Route::get('/attendance/students/absent', [KepalaSekolahAttendanceDetailController::class, 'studentsAbsent'])->name('attendance.students.absent');
+        Route::get('/attendance/supervisors/present', [KepalaSekolahAttendanceDetailController::class, 'supervisorsPresent'])->name('attendance.supervisors.present');
+        Route::get('/attendance/supervisors/absent', [KepalaSekolahAttendanceDetailController::class, 'supervisorsAbsent'])->name('attendance.supervisors.absent');
     });
 
     Route::prefix('peserta')->middleware(['auth', 'verified', 'role:peserta'])->name('peserta.')->group(function () {

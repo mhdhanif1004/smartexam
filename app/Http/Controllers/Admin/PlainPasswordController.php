@@ -17,7 +17,7 @@ class PlainPasswordController extends Controller
      */
     public function show(User $user): JsonResponse
     {
-        abort_if(! in_array($user->role, [User::ROLE_PESERTA, User::ROLE_PENGAWAS, User::ROLE_GURU_MAPEL], true), 404);
+        abort_if(! in_array($user->role, [User::ROLE_PESERTA, User::ROLE_PENGAWAS, User::ROLE_GURU_MAPEL, User::ROLE_KEPALA_SEKOLAH], true), 404);
 
         return response()->json(['plain_password' => $user->plain_password]);
     }

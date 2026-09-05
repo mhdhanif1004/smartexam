@@ -23,6 +23,8 @@ class User extends Authenticatable
 
     public const ROLE_GURU_MAPEL = 'guru_mapel';
 
+    public const ROLE_KEPALA_SEKOLAH = 'kepala_sekolah';
+
     /**
      * The attributes that are mass assignable.
      *
@@ -78,6 +80,11 @@ class User extends Authenticatable
         return $this->hasOne(GuruMapel::class);
     }
 
+    public function kepalaSekolah(): HasOne
+    {
+        return $this->hasOne(KepalaSekolah::class);
+    }
+
     public function reportedViolations(): HasMany
     {
         return $this->hasMany(Violation::class, 'reported_by');
@@ -103,12 +110,18 @@ class User extends Authenticatable
         return $this->role === self::ROLE_GURU_MAPEL;
     }
 
+    public function isKepalaSekolah(): bool
+    {
+        return $this->role === self::ROLE_KEPALA_SEKOLAH;
+    }
+
     public function dashboardRoute(): string
     {
         return match ($this->role) {
             self::ROLE_ADMIN => 'admin.dashboard',
             self::ROLE_PENGAWAS => 'pengawas.dashboard',
             self::ROLE_GURU_MAPEL => 'guru_mapel.dashboard',
+            self::ROLE_KEPALA_SEKOLAH => 'kepala_sekolah.dashboard',
             default => 'peserta.dashboard',
         };
     }

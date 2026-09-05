@@ -71,6 +71,15 @@ class UserFactory extends Factory
         ]);
     }
 
+    public function kepalaSekolah(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'kepala_sekolah',
+            'email' => fake()->unique()->safeEmail(),
+            'username' => null,
+        ]);
+    }
+
     /**
      * Indicate that the model's email address should be unverified.
      */

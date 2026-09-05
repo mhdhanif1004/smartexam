@@ -8,13 +8,18 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title }} - {{ config('app.name', 'SmartExam') }}</title>
     @include('layouts.partials.theme-init')
+    @if (config('app.turbo_enabled'))
+        <meta name="turbo-cache-control" content="no-cache">
+        <meta name="turbo-root" content="/">
+        <script>window.SMARTEXAM_TURBO_ENABLED = true;</script>
+    @endif
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="font-sans antialiased text-gray-800 dark:text-gray-200">
-    <div x-data="{ sidebarOpen: false }" class="flex h-screen overflow-hidden bg-gray-100 dark:bg-gray-950">
+    <div x-data class="flex h-screen overflow-hidden bg-gray-100 dark:bg-gray-950">
         <x-sidebar :role="'admin'" />
 
-        <div x-show="sidebarOpen" x-cloak @click="sidebarOpen = false" class="fixed inset-0 z-30 bg-gray-900/50 md:hidden"></div>
+        <div x-show="$store.sidebar.open" x-cloak @click="$store.sidebar.open = false" id="smartexam-sidebar-overlay-admin" data-turbo-permanent class="fixed inset-0 z-30 bg-gray-900/50 md:hidden"></div>
 
         <div class="flex min-w-0 flex-1 flex-col overscroll-contain overflow-y-auto">
             <x-navbar :title="$title" />

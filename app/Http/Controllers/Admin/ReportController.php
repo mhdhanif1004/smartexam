@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ExamResult;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Services\ExamSummaryService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -62,33 +63,13 @@ class ReportController extends Controller
      * di level SQL (1 query) tanpa memuat semua baris ke memori — berbeda dari
      * tabel hasil yang hanya paginate(15) per halaman.
      *
-     * @return array{total: int, average: float, highest: float, lowest: float, passed: int, failed: int}
+     * Didelegasikan ke ExamSummaryService agar dapat dipakai lintas controller.
+     *
+     * @return array{total: int, scored: int, average: float, highest: float, lowest: float, passed: int, failed: int}
      */
     private function summaryQuery(Builder $query): array
     {
-        $row = (clone $query)
-            ->setEagerLoads([])
-            ->reorder()
-            ->toBase()
-            ->selectRaw('COUNT(*) as total')
-            ->selectRaw('COUNT(total_score) as scored')
-            ->selectRaw('AVG(total_score) as average')
-            ->selectRaw('MAX(total_score) as highest')
-            ->selectRaw('MIN(total_score) as lowest')
-            ->selectRaw('SUM(CASE WHEN is_passed = 1 THEN 1 ELSE 0 END) as passed')
-            ->selectRaw('SUM(CASE WHEN is_passed = 0 THEN 1 ELSE 0 END) as failed')
-            ->first();
-
-        $scored = (int) ($row->scored ?? 0);
-
-        return [
-            'total' => (int) ($row->total ?? 0),
-            'average' => $scored === 0 ? 0 : round((float) ($row->average ?? 0), 2),
-            'highest' => $scored === 0 ? 0 : (float) ($row->highest ?? 0),
-            'lowest' => $scored === 0 ? 0 : (float) ($row->lowest ?? 0),
-            'passed' => (int) ($row->passed ?? 0),
-            'failed' => (int) ($row->failed ?? 0),
-        ];
+        return (new ExamSummaryService())->summary($query);
     }
 
     /**

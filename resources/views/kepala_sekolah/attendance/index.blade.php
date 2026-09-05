@@ -1,4 +1,4 @@
-<x-layouts.admin title="Absensi">
+<x-layouts.kepala_sekolah title="Absensi">
     <style>
         .summary-flash { animation: summary-flash 0.8s ease-out; }
         @keyframes summary-flash {
@@ -41,7 +41,7 @@
             },
             toggleRefresh() {
                 this.autoRefresh = !this.autoRefresh;
-                try { localStorage.setItem('smartexam_attendance_autorefresh_admin', this.autoRefresh ? '1' : '0'); } catch (e) {}
+                try { localStorage.setItem('smartexam_attendance_autorefresh_kepala_sekolah', this.autoRefresh ? '1' : '0'); } catch (e) {}
                 if (this.autoRefresh) {
                     this.startTimer();
                 } else {
@@ -61,7 +61,7 @@
             },
             async refresh() {
                 try {
-                    const res = await fetch(@js(route('admin.attendance.summary', ['date' => $date])), {
+                    const res = await fetch(@js(route('kepala_sekolah.attendance.summary', ['date' => $date])), {
                         headers: { 'Accept': 'application/json' }
                     });
                     if (!res.ok) return;
@@ -79,7 +79,7 @@
             },
             init() {
                 try {
-                    const saved = localStorage.getItem('smartexam_attendance_autorefresh_admin');
+                    const saved = localStorage.getItem('smartexam_attendance_autorefresh_kepala_sekolah');
                     if (saved !== null) this.autoRefresh = saved === '1';
                 } catch (e) {}
                 if (this.autoRefresh) this.startTimer();
@@ -103,14 +103,12 @@
             </span>
         </div>
 
-        @include('admin.partials.flash')
-
         <div class="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 lg:flex-row lg:items-end">
             <div class="flex-1">
                 <label for="date" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Tanggal Ujian</label>
-                <input type="date" name="date" id="date" value="{{ $date }}" onchange="window.location.href = '{{ route('admin.attendance.index') }}?date=' + this.value" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                <input type="date" name="date" id="date" value="{{ $date }}" onchange="window.location.href = '{{ route('kepala_sekolah.attendance.index') }}?date=' + this.value" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
             </div>
-            <a href="{{ route('admin.attendance.index') }}" class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Hari Ini</a>
+            <a href="{{ route('kepala_sekolah.attendance.index') }}" class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Hari Ini</a>
             <button type="button" @click="toggleRefresh()" class="inline-flex items-center justify-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium transition" :class="autoRefresh ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300' : 'border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200'">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
@@ -343,4 +341,4 @@
             @endforeach
         @endif
     </div>
-</x-layouts.admin>
+</x-layouts.kepala_sekolah>
