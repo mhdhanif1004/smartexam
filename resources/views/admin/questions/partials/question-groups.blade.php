@@ -32,6 +32,45 @@
                     <span class="shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
                         {{ count($group['questions']) }} soal
                     </span>
+                    @php
+                        $groupWeightBadges = [];
+                        foreach (($group['classroom_ids'] ?? []) as $cid) {
+                            $chk = $weightChecks[$subject->id][$cid] ?? null;
+                            if ($chk === null) continue;
+                            $total = (float) ($chk['total'] ?? 0);
+                            $delta = (float) ($chk['delta'] ?? 0);
+                            $status = $chk['status'] ?? 'ok';
+                            $groupWeightBadges[] = [
+                                'cid' => $cid,
+                                'name' => $classroomIdToName[$cid] ?? "Kelas #{$cid}",
+                                'total' => $total,
+                                'delta' => $delta,
+                                'status' => $status,
+                            ];
+                        }
+                    @endphp
+                    @if (! empty($groupWeightBadges))
+                        <span class="flex flex-wrap items-center gap-1.5">
+                            @foreach ($groupWeightBadges as $badge)
+                                @php
+                                    $cls = $badge['status'] === 'ok'
+                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/20'
+                                        : ($badge['status'] === 'over'
+                                            ? 'bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-300 border-rose-200 dark:border-rose-500/20'
+                                            : 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 border-amber-200 dark:border-amber-500/20');
+                                    $totalFmt = number_format($badge['total'], 2, ',', '.');
+                                    $deltaFmt = number_format($badge['delta'], 2, ',', '.');
+                                    $label = $badge['status'] === 'ok'
+                                        ? "Bobot {$totalFmt} ✓"
+                                        : ($badge['status'] === 'over' ? "Bobot {$totalFmt} · kelebihan {$deltaFmt}" : "Bobot {$totalFmt} · kurang {$deltaFmt}");
+                                    $title = $badge['name'] . ': total ' . $totalFmt . ' (harus 100, ' . ($badge['status'] === 'ok' ? 'pas' : ($badge['status'] === 'over' ? 'kelebihan '.$deltaFmt : 'kekurangan '.$deltaFmt)) . ')';
+                                @endphp
+                                <span title="{{ $title }}" class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold {{ $cls }}">
+                                    {{ $badge['name'] }} · {{ $label }}
+                                </span>
+                            @endforeach
+                        </span>
+                    @endif
                 </span>
                 <span class="flex shrink-0 items-center gap-1.5">
                     <button type="button"

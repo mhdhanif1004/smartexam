@@ -5,9 +5,12 @@ namespace App\Http\Controllers\GuruMapel;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GuruMapel\StoreGuruMapelQuestionRequest;
 use App\Http\Requests\GuruMapel\UpdateGuruMapelQuestionRequest;
+use App\Models\Classroom;
 use App\Models\ExamAnswer;
 use App\Models\GuruMapel;
 use App\Models\Question;
+use App\Models\Subject;
+use App\Services\QuestionWeightService;
 use App\Traits\BuildsQuestionPayload;
 use App\Traits\ScopesGuruMapel;
 use Illuminate\Http\RedirectResponse;
@@ -43,7 +46,17 @@ class QuestionController extends Controller
 
         $subjects = $this->ampuSubjects($guru);
 
-        return view('guru_mapel.questions.index', compact('guru', 'questions', 'subjects'));
+        // Total bobot per (subject×classroom) untuk badge non-blocking di tabel guru.
+        $weightService = new QuestionWeightService;
+        $weightChecks = [];
+        foreach ($ampuSubjectIds as $sid) {
+            foreach ($weightService->totalsForSubject((int) $sid) as $cid => $total) {
+                $weightChecks[(int) $sid][(int) $cid] = $weightService->check((int) $sid, (int) $cid);
+            }
+        }
+        $classroomIdToName = Classroom::query()->pluck('name', 'id')->all();
+
+        return view('guru_mapel.questions.index', compact('guru', 'questions', 'subjects', 'weightChecks', 'classroomIdToName'));
     }
 
     public function create(): View
@@ -75,9 +88,14 @@ class QuestionController extends Controller
         // Kelas target di-snapshot dari cakupan kelas yang di-assign admin untuk
         // mapel ini (guru tidak lagi memilih manual saat create).
         $this->syncClassroomsFromAssignment($question, $guru);
+        $question->load('classrooms');
+        $warning = $this->weightWarningForPairs((int) $question->subject_id, $question->classrooms->pluck('id')->all());
+        $redirect = redirect()->route('guru_mapel.questions.index')->with('success', 'Soal berhasil ditambahkan.');
+        if ($warning !== null) {
+            $redirect->with('warning', $warning);
+        }
 
-        return redirect()->route('guru_mapel.questions.index')
-            ->with('success', 'Soal berhasil ditambahkan.');
+        return $redirect;
     }
 
     public function edit(Question $question): View
@@ -119,9 +137,14 @@ class QuestionController extends Controller
         // Saat edit, cakupan kelas direkalkulasi ulang dari assignment terbaru
         // guru untuk mapel soal ini (keputusan desain).
         $this->syncClassroomsFromAssignment($question, $guru);
+        $question->load('classrooms');
+        $warning = $this->weightWarningForPairs((int) $question->subject_id, $question->classrooms->pluck('id')->all());
+        $redirect = redirect()->route('guru_mapel.questions.index')->with('success', 'Soal berhasil diperbarui.');
+        if ($warning !== null) {
+            $redirect->with('warning', $warning);
+        }
 
-        return redirect()->route('guru_mapel.questions.index')
-            ->with('success', 'Soal berhasil diperbarui.');
+        return $redirect;
     }
 
     public function destroy(Question $question): RedirectResponse
@@ -218,6 +241,33 @@ class QuestionController extends Controller
         $classroomIds = $guru->ampuClassroomIds($question->subject_id)->values()->all();
 
         $question->classrooms()->sync($classroomIds);
+    }
+
+    private function weightWarningForPairs(int $subjectId, array $classroomIds): ?string
+    {
+        if ($classroomIds === []) {
+            return null;
+        }
+        $service = new QuestionWeightService;
+        $classroomMap = Classroom::query()->whereIn('id', $classroomIds)->pluck('name', 'id');
+        $subjectName = Subject::query()->whereKey($subjectId)->value('name') ?? "Mapel #{$subjectId}";
+        $msgs = [];
+        foreach ($classroomIds as $cid) {
+            $result = $service->check($subjectId, (int) $cid);
+            if ($result['status'] === 'ok') {
+                continue;
+            }
+            $kelas = $classroomMap->get($cid, "Kelas #{$cid}");
+            $total = number_format($result['total'], 2, ',', '.');
+            $delta = number_format($result['delta'], 2, ',', '.');
+            $arah = $result['status'] === 'over' ? "kelebihan {$delta}" : "kekurangan {$delta}";
+            $msgs[] = "{$kelas} × {$subjectName}: total {$total} (harus 100, {$arah})";
+        }
+        if ($msgs === []) {
+            return null;
+        }
+
+        return 'Perhatian bobot: '.implode('; ', $msgs).'. Perbaiki bobot agar jadwal tidak terblokir.';
     }
 
     private function deleteImageFile(?string $path): void

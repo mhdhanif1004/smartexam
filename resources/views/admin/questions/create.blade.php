@@ -16,7 +16,7 @@
             action="{{ route('admin.questions.store') }}"
             enctype="multipart/form-data"
             class="max-w-3xl space-y-6"
-            x-data="{ type: @js(old('type', \App\Models\Question::TYPE_SINGLE_CHOICE)), guru: @js((string) old('creator_user_id', '')), subject: @js((string) old('subject_id', '')), selected: @js(old('classroom_ids', [])), pairs: @js($pairs), img: { preview: '' } }"
+            x-data="{ type: @js(old('type', \App\Models\Question::TYPE_SINGLE_CHOICE)), guru: @js((string) old('creator_user_id', '')), subject: @js((string) old('subject_id', '')), selected: @js(old('classroom_ids', [])), pairs: @js($pairs), img: { preview: '' }, weight: @js((string) old('score_weight', 10)) }"
         >
             @csrf
 
@@ -59,7 +59,8 @@
                     </div>
                     <div>
                         <x-input-label for="score_weight" :value="__('Bobot Nilai (poin)')" />
-                        <x-text-input id="score_weight" name="score_weight" type="number" step="0.01" min="0" max="100" class="mt-1 block w-full" value="{{ old('score_weight', 10) }}" required />
+                        <x-text-input id="score_weight" name="score_weight" type="number" step="0.01" min="0" max="100" class="mt-1 block w-full" x-model="weight" value="{{ old('score_weight', 10) }}" required />
+                        <p class="mt-1.5 text-xs" :class="(parseFloat(weight) || 0) > 100 ? 'text-rose-600 dark:text-rose-400' : ((parseFloat(weight) || 0) <= 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400')" x-text="(parseFloat(weight) || 0) > 100 ? 'Bobot melebihi 100 — periksa total bobot per kelas.' : ((parseFloat(weight) || 0) <= 0 ? 'Bobot minimal > 0.' : 'Bobot akan dijumlah per kelas target (total harus 100).')"></p>
                         <x-input-error :messages="$errors->get('score_weight')" class="mt-2" />
                     </div>
                 </div>

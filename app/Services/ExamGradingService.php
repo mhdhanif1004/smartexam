@@ -59,6 +59,7 @@ class ExamGradingService
             ->value('classroom_id');
 
         $questions = $schedule->subject->questions()
+            ->where('is_active', true)
             ->when($classroomId !== null, fn ($query) => $query->targetingClassroom($classroomId))
             ->get()
             ->keyBy('id');

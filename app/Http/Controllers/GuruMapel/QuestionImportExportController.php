@@ -7,8 +7,10 @@ use App\Exports\QuestionsFailedImportExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GuruMapel\ImportGuruMapelQuestionRequest;
 use App\Imports\Questions\BaseTypeImport;
+use App\Models\Classroom;
 use App\Models\Question;
 use App\Models\Subject;
+use App\Services\QuestionWeightService;
 use App\Support\QuestionImportMap;
 use App\Traits\ScopesGuruMapel;
 use Illuminate\Http\JsonResponse;
@@ -149,6 +151,20 @@ class QuestionImportExportController extends Controller
 
         session()->flash('success', $flash);
 
+        $pairs = [];
+        foreach ($import->validRows as $row) {
+            $sid = (int) $row['subject_id'];
+            $cids = $import->classroomsBySubjectId[$sid] ?? [];
+            foreach ($cids as $cid) {
+                $pairs[] = [$sid, (int) $cid];
+            }
+        }
+        $pairs = collect($pairs)->unique(fn ($p) => $p[0].':'.$p[1])->values()->all();
+        $warning = $this->weightWarningForPairs($pairs);
+        if ($warning !== null) {
+            session()->flash('warning', $warning);
+        }
+
         return response()->json([
             'ok' => true,
             'created' => $result['created'],
@@ -156,6 +172,7 @@ class QuestionImportExportController extends Controller
             'failed_count' => count($import->invalidRows),
             'failed_file' => $failedFile,
             'errors' => $result['errors'],
+            'warning' => $warning,
         ]);
     }
 
@@ -168,6 +185,36 @@ class QuestionImportExportController extends Controller
         }
 
         return response()->download(Storage::disk('local')->path('imports/'.$file), $file);
+    }
+
+    private function weightWarningForPairs(array $pairs): ?string
+    {
+        if ($pairs === []) {
+            return null;
+        }
+        $service = new QuestionWeightService;
+        $subjectIds = collect($pairs)->pluck(0)->unique()->values()->all();
+        $classroomIds = collect($pairs)->pluck(1)->unique()->values()->all();
+        $subjectMap = Subject::query()->whereIn('id', $subjectIds)->pluck('name', 'id');
+        $classroomMap = Classroom::query()->whereIn('id', $classroomIds)->pluck('name', 'id');
+        $msgs = [];
+        foreach ($pairs as [$sid, $cid]) {
+            $result = $service->check((int) $sid, (int) $cid);
+            if ($result['status'] === 'ok') {
+                continue;
+            }
+            $subjectName = $subjectMap->get($sid, "Mapel #{$sid}");
+            $kelas = $classroomMap->get($cid, "Kelas #{$cid}");
+            $total = number_format($result['total'], 2, ',', '.');
+            $delta = number_format($result['delta'], 2, ',', '.');
+            $arah = $result['status'] === 'over' ? "kelebihan {$delta}" : "kekurangan {$delta}";
+            $msgs[] = "{$kelas} × {$subjectName}: total {$total} (harus 100, {$arah})";
+        }
+        if ($msgs === []) {
+            return null;
+        }
+
+        return 'Perhatian bobot: '.implode('; ', array_slice($msgs, 0, 5)).(count($msgs) > 5 ? ' dan '.(count($msgs) - 5).' lainnya' : '').'. Perbaiki bobot di Bank Soal.';
     }
 
     /**

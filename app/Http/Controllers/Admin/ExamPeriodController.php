@@ -13,6 +13,7 @@ use App\Models\ExamPeriod;
 use App\Models\ExamRoomAssignment;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
+use App\Services\QuestionWeightService;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
@@ -164,6 +165,13 @@ class ExamPeriodController extends Controller
 
             $gradeOrder = ['X' => 1, 'XI' => 2, 'XII' => 3];
             $sortedGrades = $grouped->sortKeysUsing(fn ($a, $b) => ($gradeOrder[$a] ?? 99) <=> ($gradeOrder[$b] ?? 99));
+
+            // Blocking keras: setiap kombinasi kelas × mapel harus total bobot aktif = 100 (toleransi 0,01).
+            $weightService = new QuestionWeightService;
+            $weightErrors = $this->collectWeightErrors($weightService, $classNames, $subjectRows);
+            if ($weightErrors !== []) {
+                throw ValidationException::withMessages(['subjects' => $weightErrors]);
+            }
 
             $sessionDuration = collect($subjectRows)->sum('duration_minutes');
             $sessionStart = Carbon::createFromFormat('H:i', $firstStart);
@@ -416,6 +424,12 @@ class ExamPeriodController extends Controller
                 ->whereIn('id', collect($subjectRows)->pluck('subject_id'))
                 ->get()
                 ->keyBy('id');
+
+            // Blocking keras: total bobot harus 100 per kombinasi kelas × mapel sebelum buat jadwal kelompok.
+            $weightErrors = $this->collectWeightErrors(new QuestionWeightService, $classNames, $subjectRows);
+            if ($weightErrors !== []) {
+                throw ValidationException::withMessages(['subjects' => $weightErrors]);
+            }
 
             $planned = [];
             $conflicts = [];
@@ -694,6 +708,45 @@ class ExamPeriodController extends Controller
         });
 
         return redirect()->route('admin.exam-periods.index')->with('success', 'Sesi ujian berhasil dihapus.');
+    }
+
+    /**
+     * Kumpulkan pesan error blocking untuk kombinasi kelas × mapel yang total bobot aktifnya != 100.
+     *
+     * @param  array<int, string>  $classNames
+     * @param  array<int, array{subject_id: int, duration_minutes: int}>  $subjectRows
+     * @return array<int, string>
+     */
+    private function collectWeightErrors(QuestionWeightService $service, array $classNames, array $subjectRows): array
+    {
+        if ($classNames === [] || $subjectRows === []) {
+            return [];
+        }
+
+        $classroomMap = Classroom::query()->whereIn('name', $classNames)->pluck('id', 'name');
+        $subjectMap = Subject::query()->whereIn('id', collect($subjectRows)->pluck('subject_id'))->pluck('name', 'id');
+        $errors = [];
+
+        foreach ($classNames as $className) {
+            $classroomId = $classroomMap->get($className);
+            if ($classroomId === null) {
+                continue;
+            }
+            foreach ($subjectRows as $row) {
+                $subjectId = (int) $row['subject_id'];
+                $result = $service->check($subjectId, $classroomId);
+                if ($result['status'] === 'ok') {
+                    continue;
+                }
+                $subjectName = $subjectMap->get($subjectId, "Mapel #{$subjectId}");
+                $total = number_format($result['total'], 2, ',', '.');
+                $delta = number_format($result['delta'], 2, ',', '.');
+                $arah = $result['status'] === 'over' ? "kelebihan {$delta}" : "kekurangan {$delta}";
+                $errors[] = "{$className} × {$subjectName}: total bobot {$total} (harus 100, {$arah}). Perbaiki bobot di Bank Soal.";
+            }
+        }
+
+        return $errors;
     }
 
     /**

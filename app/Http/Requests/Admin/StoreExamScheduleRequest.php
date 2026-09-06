@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Models\Classroom;
 use App\Models\ExamSchedule;
 use App\Models\Subject;
+use App\Services\QuestionWeightService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -48,6 +50,7 @@ class StoreExamScheduleRequest extends FormRequest
 
                 $this->validateNoRoomConflict($validator, $start);
                 $this->validateSubjectHasActiveQuestions($validator);
+                $this->validateWeightTotal($validator);
             },
         ];
     }
@@ -77,6 +80,40 @@ class StoreExamScheduleRequest extends FormRequest
         if ($conflict !== null) {
             $validator->errors()->add('room_id', $this->conflictMessage($conflict));
         }
+    }
+
+    private function validateWeightTotal(Validator $validator): void
+    {
+        $subjectId = (int) $this->input('subject_id');
+        $className = trim((string) $this->input('class_name'));
+
+        if ($subjectId === 0 || $className === '') {
+            return;
+        }
+
+        $classroom = Classroom::query()->where('name', $className)->first();
+
+        if ($classroom === null) {
+            $validator->errors()->add('class_name', "Kelas \"{$className}\" belum terdaftar di master kelas. Sinkronkan data kelas terlebih dahulu.");
+
+            return;
+        }
+
+        $result = (new QuestionWeightService)->check($subjectId, $classroom->id);
+
+        if ($result['status'] === 'ok') {
+            return;
+        }
+
+        $subjectName = Subject::query()->whereKey($subjectId)->value('name') ?? "Mapel #{$subjectId}";
+        $total = number_format($result['total'], 2, ',', '.');
+        $delta = number_format($result['delta'], 2, ',', '.');
+        $arah = $result['status'] === 'over' ? "kelebihan {$delta}" : "kekurangan {$delta}";
+
+        $validator->errors()->add(
+            'subject_id',
+            "Total bobot soal aktif untuk {$subjectName} × {$className} adalah {$total} (harus 100, {$arah}). Perbaiki bobot di Bank Soal sebelum membuat jadwal."
+        );
     }
 
     private function conflictMessage(ExamSchedule $conflict): string

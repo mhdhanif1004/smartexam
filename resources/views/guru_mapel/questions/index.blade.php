@@ -64,6 +64,7 @@
                                     if (!ok) { this.message = data.message || 'Terjadi kesalahan saat mengimpor.'; return; }
                                     this.finished = data;
                                     this.step = 3;
+                                    if (data.warning) { this.message = data.warning; }
                                 })
                                 .catch(() => { this.message = 'Terjadi kesalahan saat mengimpor.'; })
                                 .finally(() => { this.busy = false; });
@@ -231,6 +232,20 @@
                                             <span class="text-xs text-gray-400 dark:text-gray-500">Belum ada target</span>
                                         @endforelse
                                     </div>
+                                    @php($guruWeightBadges = [])
+                                    @php(foreach (($question->classrooms->pluck('id') ?? collect()) as $cid) { $chk = $weightChecks[$question->subject_id][$cid] ?? null; if ($chk === null) continue; $guruWeightBadges[] = ['cid'=>$cid,'name'=>$classroomIdToName[$cid] ?? "Kelas #{$cid}",'total'=>(float)($chk['total']??0),'delta'=>(float)($chk['delta']??0),'status'=>$chk['status']??'ok']; })
+                                    @if(!empty($guruWeightBadges))
+                                        <div class="mt-1.5 flex flex-wrap gap-1">
+                                            @foreach($guruWeightBadges as $badge)
+                                                @php($cls = $badge['status']==='ok' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/20' : ($badge['status']==='over' ? 'bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-300 border-rose-200 dark:border-rose-500/20' : 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 border-amber-200 dark:border-amber-500/20'))
+                                                @php($totalFmt = number_format($badge['total'],2,',','.'))
+                                                @php($deltaFmt = number_format($badge['delta'],2,',','.'))
+                                                @php($label = $badge['status']==='ok' ? "Bobot {$totalFmt} ✓" : ($badge['status']==='over' ? "Bobot {$totalFmt} · kelebihan {$deltaFmt}" : "Bobot {$totalFmt} · kurang {$deltaFmt}"))
+                                                @php($title = $badge['name'].': total '.$totalFmt.' (harus 100, '.($badge['status']==='ok' ? 'pas' : ($badge['status']==='over' ? 'kelebihan '.$deltaFmt : 'kekurangan '.$deltaFmt)).')')
+                                                <span title="{{ $title }}" class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold {{ $cls }}">{{ $badge['name'] }} · {{ $label }}</span>
+                                            @endforeach
+                                        </div>
+                                    @endif
                                 </td>
                                 <td class="px-6 py-4 text-sm">
                                     @if ($question->is_active)

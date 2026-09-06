@@ -9,6 +9,7 @@ use App\Models\Classroom;
 use App\Models\ExamAnswer;
 use App\Models\GuruMapel;
 use App\Models\Question;
+use App\Services\QuestionWeightService;
 use App\Models\Subject;
 use App\Models\TeacherSubjectClassAssignment;
 use App\Traits\BuildsQuestionPayload;
@@ -51,23 +52,6 @@ class QuestionController extends Controller
             $subjects = $subjects->where('questions_count', '>', 0)->values();
         }
 
-        // Saat filter aktif, preload grouped data per mapel. Tanpa filter,
-        // data diambil via AJAX saat accordion dibuka (lazy-load).
-        $preloadedGroupHtml = [];
-        $preloadedQuestionIds = [];
-        if ($hasFilter) {
-            foreach ($subjects as $subject) {
-                $questions = $this->questionsForSubject($request, $subject->id);
-                $grouped = $this->groupQuestionsByClassroom($questions);
-                $preloadedGroupHtml[$subject->id] = view('admin.questions.partials.question-groups', [
-                    'groups' => $grouped,
-                    'subject' => $subject,
-                    'search' => (string) $request->string('search')->trim(),
-                ])->render();
-                $preloadedQuestionIds[$subject->id] = $questions->pluck('id')->values();
-            }
-        }
-
         // Diteruskan ke endpoint by-subject agar filter yang sama ikut diterapkan saat lazy-load.
         $filterQuery = http_build_query($request->only(['search', 'type', 'status', 'classroom_id']));
         $types = Question::TYPES;
@@ -88,6 +72,37 @@ class QuestionController extends Controller
             ->groupBy('subject_id')
             ->map(fn ($rows) => $rows->pluck('name')->sort()->values()->all());
 
+        // Total bobot per (subject × classroom) untuk badge non-blocking di header & grup.
+        $weightService = new QuestionWeightService;
+        $weightChecks = [];
+        foreach ($allSubjects as $subj) {
+            foreach ($weightService->totalsForSubject($subj->id) as $cid => $total) {
+                $weightChecks[$subj->id][$cid] = $weightService->check($subj->id, (int) $cid);
+            }
+        }
+        // Kirim map id→name untuk label kelas di pesan warning (tanpa query tambahan di view).
+        $classroomIdToName = $classrooms->pluck('name', 'id')->all();
+
+        // Saat filter aktif, preload grouped data per mapel. Tanpa filter,
+        // data diambil via AJAX saat accordion dibuka (lazy-load). Perlu setelah
+        // weightChecks agar badge bobot ikut ter-render di preload.
+        $preloadedGroupHtml = [];
+        $preloadedQuestionIds = [];
+        if ($hasFilter) {
+            foreach ($subjects as $subject) {
+                $questions = $this->questionsForSubject($request, $subject->id);
+                $grouped = $this->groupQuestionsByClassroom($questions);
+                $preloadedGroupHtml[$subject->id] = view('admin.questions.partials.question-groups', [
+                    'groups' => $grouped,
+                    'subject' => $subject,
+                    'search' => (string) $request->string('search')->trim(),
+                    'weightChecks' => $weightChecks,
+                    'classroomIdToName' => $classroomIdToName,
+                ])->render();
+                $preloadedQuestionIds[$subject->id] = $questions->pluck('id')->values();
+            }
+        }
+
         return view('admin.questions.index', compact(
             'subjects',
             'allSubjects',
@@ -98,6 +113,8 @@ class QuestionController extends Controller
             'preloadedQuestionIds',
             'classrooms',
             'subjectClassrooms',
+            'weightChecks',
+            'classroomIdToName',
         ));
     }
 
@@ -109,10 +126,19 @@ class QuestionController extends Controller
         $questions = $this->questionsForSubject($request, $subject->id);
         $grouped = $this->groupQuestionsByClassroom($questions);
 
+        $weightService = new QuestionWeightService;
+        $weightChecks = [];
+        foreach ($weightService->totalsForSubject($subject->id) as $cid => $total) {
+            $weightChecks[(int) $cid] = $weightService->check($subject->id, (int) $cid);
+        }
+        $classroomIdToName = Classroom::query()->pluck('name', 'id')->all();
+
         $html = view('admin.questions.partials.question-groups', [
             'groups' => $grouped,
             'subject' => $subject,
             'search' => (string) $request->string('search')->trim(),
+            'weightChecks' => [$subject->id => $weightChecks],
+            'classroomIdToName' => $classroomIdToName,
         ])->render();
 
         return response()->json([
@@ -206,9 +232,16 @@ class QuestionController extends Controller
         }
 
         $question = Question::create($payload);
-        $question->classrooms()->sync($request->validated()['classroom_ids']);
+        $classroomIds = $request->validated()['classroom_ids'];
+        $question->classrooms()->sync($classroomIds);
 
-        return redirect()->route('admin.questions.index')->with('success', 'Soal berhasil ditambahkan.');
+        $warning = $this->weightWarningForPairs((int) $question->subject_id, $classroomIds);
+        $redirect = redirect()->route('admin.questions.index')->with('success', 'Soal berhasil ditambahkan.');
+        if ($warning !== null) {
+            $redirect->with('warning', $warning);
+        }
+
+        return $redirect;
     }
 
     public function edit(Question $question): View
@@ -242,9 +275,16 @@ class QuestionController extends Controller
         }
 
         $question->update($payload);
-        $question->classrooms()->sync($data['classroom_ids']);
+        $classroomIds = $data['classroom_ids'];
+        $question->classrooms()->sync($classroomIds);
 
-        return redirect()->route('admin.questions.index')->with('success', 'Soal berhasil diperbarui.');
+        $warning = $this->weightWarningForPairs((int) $question->subject_id, $classroomIds);
+        $redirect = redirect()->route('admin.questions.index')->with('success', 'Soal berhasil diperbarui.');
+        if ($warning !== null) {
+            $redirect->with('warning', $warning);
+        }
+
+        return $redirect;
     }
 
     /**
@@ -357,7 +397,13 @@ class QuestionController extends Controller
 
         $copy->classrooms()->sync($question->classrooms->pluck('id'));
 
-        return redirect()->route('admin.questions.index')->with('success', 'Soal berhasil diduplikasi.');
+        $warning = $this->weightWarningForPairs((int) $copy->subject_id, $copy->classrooms->pluck('id')->all());
+        $redirect = redirect()->route('admin.questions.index')->with('success', 'Soal berhasil diduplikasi.');
+        if ($warning !== null) {
+            $redirect->with('warning', $warning);
+        }
+
+        return $redirect;
     }
 
     public function toggleActive(Question $question): RedirectResponse
@@ -365,8 +411,13 @@ class QuestionController extends Controller
         $question->update(['is_active' => ! $question->is_active]);
 
         $state = $question->is_active ? 'diaktifkan' : 'dinonaktifkan';
+        $warning = $this->weightWarningForPairs((int) $question->subject_id, $question->classrooms()->pluck('classes.id')->all());
+        $redirect = back()->with('success', "Soal berhasil {$state}.");
+        if ($warning !== null) {
+            $redirect->with('warning', $warning);
+        }
 
-        return back()->with('success', "Soal berhasil {$state}.");
+        return $redirect;
     }
 
     public function bulkEdit(Request $request): RedirectResponse
@@ -383,7 +434,7 @@ class QuestionController extends Controller
 
         $payload = $request->validate([
             'subject_id' => ['nullable', 'integer', Rule::exists('subjects', 'id')],
-            'score_weight' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
+            'score_weight' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
@@ -397,9 +448,23 @@ class QuestionController extends Controller
             return back()->with('error', 'Tidak ada perubahan yang dipilih.');
         }
 
+        $affectedBefore = Question::query()->whereIn('id', $ids)->with('classrooms')->get();
         Question::query()->whereIn('id', $ids)->update($updates);
+        $affectedAfter = Question::query()->whereIn('id', $ids)->with('classrooms')->get();
+        $pairs = $affectedAfter->flatMap(fn (Question $q) => $q->classrooms->map(fn ($c) => [$q->subject_id, $c->id]))->unique(fn ($p) => $p[0].':'.$p[1])->values()->all();
+        // Jika subject_id ikut diubah, pairs sudah pakai nilai baru; cek semua kombinasi terdampak.
+        $warning = $this->weightWarningForGenericPairs($pairs);
+        // Jika tidak terdampak kombinasi (misal hanya is_active), cek juga before agar under/over terdeteksi.
+        if ($warning === null && ! empty($affectedBefore)) {
+            $beforePairs = $affectedBefore->flatMap(fn (Question $q) => $q->classrooms->map(fn ($c) => [$q->subject_id, $c->id]))->unique(fn ($p) => $p[0].':'.$p[1])->values()->all();
+            $warning = $this->weightWarningForGenericPairs($beforePairs);
+        }
+        $redirect = back()->with('success', 'Pengaturan '.count($ids).' soal berhasil diperbarui.');
+        if ($warning !== null) {
+            $redirect->with('warning', $warning);
+        }
 
-        return back()->with('success', 'Pengaturan '.count($ids).' soal berhasil diperbarui.');
+        return $redirect;
     }
 
     /**
@@ -419,7 +484,19 @@ class QuestionController extends Controller
             $question->classrooms()->sync($data['classroom_ids']);
         }
 
-        return response()->json(['ok' => true]);
+        // Kumpulkan warning per kombinasi subject × classroom baru untuk pesan non-blocking di UI.
+        $pairs = [];
+        foreach ($questions as $q) {
+            foreach ($data['classroom_ids'] as $cid) {
+                $pairs[] = [(int) $q->subject_id, (int) $cid];
+            }
+        }
+        $warning = $this->weightWarningForGenericPairs($pairs);
+        if ($warning !== null) {
+            session()->flash('warning', $warning);
+        }
+
+        return response()->json(['ok' => true, 'warning' => $warning]);
     }
 
     /**
@@ -455,6 +532,64 @@ class QuestionController extends Controller
     private function questionAlreadyAnswered(int $questionId): bool
     {
         return ExamAnswer::query()->where('question_id', $questionId)->exists();
+    }
+
+    private function weightWarningForPairs(int $subjectId, array $classroomIds): ?string
+    {
+        if ($classroomIds === []) {
+            return null;
+        }
+        $service = new QuestionWeightService;
+        $classroomMap = Classroom::query()->whereIn('id', $classroomIds)->pluck('name', 'id');
+        $subjectName = Subject::query()->whereKey($subjectId)->value('name') ?? "Mapel #{$subjectId}";
+        $msgs = [];
+        foreach ($classroomIds as $cid) {
+            $result = $service->check($subjectId, (int) $cid);
+            if ($result['status'] === 'ok') {
+                continue;
+            }
+            $kelas = $classroomMap->get($cid, "Kelas #{$cid}");
+            $total = number_format($result['total'], 2, ',', '.');
+            $delta = number_format($result['delta'], 2, ',', '.');
+            $arah = $result['status'] === 'over' ? "kelebihan {$delta}" : "kekurangan {$delta}";
+            $msgs[] = "{$kelas} × {$subjectName}: total {$total} (harus 100, {$arah})";
+        }
+        if ($msgs === []) {
+            return null;
+        }
+
+        return 'Perhatian bobot: '.implode('; ', $msgs).'. Perbaiki bobot di Bank Soal agar jadwal tidak terblokir.';
+    }
+
+    private function weightWarningForGenericPairs(array $pairs): ?string
+    {
+        if ($pairs === []) {
+            return null;
+        }
+        $service = new QuestionWeightService;
+        $subjectIds = collect($pairs)->pluck(0)->unique()->values()->all();
+        $classroomIds = collect($pairs)->pluck(1)->unique()->values()->all();
+        $subjectMap = Subject::query()->whereIn('id', $subjectIds)->pluck('name', 'id');
+        $classroomMap = Classroom::query()->whereIn('id', $classroomIds)->pluck('name', 'id');
+        $unique = collect($pairs)->unique(fn ($p) => $p[0].':'.$p[1])->values()->all();
+        $msgs = [];
+        foreach ($unique as [$sid, $cid]) {
+            $result = $service->check((int) $sid, (int) $cid);
+            if ($result['status'] === 'ok') {
+                continue;
+            }
+            $subjectName = $subjectMap->get($sid, "Mapel #{$sid}");
+            $kelas = $classroomMap->get($cid, "Kelas #{$cid}");
+            $total = number_format($result['total'], 2, ',', '.');
+            $delta = number_format($result['delta'], 2, ',', '.');
+            $arah = $result['status'] === 'over' ? "kelebihan {$delta}" : "kekurangan {$delta}";
+            $msgs[] = "{$kelas} × {$subjectName}: total {$total} (harus 100, {$arah})";
+        }
+        if ($msgs === []) {
+            return null;
+        }
+
+        return 'Perhatian bobot: '.implode('; ', array_slice($msgs, 0, 5)).(count($msgs) > 5 ? ' dan '.(count($msgs) - 5).' lainnya' : '').'. Perbaiki bobot di Bank Soal.';
     }
 
     private function deleteImageFile(?string $path): void
