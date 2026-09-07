@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Events\ViolationCreated;
+use App\Jobs\SendViolationFcmNotification;
 use App\Models\Student;
 use App\Models\Violation;
 use Illuminate\Http\JsonResponse;
@@ -81,6 +82,14 @@ class ViolationController extends Controller
             }
         } catch (\Throwable $e) {
             // jangan gagalkan laporan bila broadcast error (Reverb down)
+        }
+
+        // Kirim push notification FCM ke pengawas ruangan + admin via queue.
+        // Dispatch best-effort: kegagalan queue tidak boleh menggagalkan respons pelanggaran.
+        try {
+            SendViolationFcmNotification::dispatch($violation->id);
+        } catch (\Throwable $e) {
+            // jangan gagalkan laporan bila dispatch queue error
         }
 
         if ($type === Violation::TYPE_FULLSCREEN_EXIT) {

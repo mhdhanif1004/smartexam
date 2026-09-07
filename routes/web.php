@@ -39,6 +39,7 @@ use App\Http\Controllers\Pengawas\ViolationController as PengawasViolationContro
 use App\Http\Controllers\Peserta\DashboardController as PesertaDashboardController;
 use App\Http\Controllers\Peserta\ExamController as PesertaExamController;
 use App\Http\Controllers\Peserta\ViolationController as PesertaViolationController;
+use App\Http\Controllers\FcmTokenController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Middleware\RedirectLocalhost;
 use Illuminate\Support\Facades\Route;
@@ -260,6 +261,9 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
     });
 
     Route::middleware('auth')->group(function () {
+        Route::post('/fcm-token', [FcmTokenController::class, 'store'])->middleware('throttle:60,1')->name('fcm-token.store');
+        Route::delete('/fcm-token', [FcmTokenController::class, 'destroy'])->middleware('throttle:60,1')->name('fcm-token.destroy');
+
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
