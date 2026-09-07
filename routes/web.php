@@ -117,11 +117,12 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::resource('exam-schedules', ExamScheduleController::class)->except(['show']);
         Route::post('exam-schedules/bulk-delete', [ExamScheduleController::class, 'bulkDelete'])->name('exam-schedules.bulk-delete');
 
-        Route::get('exam-periods/{examPeriod}/delete-preview', [ExamPeriodController::class, 'deletePreview'])->name('exam-periods.delete-preview');
-        Route::get('exam-periods/by-date', [ExamPeriodController::class, 'byDate'])->name('exam-periods.by-date');
-        Route::resource('exam-periods', ExamPeriodController::class)->except(['edit', 'update']);
+        // Penting: route statis harus didefinisikan SEBELUM resource agar tidak di-shadow oleh {examPeriod} (mis. /auto-generate/create tertangkap sebagai show).
         Route::get('exam-periods/auto-generate/create', [ExamPeriodController::class, 'autoGenerateCreate'])->name('exam-periods.auto-generate.create');
         Route::post('exam-periods/auto-generate', [ExamPeriodController::class, 'autoGenerateStore'])->name('exam-periods.auto-generate.store');
+        Route::get('exam-periods/by-date', [ExamPeriodController::class, 'byDate'])->name('exam-periods.by-date');
+        Route::get('exam-periods/{examPeriod}/delete-preview', [ExamPeriodController::class, 'deletePreview'])->name('exam-periods.delete-preview');
+        Route::resource('exam-periods', ExamPeriodController::class)->except(['edit', 'update']);
         Route::get('exam-periods/{examPeriod}/groups/create', [ExamPeriodController::class, 'groupsCreate'])->name('exam-periods.groups.create');
         Route::post('exam-periods/{examPeriod}/groups', [ExamPeriodController::class, 'groupsStore'])->name('exam-periods.groups.store');
         Route::post('exam-periods/{examPeriod}/supervisor-rotation', [ExamPeriodController::class, 'supervisorRotation'])->name('exam-periods.supervisor-rotation');

@@ -1,6 +1,7 @@
 <x-layouts.admin title="Buat Sesi Otomatis">
     @php
-        $initialSubjects = collect(old('subjects', []))->map(fn ($row) => [
+        $rawSubjects = old('subjects');
+        $initialSubjects = collect($rawSubjects !== null ? $rawSubjects : [['subject_id' => '', 'duration_minutes' => '60']])->map(fn ($row) => [
             'subject_id' => (string) ($row['subject_id'] ?? ''),
             'duration_minutes' => (string) ($row['duration_minutes'] ?? '60'),
         ])->all();
@@ -58,6 +59,16 @@
             subjectError(index, field) {
                 return this.errors['subjects.' + index + '.' + field] || '';
             },
+            get canGenerate() {
+                return this.classes.length > 0 && this.rooms.length > 0 && this.subjects.length > 0 && this.subjects.every((r) => String(r.subject_id).trim() !== '');
+            },
+            get generateHint() {
+                const missing = [];
+                if (this.classes.length === 0) missing.push('1 kelas');
+                if (this.rooms.length === 0) missing.push('1 ruangan');
+                if (this.subjects.length === 0 || this.subjects.some((r) => !String(r.subject_id).trim())) missing.push('1 mapel');
+                return missing.length ? 'Pilih minimal ' + missing.join(', ') + ' untuk mengaktifkan tombol ini.' : '';
+            },
         }"
         class="space-y-6"
     >
@@ -79,8 +90,14 @@
             </template>
 
             @error('subjects')
+                @php
+                    $subjectMessages = $errors->get('subjects');
+                    $isWeightError = collect($subjectMessages)->contains(fn ($m) => str_contains($m, 'bobot'));
+                    $isNoQuestionError = collect($subjectMessages)->contains(fn ($m) => str_contains($m, 'soal aktif'));
+                    $errorTitle = $isWeightError ? 'Tidak ada sesi yang dibuat karena bobot soal belum 100:' : ($isNoQuestionError ? 'Tidak ada sesi yang dibuat karena ada mapel tanpa soal aktif:' : 'Tidak ada sesi yang dibuat karena ada bentrok waktu:');
+                @endphp
                 <div class="rounded-lg border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/30 dark:bg-rose-500/10">
-                    <p class="text-sm font-semibold text-rose-800 dark:text-rose-300">Tidak ada sesi yang dibuat karena ada bentrok waktu:</p>
+                    <p class="text-sm font-semibold text-rose-800 dark:text-rose-300">{{ $errorTitle }}</p>
                     <ul class="mt-2 list-inside list-disc space-y-1 text-sm text-rose-700 dark:text-rose-400">
                         @foreach ($errors->get('subjects') as $message)
                             <li>{{ $message }}</li>
@@ -206,11 +223,15 @@
                 <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">Waktu tiap sesi dihitung otomatis: sesi berikutnya dimulai setelah sesi sebelumnya selesai + jeda ini.</p>
             </div>
 
-            <div class="flex items-center justify-end gap-3">
-                <a href="{{ route('admin.exam-periods.index') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Batal</a>
-                <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">
-                    Generate Semua Sesi Sekaligus
-                </button>
+            <div class="flex flex-col items-end gap-2">
+                <div class="flex items-center justify-end gap-3">
+                    <a href="{{ route('admin.exam-periods.index') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Batal</a>
+                    <button type="submit" :disabled="!canGenerate" :title="generateHint" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50" :class="!canGenerate ? 'opacity-50 cursor-not-allowed' : ''">
+                        Generate Semua Sesi Sekaligus
+                    </button>
+                </div>
+                <p x-show="generateHint" x-text="generateHint" class="text-xs text-amber-600 dark:text-amber-400"></p>
+                <p x-show="!canGenerate" class="text-xs text-gray-400 dark:text-gray-500">Tombol akan aktif setelah kelas, ruangan, dan mapel dipilih.</p>
             </div>
         </form>
     </div>
