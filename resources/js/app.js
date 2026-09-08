@@ -16,6 +16,7 @@ import { examApp } from './exam';
 import { selectionManager } from './selection';
 import { cardSettingsPreview } from './admin/card-settings-preview';
 import { violationPolling } from './violation-polling';
+import './fcm';
 
 window.Alpine = Alpine;
 
@@ -24,7 +25,7 @@ Alpine.store('sidebar', { open: false });
 Alpine.data('examApp', examApp);
 Alpine.data('selectionManager', selectionManager);
 Alpine.data('cardSettingsPreview', cardSettingsPreview);
-Alpine.data('violationPolling', violationPolling);
+Alpine.data('violationPolling', violationPolling); // fcm.js auto-init via meta[fcm-enabled]
 
 Alpine.start();
 

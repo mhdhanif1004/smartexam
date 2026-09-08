@@ -55,6 +55,18 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         return response()->json(['csrf_token' => csrf_token()]);
     })->name('csrf-token');
 
+    // Config Firebase Web SDK untuk service worker (apiKey dkk aman untuk public web SDK)
+    Route::get('/firebase-config', function () {
+        return response()->json([
+            'apiKey' => config('firebase.web.api_key', env('VITE_FIREBASE_API_KEY')),
+            'authDomain' => config('firebase.web.auth_domain', env('VITE_FIREBASE_AUTH_DOMAIN')),
+            'projectId' => config('firebase.web.project_id', env('VITE_FIREBASE_PROJECT_ID')),
+            'storageBucket' => config('firebase.web.storage_bucket', env('VITE_FIREBASE_STORAGE_BUCKET')),
+            'messagingSenderId' => config('firebase.web.messaging_sender_id', env('VITE_FIREBASE_MESSAGING_SENDER_ID')),
+            'appId' => config('firebase.web.app_id', env('VITE_FIREBASE_APP_ID')),
+        ]);
+    })->name('firebase-config');
+
     // Halaman legal/informasi publik (tidak memerlukan login)
     Route::get('/privacy-policy', fn () => view('legal.privacy-policy'))->name('privacy-policy');
     Route::get('/terms-of-service', fn () => view('legal.terms-of-service'))->name('terms-of-service');

@@ -34,6 +34,12 @@ function writeLastSeenId(userKey, id) {
     }
 }
 
+function isWebViewApp() {
+    // Generalisasi: substring "SmartExam" mencakup kedua varian wrapper
+    // - SmartExamApp (peserta) dan SmartExamAdminApp (admin/pengawas, UA " SmartExamAdminApp/1.0")
+    return typeof navigator !== 'undefined' && !!navigator.userAgent && navigator.userAgent.includes('SmartExam');
+}
+
 // --- Singleton Web Worker (fallback polling) ---
 let sharedWorker = null;
 let sharedConfig = null;
@@ -224,6 +230,7 @@ export function violationPolling(config) {
         lastSeenId: readLastSeenId(config.userKey),
         loading: false,
         permissionStatus: 'default',
+        isWebView: isWebViewApp(),
         badgeCount: 0,
         hasPanel: false,
         seenIds: new Set(),

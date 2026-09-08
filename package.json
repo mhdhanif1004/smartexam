@@ -20,6 +20,7 @@
     "dependencies": {
         "@hotwired/turbo": "^8.0.23",
         "chart.js": "^4.5.1",
+        "firebase": "^10.13.2",
         "instant.page": "^5.2.0",
         "laravel-echo": "^2.4.0",
         "pdfjs-dist": "^6.2.108",
