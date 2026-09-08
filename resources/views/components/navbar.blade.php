@@ -20,6 +20,7 @@
                 'peserta' => 'Peserta',
                 'guru_mapel' => 'Guru Mapel',
                 'kepala_sekolah' => 'Kepala Sekolah',
+                'wali_kelas' => 'Wali Kelas',
             ];
             $roleLabel = $roleLabels[auth()->user()->role] ?? ucfirst(auth()->user()->role ?? 'user');
         @endphp

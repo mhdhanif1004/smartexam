@@ -46,6 +46,7 @@ class DashboardController extends Controller
         // (flash sekali-pakai bikin banner hilang setelah refresh/redirect JS).
         $hasViolationAlert = $schedules->contains(function (ExamSchedule $schedule) {
             $session = $schedule->exam_session;
+
             return $session !== null
                 && ! $session->attendance_confirmed
                 && $session->activeViolationFlags() > 0;

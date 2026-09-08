@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\GuruMapel;
 use App\Models\KepalaSekolah;
 use App\Models\Supervisor;
 use App\Models\User;
@@ -138,7 +139,7 @@ class KepalaSekolahReadOnlyPagesTest extends TestCase
     public function test_guru_mapel_tidak_bisa_akses_halaman_readonly(): void
     {
         $guru = User::factory()->guruMapel()->create();
-        \App\Models\GuruMapel::factory()->create(['user_id' => $guru->id]);
+        GuruMapel::factory()->create(['user_id' => $guru->id]);
 
         $this->actingAs($guru)->get(route('kepala_sekolah.students.index'))->assertForbidden();
         $this->actingAs($guru)->get(route('kepala_sekolah.supervisors.index'))->assertForbidden();

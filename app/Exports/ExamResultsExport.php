@@ -10,7 +10,6 @@ use Maatwebsite\Excel\Concerns\WithMapping;
 
 class ExamResultsExport implements FromCollection, WithHeadings, WithMapping
 {
-    /** @param Collection|Builder $rows */
     public function __construct(private readonly Collection|Builder $rows) {}
 
     public function collection(): Collection
@@ -20,6 +19,7 @@ class ExamResultsExport implements FromCollection, WithHeadings, WithMapping
             // tapi tidak load semua sekaligus via get() eager
             return $this->rows->cursor()->collect();
         }
+
         return $this->rows;
     }
 

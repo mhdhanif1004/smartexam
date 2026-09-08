@@ -7,6 +7,8 @@ use App\Models\ExamResult;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\GuruMapel;
+use App\Models\Question;
+use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Supervisor;
@@ -29,8 +31,8 @@ class DashboardController extends Controller
         $totalGuruMapels = GuruMapel::count();
         $totalSubjects = Subject::count();
         $todaySchedules = ExamSchedule::whereDate('exam_date', $today)->count();
-        $totalRooms = class_exists(\App\Models\Room::class) ? \App\Models\Room::count() : 0;
-        $totalQuestions = class_exists(\App\Models\Question::class) ? \App\Models\Question::count() : 0;
+        $totalRooms = class_exists(Room::class) ? Room::count() : 0;
+        $totalQuestions = class_exists(Question::class) ? Question::count() : 0;
 
         // b) Hadir/Tidak Hadir Siswa — 1 query agregat SUM CASE seperti Admin Dashboard
         $todayScheduleIds = ExamSchedule::query()
@@ -63,7 +65,7 @@ class DashboardController extends Controller
 
         // d) Chart donut Lulus/Tidak Lulus + rata-rata
         $query = ExamResult::query()->whereNotNull('total_score');
-        $summary = (new ExamSummaryService())->summary($query);
+        $summary = (new ExamSummaryService)->summary($query);
         $donutLabels = ['Lulus', 'Tidak Lulus'];
         $donutData = [$summary['passed'], $summary['failed']];
         $average = $summary['average'];

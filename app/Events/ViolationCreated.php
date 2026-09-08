@@ -23,7 +23,7 @@ class ViolationCreated implements ShouldBroadcast
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('violations.room.' . $this->roomId),
+            new PrivateChannel('violations.room.'.$this->roomId),
             // channel admin global — semua admin juga dapat realtime
             new PrivateChannel('violations.admin'),
         ];

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
 
 class Classroom extends Model
@@ -146,5 +147,10 @@ class Classroom extends Model
             'classroom_id',
             'guru_mapel_id'
         )->withTimestamps();
+    }
+
+    public function waliKelas(): HasOne
+    {
+        return $this->hasOne(WaliKelas::class, 'classroom_id');
     }
 }

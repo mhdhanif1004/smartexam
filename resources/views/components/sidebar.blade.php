@@ -27,6 +27,7 @@
             ['label' => 'Kelas', 'route' => 'admin.classrooms.index', 'icon' => 'users'],
             ['label' => 'Pengawas', 'route' => 'admin.supervisors.index', 'icon' => 'user-group'],
             ['label' => 'Guru Mapel', 'route' => 'admin.guru-mapels.index', 'icon' => 'academic-cap'],
+            ['label' => 'Wali Kelas', 'route' => 'admin.wali-kelas.index', 'icon' => 'user-group'],
             ['label' => 'Kepala Sekolah', 'route' => 'admin.kepala-sekolahs.index', 'icon' => 'academic-cap'],
             ['label' => 'Mata Pelajaran', 'route' => 'admin.subjects.index', 'icon' => 'book-open'],
             ['label' => 'Ruangan', 'route' => 'admin.rooms.index', 'icon' => 'building-office'],
@@ -57,6 +58,9 @@
             ['label' => 'Data Guru Mapel', 'route' => 'kepala_sekolah.guru-mapels.index', 'icon' => 'academic-cap'],
             ['label' => 'Absensi', 'route' => 'kepala_sekolah.attendance.index', 'icon' => 'clipboard-check'],
         ],
+        'wali_kelas' => [
+            ['label' => 'Dashboard', 'route' => 'wali_kelas.dashboard', 'icon' => 'dashboard'],
+        ],
         'peserta' => [
             ['label' => 'Dashboard', 'route' => 'peserta.dashboard', 'icon' => 'dashboard'],
         ],
@@ -68,6 +72,7 @@
         'peserta' => 'Peserta',
         'guru_mapel' => 'Guru Mapel',
         'kepala_sekolah' => 'Kepala Sekolah',
+        'wali_kelas' => 'Wali Kelas',
     ];
 
     $items = $menuGroups[$role] ?? [];

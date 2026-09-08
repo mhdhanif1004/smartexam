@@ -391,6 +391,7 @@ class AttendanceController extends Controller
                             'attendance_confirmed_by' => $sourceSession->attendance_confirmed_by,
                             'attendance_status' => ExamSession::ATTENDANCE_PRESENT,
                         ]);
+
                         continue;
                     }
 
