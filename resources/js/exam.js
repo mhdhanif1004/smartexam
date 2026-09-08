@@ -250,7 +250,9 @@ export function examApp(config) {
         },
 
         isWebViewApp() {
-            return navigator.userAgent && navigator.userAgent.includes('SmartExamApp');
+            // Generalisasi: deteksi kedua varian WebView wrapper (peserta SmartExamApp & admin/pengawas SmartExamAdminApp)
+            // dengan cek substring umum "SmartExam" pada User-Agent.
+            return navigator.userAgent && navigator.userAgent.includes('SmartExam');
         },
 
         async checkStatus() {

@@ -97,6 +97,11 @@ class User extends Authenticatable
         return $this->hasMany(Violation::class, 'reported_by');
     }
 
+    public function fcmTokens(): HasMany
+    {
+        return $this->hasMany(UserFcmToken::class);
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === self::ROLE_ADMIN;

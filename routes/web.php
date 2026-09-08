@@ -40,6 +40,7 @@ use App\Http\Controllers\Pengawas\ViolationController as PengawasViolationContro
 use App\Http\Controllers\Peserta\DashboardController as PesertaDashboardController;
 use App\Http\Controllers\Peserta\ExamController as PesertaExamController;
 use App\Http\Controllers\Peserta\ViolationController as PesertaViolationController;
+use App\Http\Controllers\FcmTokenController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\WaliKelas\AttitudeGradeController as WaliKelasAttitudeGradeController;
 use App\Http\Controllers\WaliKelas\DashboardController as WaliKelasDashboardController;
@@ -56,6 +57,18 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
     Route::get('/csrf-token', function () {
         return response()->json(['csrf_token' => csrf_token()]);
     })->name('csrf-token');
+
+    // Config Firebase Web SDK untuk service worker (apiKey dkk aman untuk public web SDK)
+    Route::get('/firebase-config', function () {
+        return response()->json([
+            'apiKey' => config('firebase.web.api_key', env('VITE_FIREBASE_API_KEY')),
+            'authDomain' => config('firebase.web.auth_domain', env('VITE_FIREBASE_AUTH_DOMAIN')),
+            'projectId' => config('firebase.web.project_id', env('VITE_FIREBASE_PROJECT_ID')),
+            'storageBucket' => config('firebase.web.storage_bucket', env('VITE_FIREBASE_STORAGE_BUCKET')),
+            'messagingSenderId' => config('firebase.web.messaging_sender_id', env('VITE_FIREBASE_MESSAGING_SENDER_ID')),
+            'appId' => config('firebase.web.app_id', env('VITE_FIREBASE_APP_ID')),
+        ]);
+    })->name('firebase-config');
 
     // Halaman legal/informasi publik (tidak memerlukan login)
     Route::get('/privacy-policy', fn () => view('legal.privacy-policy'))->name('privacy-policy');
@@ -122,11 +135,12 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::resource('exam-schedules', ExamScheduleController::class)->except(['show']);
         Route::post('exam-schedules/bulk-delete', [ExamScheduleController::class, 'bulkDelete'])->name('exam-schedules.bulk-delete');
 
-        Route::get('exam-periods/{examPeriod}/delete-preview', [ExamPeriodController::class, 'deletePreview'])->name('exam-periods.delete-preview');
-        Route::get('exam-periods/by-date', [ExamPeriodController::class, 'byDate'])->name('exam-periods.by-date');
-        Route::resource('exam-periods', ExamPeriodController::class)->except(['edit', 'update']);
+        // Penting: route statis harus didefinisikan SEBELUM resource agar tidak di-shadow oleh {examPeriod} (mis. /auto-generate/create tertangkap sebagai show).
         Route::get('exam-periods/auto-generate/create', [ExamPeriodController::class, 'autoGenerateCreate'])->name('exam-periods.auto-generate.create');
         Route::post('exam-periods/auto-generate', [ExamPeriodController::class, 'autoGenerateStore'])->name('exam-periods.auto-generate.store');
+        Route::get('exam-periods/by-date', [ExamPeriodController::class, 'byDate'])->name('exam-periods.by-date');
+        Route::get('exam-periods/{examPeriod}/delete-preview', [ExamPeriodController::class, 'deletePreview'])->name('exam-periods.delete-preview');
+        Route::resource('exam-periods', ExamPeriodController::class)->except(['edit', 'update']);
         Route::get('exam-periods/{examPeriod}/groups/create', [ExamPeriodController::class, 'groupsCreate'])->name('exam-periods.groups.create');
         Route::post('exam-periods/{examPeriod}/groups', [ExamPeriodController::class, 'groupsStore'])->name('exam-periods.groups.store');
         Route::post('exam-periods/{examPeriod}/supervisor-rotation', [ExamPeriodController::class, 'supervisorRotation'])->name('exam-periods.supervisor-rotation');
@@ -274,6 +288,9 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
     });
 
     Route::middleware('auth')->group(function () {
+        Route::post('/fcm-token', [FcmTokenController::class, 'store'])->middleware('throttle:60,1')->name('fcm-token.store');
+        Route::delete('/fcm-token', [FcmTokenController::class, 'destroy'])->middleware('throttle:60,1')->name('fcm-token.destroy');
+
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
