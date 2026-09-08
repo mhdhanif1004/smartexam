@@ -14,6 +14,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Contract\Messaging;
+use Kreait\Firebase\Messaging\AndroidConfig;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
 
@@ -72,6 +73,7 @@ class SendViolationFcmNotification implements ShouldQueue
         $recipientUserIds = $supervisorUserIds->merge($adminUserIds)->unique()->values();
 
         if ($recipientUserIds->isEmpty()) {
+            Log::warning('FCM DISPATCH: tidak ada penerima', ['violation_id' => $violation->id, 'room_id' => $roomId, 'exam_date' => $examDate]);
             return;
         }
 
@@ -92,7 +94,12 @@ class SendViolationFcmNotification implements ShouldQueue
         $title = 'Pelanggaran Ujian Terdeteksi';
         $body = sprintf('%s (%s) — %s di %s', $studentName, $subjectName, $violationLabel, $roomName);
 
+        // Data HARUS memuat type=violation agar Flutter _showFromMessage memilih pelanggaran_channel (high+sound).
+        // Tambahkan title/body juga agar foreground/background handler tidak fallback ke 'Ada aktivitas baru.'
         $data = [
+            'type' => 'violation',
+            'title' => $title,
+            'body' => $body,
             'violation_id' => (string) $violation->id,
             'violation_type' => (string) $violation->violation_type,
             'student_name' => (string) $studentName,
@@ -103,24 +110,74 @@ class SendViolationFcmNotification implements ShouldQueue
             'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
         ];
 
+        // Bagian A: Android-specific agar masuk pelanggaran_channel (high+sound+vibrate), bukan fallback channel tanpa suara.
+        // channel_id HARUS persis sama dengan NotificationService.pelanggaranChannel.id = 'pelanggaran_channel'.
+        // tag dibuat UNIK per violation_id agar Android TIDAK collapse/silent-update notifikasi sebelumnya (Bagian B).
+        $androidConfig = AndroidConfig::fromArray([
+            'priority' => 'high',
+            'notification' => [
+                'channel_id' => 'pelanggaran_channel',
+                'sound' => 'default',
+                'visibility' => 'PUBLIC',
+                'notification_priority' => 'PRIORITY_MAX',
+                // tag unik → setiap pelanggaran jadi notifikasi terpisah dengan alert/suara, bukan replace diam-diam
+                'tag' => 'violation-'.$violation->id,
+            ],
+        ]);
+
         $message = CloudMessage::new()
             ->withNotification(Notification::create($title, $body))
-            ->withData($data);
+            ->withData($data)
+            ->withAndroidConfig($androidConfig);
+
+        // Bagian B: logging eksplisit per percobaan agar 3 percobaan dapat dibedakan jelas di log
+        Log::warning('FCM DISPATCH', [
+            'violation_id' => $violation->id,
+            'timestamp' => now()->toIsoString(),
+            'attempt' => method_exists($this, 'attempts') ? $this->attempts() : 1,
+            'token_count' => count($tokens),
+            'recipient_user_ids' => $recipientUserIds->all(),
+            'tokens_preview' => array_map(fn ($t) => substr($t, 0, 16).'...len='.strlen($t), $tokens),
+        ]);
 
         try {
             /** @var \Kreait\Firebase\Messaging\MulticastSendReport $report */
             $report = $messaging->sendMulticast($message, $tokens);
 
+            $successCount = $report->successes()->count();
+            $failureCount = $report->failures()->count();
             $toDelete = array_merge($report->unknownTokens(), $report->invalidTokens());
+
+            // Detail per-token agar tahu token mana gagal dan kenapa
+            $itemsDetail = array_map(function ($item) {
+                /** @var \Kreait\Firebase\Messaging\SendReport $item */
+                $err = $item->error();
+                return [
+                    'token_preview' => substr($item->target()->value(), 0, 16).'...',
+                    'success' => $item->isSuccess(),
+                    'error' => $err ? $err->getMessage() : null,
+                ];
+            }, $report->getItems());
+
+            Log::warning('FCM RESULT', [
+                'violation_id' => $violation->id,
+                'timestamp' => now()->toIsoString(),
+                'total' => $report->count(),
+                'successCount' => $successCount,
+                'failureCount' => $failureCount,
+                'toDelete_count' => count($toDelete),
+                'items' => $itemsDetail,
+            ]);
+
             if ($toDelete !== []) {
                 UserFcmToken::query()->whereIn('token', $toDelete)->delete();
-                Log::info('FCM: hapus token tidak valid', ['tokens' => $toDelete, 'violation_id' => $violation->id]);
+                Log::warning('FCM: hapus token tidak valid', ['tokens' => $toDelete, 'violation_id' => $violation->id]);
             }
 
-            if ($report->hasFailures()) {
+            if ($failureCount > 0) {
                 Log::warning('FCM: sebagian pengiriman gagal', [
                     'violation_id' => $violation->id,
-                    'failures' => $report->failures()->count(),
+                    'failures' => $failureCount,
                     'total' => $report->count(),
                 ]);
             }
@@ -128,6 +185,7 @@ class SendViolationFcmNotification implements ShouldQueue
             Log::error('FCM: gagal kirim notifikasi pelanggaran', [
                 'violation_id' => $violation->id,
                 'error' => $e->getMessage(),
+                'trace' => substr($e->getTraceAsString(), 0, 2000),
             ]);
 
             // Lempar kembali agar queue retry (tries=3) dapat berjalan untuk error transient.

@@ -24,6 +24,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             PreventBackHistoryCache::class,
         ]);
+
+        // Flutter native (http) tidak punya CSRF cookie web — POST /fcm-token harus di-except agar tidak 419.
+        $middleware->validateCsrfTokens(except: [
+            'fcm-token',
+            'fcm-token/*',
+            'api/admin/fcm-token',
+            'api/admin/fcm-token/*',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // Laravel mengubah TokenMismatchException menjadi HttpException 419
