@@ -298,15 +298,16 @@ class AdminAdvancedTest extends TestCase
     public function test_dashboard_shows_real_stats_and_upcoming_schedules(): void
     {
         Student::factory()->count(3)->create();
-        ExamSchedule::factory()->create(['exam_date' => now()->format('Y-m-d')]);
-        $upcoming = ExamSchedule::factory()->create(['exam_date' => now()->addDay()->format('Y-m-d')]);
+        $todaySchedule = ExamSchedule::factory()->create(['exam_date' => now()->format('Y-m-d')]);
+        ExamSchedule::factory()->create(['exam_date' => now()->addDay()->format('Y-m-d')]);
 
         $this->actingAs($this->admin)->get(route('admin.dashboard'))
             ->assertOk()
             ->assertSee('3')
             ->assertSee('Ujian Hari Ini')
-            ->assertSee($upcoming->subject->name)
-            ->assertSee('Pelanggaran Terbaru');
+            ->assertSee($todaySchedule->subject->name)
+            ->assertSee('Pelanggaran Hari Ini')
+            ->assertSee('Jadwal Ujian Hari Ini');
     }
 
     public function test_peserta_cannot_access_new_admin_modules(): void
