@@ -37,21 +37,22 @@ function poll() {
             const unhandledCount = typeof data.unhandled_count === 'number'
                 ? data.unhandled_count
                 : null;
+            const roomIds = Array.isArray(data.room_ids) ? data.room_ids : null;
 
             const fresh = data.violations || [];
             if (fresh.length === 0) {
-                // Tetap kirim unhandled_count walau tidak ada pelanggaran baru,
-                // supaya badge selalu sinkron dengan database.
-                if (unhandledCount !== null) {
-                    self.postMessage({ type: 'unhandledCount', unhandled_count: unhandledCount });
+                // Tetap kirim unhandled_count + room_ids walau tidak ada pelanggaran baru,
+                // supaya badge & Reverb subscription selalu sinkron (KRITIS-2).
+                if (unhandledCount !== null || roomIds !== null) {
+                    self.postMessage({ type: 'unhandledCount', unhandled_count: unhandledCount, room_ids: roomIds });
                 }
                 return;
             }
 
             lastSeenId = Math.max(lastSeenId, ...fresh.map((v) => v.id));
 
-            // Kirim data pelanggaran baru ke main thread
-            self.postMessage({ type: 'newViolations', violations: fresh, unhandled_count: unhandledCount });
+            // Kirim data pelanggaran baru ke main thread (sertakan room_ids untuk re-sync multi-room)
+            self.postMessage({ type: 'newViolations', violations: fresh, unhandled_count: unhandledCount, room_ids: roomIds });
         })
         .catch(() => {
             // Fetch error — diam saja, polling akan coba lagi di interval berikutnya

@@ -20,13 +20,14 @@ class DashboardController extends Controller
         $supervisor = auth()->user()?->supervisor;
         abort_unless($supervisor instanceof Supervisor, 403);
 
-        $room = $this->supervisorRoom();
+        $rooms = $this->supervisorRooms();
 
         // Pengawas sah tapi belum ditugaskan ke ruangan mana pun hari ini —
         // bukan pelanggaran akses, render empty state.
-        if ($room === null) {
+        if ($rooms->isEmpty()) {
             return view('pengawas.dashboard', [
                 'room' => null,
+                'rooms' => collect(),
                 'schedules' => collect(),
                 'scheduleStats' => [],
                 'activeSchedule' => null,
@@ -35,18 +36,53 @@ class DashboardController extends Controller
             ]);
         }
 
-        $assignedPeriodIds = $supervisor->roomAssignments()
-            ->where('exam_date', Carbon::today())
-            ->where('room_id', $room->id)
-            ->pluck('exam_period_id');
+        // Backward-compat: $room = ruangan pertama untuk kode/view lama yang
+        // masih pakai variabel tunggal. $rooms dipakai untuk multi-room.
+        $room = $rooms->first();
+        $roomIds = $rooms->pluck('id')->all();
 
-        $schedules = ExamSchedule::query()
-            ->with(['subject', 'room'])
-            ->where('room_id', $room->id)
-            ->whereDate('exam_date', Carbon::today())
-            ->whereIn('exam_period_id', $assignedPeriodIds)
-            ->orderBy('start_time')
-            ->get();
+        // Ambil assignment hari ini untuk semua ruangan pengawas, lalu bangun
+        // query jadwal yang mencocokkan pasangan (room_id, exam_period_id)
+        // secara tepat — bukan sekadar whereIn terpisah yang bisa over-fetch
+        // bila pengawas pegang Room A periode 1 dan Room B periode 2.
+        $todayAssignments = $supervisor->roomAssignments()
+            ->where('exam_date', Carbon::today())
+            ->whereIn('room_id', $roomIds)
+            ->get(['room_id', 'exam_period_id'])
+            ->unique(fn ($a) => $a->room_id.'|'.$a->exam_period_id)
+            ->values();
+
+        if ($todayAssignments->isNotEmpty()) {
+            $schedules = ExamSchedule::query()
+                ->with(['subject', 'room'])
+                ->whereDate('exam_date', Carbon::today())
+                ->where(function ($query) use ($todayAssignments) {
+                    foreach ($todayAssignments as $assignment) {
+                        $query->orWhere(function ($q) use ($assignment) {
+                            $q->where('room_id', $assignment->room_id)
+                              ->where('exam_period_id', $assignment->exam_period_id);
+                        });
+                    }
+                })
+                ->orderBy('start_time')
+                ->get();
+        } else {
+            // Fallback legacy: tidak ada baris rotasi hari ini tapi ada
+            // ruangan statis — perilakunya dipertahankan identik dengan
+            // sebelumnya (whereIn exam_period_id kosong → tidak ada jadwal).
+            $assignedPeriodIds = $supervisor->roomAssignments()
+                ->where('exam_date', Carbon::today())
+                ->where('room_id', $room->id)
+                ->pluck('exam_period_id');
+
+            $schedules = ExamSchedule::query()
+                ->with(['subject', 'room'])
+                ->where('room_id', $room->id)
+                ->whereDate('exam_date', Carbon::today())
+                ->whereIn('exam_period_id', $assignedPeriodIds)
+                ->orderBy('start_time')
+                ->get();
+        }
 
         $scheduleStats = [];
         $activeSchedule = null;
@@ -95,13 +131,19 @@ class DashboardController extends Controller
             }
         }
 
+        // Multi-room: pelanggaran dari semua ruangan; untuk 1 ruangan identik dengan sebelumnya.
+        $recentViolations = $rooms->count() > 1
+            ? $this->violationsForRooms($rooms, 5)
+            : $this->roomViolations($room, 5);
+
         return view('pengawas.dashboard', [
-            'room' => $room,
+            'room' => $room, // alias single untuk view lama
+            'rooms' => $rooms,
             'schedules' => $schedules,
             'scheduleStats' => $scheduleStats,
             'activeSchedule' => $activeSchedule,
             'students' => $students,
-            'recentViolations' => $this->roomViolations($room, 5),
+            'recentViolations' => $recentViolations,
         ]);
     }
 
