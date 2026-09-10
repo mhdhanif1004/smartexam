@@ -80,6 +80,15 @@ class UserFactory extends Factory
         ]);
     }
 
+    public function waliKelas(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'wali_kelas',
+            'email' => fake()->unique()->safeEmail(),
+            'username' => null,
+        ]);
+    }
+
     /**
      * Indicate that the model's email address should be unverified.
      */

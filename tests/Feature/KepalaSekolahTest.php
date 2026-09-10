@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ExamResult;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
+use App\Models\GuruMapel;
 use App\Models\KepalaSekolah;
 use App\Models\Room;
 use App\Models\Student;
@@ -90,7 +91,7 @@ class KepalaSekolahTest extends TestCase
     {
         $guru = User::factory()->guruMapel()->create();
         // GuruMapel companion tidak wajib untuk gate role, tapi buat agar konsisten
-        \App\Models\GuruMapel::factory()->create(['user_id' => $guru->id]);
+        GuruMapel::factory()->create(['user_id' => $guru->id]);
 
         $this->actingAs($guru)->get(route('kepala_sekolah.dashboard'))->assertForbidden();
     }
@@ -382,7 +383,7 @@ class KepalaSekolahTest extends TestCase
         $response->assertSee('Tidak Hadir Pengawas');
     }
 
-    public function test_dashboard_donut_hasData_false_saat_belum_ada_nilai(): void
+    public function test_dashboard_donut_has_data_false_saat_belum_ada_nilai(): void
     {
         // Pastikan tidak ada ExamResult
         $this->assertDatabaseCount('exam_results', 0);
@@ -396,7 +397,7 @@ class KepalaSekolahTest extends TestCase
         $response->assertSee('Belum ada data nilai');
     }
 
-    public function test_dashboard_donut_hasData_true_dengan_average_dan_lulus_tidak_lulus(): void
+    public function test_dashboard_donut_has_data_true_dengan_average_dan_lulus_tidak_lulus(): void
     {
         // Buat 3 hasil: 2 lulus (80, 90), 1 tidak lulus (50) => avg 73.33
         $scores = [
@@ -511,7 +512,7 @@ class KepalaSekolahTest extends TestCase
             'is_passed' => false,
         ]);
 
-        $service = new ExamSummaryService();
+        $service = new ExamSummaryService;
         $summary = $service->summary(ExamResult::query()->whereNotNull('total_score'));
 
         $this->assertSame(2, $summary['total']);

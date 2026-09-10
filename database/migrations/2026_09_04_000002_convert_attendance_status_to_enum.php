@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -26,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::statement("ALTER TABLE `exam_sessions` MODIFY COLUMN `attendance_status` VARCHAR(255) NULL AFTER `status`");
+        DB::statement('ALTER TABLE `exam_sessions` MODIFY COLUMN `attendance_status` VARCHAR(255) NULL AFTER `status`');
     }
 };

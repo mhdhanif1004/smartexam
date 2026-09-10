@@ -30,7 +30,7 @@ return new class extends Migration
                     'supervisor_attendances_supervisor_schedule_room_unique'
                 );
             });
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // Abaikan jika index sudah ada (idempoten — aman di-run dua kali).
         }
 
@@ -39,7 +39,7 @@ return new class extends Migration
             Schema::table('supervisor_attendances', function (Blueprint $table) {
                 $table->dropUnique('supervisor_attendances_supervisor_id_exam_schedule_id_unique');
             });
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // Abaikan jika index sudah tidak ada.
         }
     }
@@ -57,7 +57,7 @@ return new class extends Migration
                     'supervisor_attendances_supervisor_id_exam_schedule_id_unique'
                 );
             });
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // Abaikan jika index sudah ada.
         }
 
@@ -66,7 +66,7 @@ return new class extends Migration
             Schema::table('supervisor_attendances', function (Blueprint $table) {
                 $table->dropUnique('supervisor_attendances_supervisor_schedule_room_unique');
             });
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // Abaikan jika index sudah tidak ada.
         }
     }

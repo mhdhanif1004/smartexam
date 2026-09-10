@@ -6,6 +6,7 @@ use App\Models\GuruMapel;
 use App\Models\Student;
 use App\Models\Supervisor;
 use App\Models\User;
+use App\Models\WaliKelas;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -49,6 +50,15 @@ class RoleAccessTest extends TestCase
         $response->assertOk();
     }
 
+    public function test_wali_kelas_can_access_wali_kelas_dashboard(): void
+    {
+        $wali = WaliKelas::factory()->create()->user;
+
+        $response = $this->actingAs($wali)->get('/wali_kelas/dashboard');
+
+        $response->assertOk();
+    }
+
     public function test_peserta_cannot_access_admin_dashboard(): void
     {
         $peserta = User::factory()->peserta()->create();
@@ -81,6 +91,24 @@ class RoleAccessTest extends TestCase
         $guru = GuruMapel::factory()->create()->user;
 
         $response = $this->actingAs($guru)->get('/peserta/dashboard');
+
+        $response->assertForbidden();
+    }
+
+    public function test_wali_kelas_cannot_access_guru_mapel_dashboard(): void
+    {
+        $wali = WaliKelas::factory()->create()->user;
+
+        $response = $this->actingAs($wali)->get('/guru_mapel/dashboard');
+
+        $response->assertForbidden();
+    }
+
+    public function test_guru_mapel_cannot_access_wali_kelas_dashboard(): void
+    {
+        $guru = GuruMapel::factory()->create()->user;
+
+        $response = $this->actingAs($guru)->get('/wali_kelas/dashboard');
 
         $response->assertForbidden();
     }

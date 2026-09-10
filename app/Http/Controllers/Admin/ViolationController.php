@@ -9,6 +9,7 @@ use App\Models\Subject;
 use App\Models\Violation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -57,7 +58,7 @@ class ViolationController extends Controller
             ->orderByDesc(DB::raw('MAX(occurred_at)'))
             ->pluck('exam_session_id');
 
-        $paginatedIds = new \Illuminate\Pagination\LengthAwarePaginator(
+        $paginatedIds = new LengthAwarePaginator(
             $sessionIds->slice(($request->input('page', 1) - 1) * 15, 15),
             $sessionIds->count(),
             15,

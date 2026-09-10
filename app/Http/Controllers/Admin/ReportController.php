@@ -69,7 +69,7 @@ class ReportController extends Controller
      */
     private function summaryQuery(Builder $query): array
     {
-        return (new ExamSummaryService())->summary($query);
+        return (new ExamSummaryService)->summary($query);
     }
 
     /**

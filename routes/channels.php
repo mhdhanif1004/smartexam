@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
@@ -10,10 +11,10 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 // tersebut ATAU admin yang boleh mendengarkan. Dipakai untuk realtime
 // pelanggaran — fallback polling tetap jalan bila Reverb down.
 Broadcast::channel('violations.room.{roomId}', function ($user, $roomId) {
-    if ($user->role === \App\Models\User::ROLE_ADMIN) {
+    if ($user->role === User::ROLE_ADMIN) {
         return true;
     }
-    if ($user->role !== \App\Models\User::ROLE_PENGAWAS) {
+    if ($user->role !== User::ROLE_PENGAWAS) {
         return false;
     }
     $supervisor = $user->supervisor;
@@ -29,9 +30,10 @@ Broadcast::channel('violations.room.{roomId}', function ($user, $roomId) {
     if ($assigned) {
         return true;
     }
+
     return (int) ($supervisor->room_id ?? 0) === (int) $roomId;
 });
 
 Broadcast::channel('violations.admin', function ($user) {
-    return $user->role === \App\Models\User::ROLE_ADMIN;
+    return $user->role === User::ROLE_ADMIN;
 });

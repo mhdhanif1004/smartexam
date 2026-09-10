@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\ExamPeriodController;
 use App\Http\Controllers\Admin\ExamScheduleController;
 use App\Http\Controllers\Admin\GuruMapelController;
 use App\Http\Controllers\Admin\GuruMapelImportExportController;
+use App\Http\Controllers\Admin\KepalaSekolahController;
 use App\Http\Controllers\Admin\LoginCardController;
 use App\Http\Controllers\Admin\PlainPasswordController;
 use App\Http\Controllers\Admin\QuestionController;
@@ -17,21 +18,21 @@ use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\StudentController;
 use App\Http\Controllers\Admin\StudentImportExportController;
 use App\Http\Controllers\Admin\SubjectController;
-use App\Http\Controllers\Admin\KepalaSekolahController;
 use App\Http\Controllers\Admin\SupervisorController;
 use App\Http\Controllers\Admin\SupervisorImportExportController;
 use App\Http\Controllers\Admin\ViolationController;
+use App\Http\Controllers\Admin\WaliKelasController;
 use App\Http\Controllers\GuruMapel\AttendanceController;
+use App\Http\Controllers\GuruMapel\DashboardController as GuruMapelDashboardController;
+use App\Http\Controllers\GuruMapel\GradeController;
+use App\Http\Controllers\GuruMapel\QuestionController as GuruMapelQuestionController;
+use App\Http\Controllers\GuruMapel\QuestionImportExportController as GuruMapelQuestionImportExportController;
 use App\Http\Controllers\KepalaSekolah\AttendanceController as KepalaSekolahAttendanceController;
 use App\Http\Controllers\KepalaSekolah\AttendanceDetailController as KepalaSekolahAttendanceDetailController;
 use App\Http\Controllers\KepalaSekolah\DashboardController as KepalaSekolahDashboardController;
 use App\Http\Controllers\KepalaSekolah\GuruMapelController as KepalaSekolahGuruMapelController;
 use App\Http\Controllers\KepalaSekolah\StudentController as KepalaSekolahStudentController;
 use App\Http\Controllers\KepalaSekolah\SupervisorController as KepalaSekolahSupervisorController;
-use App\Http\Controllers\GuruMapel\DashboardController as GuruMapelDashboardController;
-use App\Http\Controllers\GuruMapel\GradeController;
-use App\Http\Controllers\GuruMapel\QuestionController as GuruMapelQuestionController;
-use App\Http\Controllers\GuruMapel\QuestionImportExportController as GuruMapelQuestionImportExportController;
 use App\Http\Controllers\Pengawas\AttendanceController as PengawasAttendanceController;
 use App\Http\Controllers\Pengawas\DashboardController as PengawasDashboardController;
 use App\Http\Controllers\Pengawas\TokenController as PengawasTokenController;
@@ -41,6 +42,8 @@ use App\Http\Controllers\Peserta\ExamController as PesertaExamController;
 use App\Http\Controllers\Peserta\ViolationController as PesertaViolationController;
 use App\Http\Controllers\FcmTokenController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\WaliKelas\AttitudeGradeController as WaliKelasAttitudeGradeController;
+use App\Http\Controllers\WaliKelas\DashboardController as WaliKelasDashboardController;
 use App\Http\Middleware\RedirectLocalhost;
 use Illuminate\Support\Facades\Route;
 
@@ -106,6 +109,9 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
 
         Route::resource('guru-mapels', GuruMapelController::class);
         Route::post('guru-mapels/bulk-delete', [GuruMapelController::class, 'bulkDelete'])->name('guru-mapels.bulk-delete');
+
+        Route::resource('wali-kelas', WaliKelasController::class, ['parameters' => ['wali-kelas' => 'wali_kelas']])->except(['show']);
+        Route::post('wali-kelas/bulk-delete', [WaliKelasController::class, 'bulkDelete'])->name('wali-kelas.bulk-delete');
 
         Route::resource('kepala-sekolahs', KepalaSekolahController::class)->except(['show']);
         Route::post('kepala-sekolahs/bulk-delete', [KepalaSekolahController::class, 'bulkDelete'])->name('kepala-sekolahs.bulk-delete');
@@ -239,6 +245,14 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('/{schedule}', 'schedule')->name('schedule');
         });
+    });
+
+    Route::prefix('wali_kelas')->middleware(['auth', 'verified', 'role:wali_kelas'])->name('wali_kelas.')->group(function () {
+        Route::get('/dashboard', WaliKelasDashboardController::class)->name('dashboard');
+        Route::get('/attitude-grades', [WaliKelasAttitudeGradeController::class, 'index'])->name('attitude-grades.index');
+        Route::post('/attitude-grades', [WaliKelasAttitudeGradeController::class, 'store'])->name('attitude-grades.store');
+        Route::put('/attitude-grades/{attitudeGrade}', [WaliKelasAttitudeGradeController::class, 'update'])->name('attitude-grades.update');
+        Route::delete('/attitude-grades/{attitudeGrade}', [WaliKelasAttitudeGradeController::class, 'destroy'])->name('attitude-grades.destroy');
     });
 
     Route::prefix('kepala_sekolah')->middleware(['auth', 'verified', 'role:kepala_sekolah'])->name('kepala_sekolah.')->group(function () {

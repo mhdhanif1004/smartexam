@@ -11,6 +11,7 @@ use App\Models\Supervisor;
 use App\Models\User;
 use App\Models\Violation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Tests\TestCase;
 
 class ViolationPollingTest extends TestCase
@@ -221,7 +222,7 @@ class ViolationPollingTest extends TestCase
 
         $response->assertOk();
         $response->assertViewHas('recentViolations', function ($recent) {
-            return $recent instanceof \Illuminate\Support\Collection && $recent->isNotEmpty();
+            return $recent instanceof Collection && $recent->isNotEmpty();
         });
         // Baseline dirender sebagai initialViolations di panel (bukan kosong).
         $studentName = $violation->examSession->student->user->name;
