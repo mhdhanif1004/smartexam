@@ -17,8 +17,12 @@ class GradesExport implements FromCollection, WithColumnWidths, WithEvents, With
 
     /**
      * @param  Collection<int, Grade>  $rows
+     * @param  Collection<int, array<string, mixed>>  $breakdownMap  keyed by student_id
      */
-    public function __construct(private readonly Collection $rows) {}
+    public function __construct(
+        private readonly Collection $rows,
+        private readonly Collection $breakdownMap = new Collection,
+    ) {}
 
     public function collection(): Collection
     {
@@ -30,7 +34,7 @@ class GradesExport implements FromCollection, WithColumnWidths, WithEvents, With
      */
     public function headings(): array
     {
-        return ['NISN', 'Nama Siswa', 'Kelas', 'Skor', 'Tanggal'];
+        return ['NISN', 'Nama Siswa', 'Kelas', 'Harian', 'UTS', 'UAS', 'Kehadiran', 'Nilai Akhir'];
     }
 
     /**
@@ -39,12 +43,21 @@ class GradesExport implements FromCollection, WithColumnWidths, WithEvents, With
      */
     public function map($grade): array
     {
+        $breakdown = $this->breakdownMap->get($grade->student_id, []);
+
+        $value = fn (string $key) => isset($breakdown[$key])
+            ? (float) $breakdown[$key]['average']
+            : null;
+
         return [
             $grade->student?->nisn ?? '-',
             $grade->student?->user?->name ?? '-',
             $grade->classroom?->name ?? '-',
+            $value('harian'),
+            $value('uts'),
+            $value('uas'),
+            $value('kehadiran'),
             (float) $grade->score,
-            $grade->created_at?->format('d/m/Y') ?? '-',
         ];
     }
 
@@ -58,7 +71,10 @@ class GradesExport implements FromCollection, WithColumnWidths, WithEvents, With
             'B' => 28,
             'C' => 16,
             'D' => 10,
-            'E' => 14,
+            'E' => 10,
+            'F' => 10,
+            'G' => 12,
+            'H' => 12,
         ];
     }
 }

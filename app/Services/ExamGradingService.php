@@ -6,12 +6,17 @@ use App\Models\ExamAnswer;
 use App\Models\ExamResult;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
+use App\Models\ExamType;
 use App\Models\Question;
+use App\Models\Semester;
 use App\Models\Student;
+use App\Models\SubjectGrade;
 
 class ExamGradingService
 {
     public const PASSING_RATIO = 0.7;
+
+    public const CBT_TITLE = 'CBT';
 
     /**
      * Nilai satu jawaban sesuai jenis soal.
@@ -103,10 +108,63 @@ class ExamGradingService
             'finished_at' => $session->finished_at ?? now(),
         ]);
 
-        return ExamResult::updateOrCreate(
+        $examResult = ExamResult::updateOrCreate(
             ['exam_session_id' => $session->id],
             ['total_score' => round($totalScore, 2), 'is_passed' => $isPassed],
         );
+
+        // Sync ke subject_grades (nilai per jenis ujian) — terpisah dari
+        // exam_results yang tetap dipertahankan utuh. exam_type diambil dari
+        // ExamPeriod; fallback UAS untuk periode lama yang belum ke-tag.
+        $this->syncSubjectGrade($session, $schedule, round($totalScore, 2));
+
+        return $examResult;
+    }
+
+    /**
+     * Upsert baris subject_grades untuk hasil ujian CBT.
+     *
+     * Identitas baris memakai uk_cbt (student_id + exam_schedule_id), bukan
+     * title. title diisi konstan 'CBT' karena kolom title NOT NULL di skema
+     * (penutup celah uk_manual); nilai ini tidak akan bentrok dengan baris
+     * manual yang selalu memakai title bebas (UH 1, Remidi, dst).
+     */
+    private function syncSubjectGrade(ExamSession $session, ExamSchedule $schedule, float $totalScore): void
+    {
+        $guruMapelId = $schedule->subject?->guruMapels()?->first()?->id;
+        $classroomId = $session->student?->classroom_id
+            ?? Student::query()->whereKey($session->student_id)->value('classroom_id');
+
+        if ($classroomId === null) {
+            return;
+        }
+
+        $examTypeId = $schedule->examPeriod?->exam_type_id
+            ?? ExamType::query()->where('code', 'uas')->value('id');
+
+        SubjectGrade::updateOrCreate(
+            [
+                'student_id' => $session->student_id,
+                'exam_schedule_id' => $schedule->id,
+            ],
+            [
+                'classroom_id' => $classroomId,
+                'subject_id' => $schedule->subject_id,
+                'guru_mapel_id' => $guruMapelId,
+                'semester_id' => $this->activeSemesterId(),
+                'exam_type_id' => $examTypeId,
+                'title' => self::CBT_TITLE,
+                'score' => $totalScore,
+                'source' => SubjectGrade::SOURCE_CBT,
+                'is_override' => false,
+                'taken_at' => now()->toDateString(),
+            ]
+        );
+    }
+
+    private function activeSemesterId(): ?int
+    {
+        return Semester::query()->where('is_active', true)->value('id');
     }
 
     private function sameBool(mixed $answer, mixed $key): bool

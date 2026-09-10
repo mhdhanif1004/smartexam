@@ -30,6 +30,7 @@ class DatabaseSeeder extends Seeder
         $this->call(ClassroomSeeder::class);
         $this->call(SemesterSeeder::class);
         $this->call(AttitudeAspectSeeder::class);
+        $this->call(ExamTypeSeeder::class);
         $this->call(WaliKelasDummyDataSeeder::class);
 
         // 1 akun administrator.

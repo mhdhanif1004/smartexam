@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\SendViolationFcmNotification;
 use App\Models\ExamPeriod;
+use App\Models\ExamRoomAssignment;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\Room;
@@ -67,7 +68,7 @@ class ViolationFcmTest extends TestCase
             'end_time' => '10:30:00',
         ]);
         $schedule = $this->makeSchedule($room, $subject, $period);
-        \App\Models\ExamRoomAssignment::factory()->create([
+        ExamRoomAssignment::factory()->create([
             'exam_period_id' => $period->id,
             'student_id' => $student->id,
             'room_id' => $room->id,
@@ -101,7 +102,7 @@ class ViolationFcmTest extends TestCase
             'end_time' => '10:30:00',
         ]);
         $schedule = $this->makeSchedule($room, $subject, $period);
-        \App\Models\ExamRoomAssignment::factory()->create([
+        ExamRoomAssignment::factory()->create([
             'exam_period_id' => $period->id,
             'student_id' => $student->id,
             'room_id' => $room->id,
@@ -179,6 +180,7 @@ class ViolationFcmTest extends TestCase
                 ->once()
                 ->andReturnUsing(function (CloudMessage $msg, array $tokens) use (&$capturedTokens, $report) {
                     $capturedTokens = $tokens;
+
                     return $report;
                 });
         });
@@ -224,6 +226,7 @@ class ViolationFcmTest extends TestCase
             $mock->shouldReceive('sendMulticast')->once()
                 ->andReturnUsing(function ($msg, $tokens) use (&$captured, $report) {
                     $captured = $tokens;
+
                     return $report;
                 });
         });

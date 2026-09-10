@@ -6,8 +6,10 @@ use App\Models\Classroom;
 use App\Models\ExamAnswer;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
+use App\Models\ExamType;
 use App\Models\GuruMapel;
 use App\Models\Question;
+use App\Models\Semester;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\TeacherSubjectClassAssignment;
@@ -527,28 +529,41 @@ class GuruMapelKbmTest extends TestCase
     {
         [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(2);
 
+        $semester = Semester::create(['year' => '2024/2025', 'semester' => 1, 'is_active' => true]);
+
         $this->actingAs($guru->user)
             ->post(route('guru_mapel.grades.store'), [
                 'subject_id' => $subject->id,
                 'classroom_id' => $classroom->id,
-                'score' => [
-                    $students[0]->id => '90',
-                    $students[1]->id => '75.50',
+                'semester_id' => $semester->id,
+                'entries' => [
+                    $students[0]->id => ['uts' => ['score' => '90']],
+                    $students[1]->id => ['uas' => ['score' => '75.50']],
                 ],
             ])
             ->assertRedirect()
             ->assertSessionHas('success');
 
-        $this->assertDatabaseHas('grades', [
-            'guru_mapel_id' => $guru->id,
+        $this->assertDatabaseHas('subject_grades', [
             'student_id' => $students[0]->id,
             'subject_id' => $subject->id,
             'classroom_id' => $classroom->id,
+            'exam_type_id' => ExamType::query()->where('code', 'uts')->value('id'),
             'score' => '90.00',
+            'is_override' => true,
         ]);
-        $this->assertDatabaseHas('grades', [
+        $this->assertDatabaseHas('subject_grades', [
             'student_id' => $students[1]->id,
+            'exam_type_id' => ExamType::query()->where('code', 'uas')->value('id'),
             'score' => '75.50',
+        ]);
+
+        // Nilai Akhir tersinkron ke tabel grades (non-override, isi dari kalkulator).
+        $this->assertDatabaseHas('grades', [
+            'student_id' => $students[0]->id,
+            'subject_id' => $subject->id,
+            'score' => '90.00',
+            'is_override' => false,
         ]);
     }
 
@@ -556,14 +571,20 @@ class GuruMapelKbmTest extends TestCase
     {
         [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(1);
 
+        $semester = Semester::create(['year' => '2024/2025', 'semester' => 1, 'is_active' => true]);
+
         $this->actingAs($guru->user)
             ->post(route('guru_mapel.grades.store'), [
                 'subject_id' => $subject->id,
                 'classroom_id' => $classroom->id,
-                'score' => [$students[0]->id => '150'],
+                'semester_id' => $semester->id,
+                'entries' => [
+                    $students[0]->id => ['uts' => ['score' => '150']],
+                ],
             ])
-            ->assertSessionHasErrors('score.'.$students[0]->id);
+            ->assertSessionHasErrors('entries.'.$students[0]->id.'.uts.score');
 
+        $this->assertDatabaseCount('subject_grades', 0);
         $this->assertDatabaseCount('grades', 0);
     }
 
@@ -572,12 +593,69 @@ class GuruMapelKbmTest extends TestCase
         [$guru, $subject] = $this->makeAmpuGuru(1);
         $otherClassroom = Classroom::factory()->create();
 
+        $semester = Semester::create(['year' => '2024/2025', 'semester' => 1, 'is_active' => true]);
+
         $this->actingAs($guru->user)
             ->post(route('guru_mapel.grades.store'), [
                 'subject_id' => $subject->id,
                 'classroom_id' => $otherClassroom->id,
-                'score' => [1 => '80'],
+                'semester_id' => $semester->id,
+                'entries' => [
+                    1 => ['uts' => ['score' => '80']],
+                ],
             ])
             ->assertForbidden();
+    }
+
+    public function test_grade_rejects_manual_title_reserved_for_system_rows(): void
+    {
+        [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(1);
+
+        $semester = Semester::create(['year' => '2024/2025', 'semester' => 1, 'is_active' => true]);
+
+        // Title 'CBT' dan 'Kehadiran' (case-insensitive) dipakai sistem —
+        // guru tidak boleh memakainya agar tidak ambigu dengan baris otomatis.
+        foreach (['CBT', 'cbt', 'Kehadiran', 'kehadiran'] as $reservedTitle) {
+            $this->actingAs($guru->user)
+                ->post(route('guru_mapel.grades.store'), [
+                    'subject_id' => $subject->id,
+                    'classroom_id' => $classroom->id,
+                    'semester_id' => $semester->id,
+                    'entries' => [
+                        $students[0]->id => ['harian' => ['title' => $reservedTitle, 'score' => '80']],
+                    ],
+                ])
+                ->assertSessionHasErrors('entries.'.$students[0]->id.'.harian.title');
+        }
+
+        // Tidak ada satupun baris subject_grades yang tersimpan.
+        $this->assertDatabaseCount('subject_grades', 0);
+    }
+
+    public function test_grade_accepts_normal_manual_title(): void
+    {
+        [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(1);
+
+        $semester = Semester::create(['year' => '2024/2025', 'semester' => 1, 'is_active' => true]);
+
+        $this->actingAs($guru->user)
+            ->post(route('guru_mapel.grades.store'), [
+                'subject_id' => $subject->id,
+                'classroom_id' => $classroom->id,
+                'semester_id' => $semester->id,
+                'entries' => [
+                    $students[0]->id => ['harian' => ['title' => 'Quiz 1', 'score' => '85']],
+                ],
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseHas('subject_grades', [
+            'student_id' => $students[0]->id,
+            'subject_id' => $subject->id,
+            'classroom_id' => $classroom->id,
+            'title' => 'Quiz 1',
+            'score' => '85.00',
+        ]);
     }
 }

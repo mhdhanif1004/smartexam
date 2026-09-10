@@ -46,27 +46,32 @@
     <table class="data">
         <thead>
             <tr>
-                <th style="width:4%">No</th>
-                <th style="width:11%">NISN</th>
-                <th style="width:22%">Nama Siswa</th>
-                <th style="width:12%">Kelas</th>
-                <th class="right" style="width:8%">Skor</th>
-                <th class="center" style="width:10%">Tanggal</th>
+                <th style="width:3%">No</th>
+                <th style="width:10%">NISN</th>
+                <th style="width:20%">Nama Siswa</th>
+                <th class="center" style="width:8%">Harian</th>
+                <th class="center" style="width:8%">UTS</th>
+                <th class="center" style="width:8%">UAS</th>
+                <th class="center" style="width:10%">Kehadiran</th>
+                <th class="center" style="width:10%">Nilai Akhir</th>
             </tr>
         </thead>
         <tbody>
             @forelse ($rows as $index => $grade)
+                @php($bd = $breakdownMap[$grade->student_id] ?? [])
                 <tr>
                     <td>{{ $index + 1 }}</td>
                     <td>{{ $grade->student?->nisn ?? '-' }}</td>
                     <td>{{ $grade->student?->user?->name ?? '-' }}</td>
-                    <td>{{ $grade->classroom?->name ?? '-' }}</td>
-                    <td class="right">{{ number_format((float) $grade->score, 2) }}</td>
-                    <td class="center">{{ $grade->created_at?->format('d/m/Y') ?? '-' }}</td>
+                    <td class="center">{{ isset($bd['harian']) ? number_format($bd['harian']['average'], 2) : '-' }}</td>
+                    <td class="center">{{ isset($bd['uts']) ? number_format($bd['uts']['average'], 2) : '-' }}</td>
+                    <td class="center">{{ isset($bd['uas']) ? number_format($bd['uas']['average'], 2) : '-' }}</td>
+                    <td class="center">{{ isset($bd['kehadiran']) ? number_format($bd['kehadiran']['average'], 2) : '-' }}</td>
+                    <td class="center"><strong>{{ number_format((float) $grade->score, 2) }}</strong></td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="6" class="center">Tidak ada data nilai.</td>
+                    <td colspan="8" class="center">Tidak ada data nilai.</td>
                 </tr>
             @endforelse
         </tbody>

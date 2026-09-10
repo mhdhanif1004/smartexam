@@ -16,7 +16,9 @@ use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Contract\Messaging;
 use Kreait\Firebase\Messaging\AndroidConfig;
 use Kreait\Firebase\Messaging\CloudMessage;
+use Kreait\Firebase\Messaging\MulticastSendReport;
 use Kreait\Firebase\Messaging\Notification;
+use Kreait\Firebase\Messaging\SendReport;
 
 class SendViolationFcmNotification implements ShouldQueue
 {
@@ -74,6 +76,7 @@ class SendViolationFcmNotification implements ShouldQueue
 
         if ($recipientUserIds->isEmpty()) {
             Log::warning('FCM DISPATCH: tidak ada penerima', ['violation_id' => $violation->id, 'room_id' => $roomId, 'exam_date' => $examDate]);
+
             return;
         }
 
@@ -141,7 +144,7 @@ class SendViolationFcmNotification implements ShouldQueue
         ]);
 
         try {
-            /** @var \Kreait\Firebase\Messaging\MulticastSendReport $report */
+            /** @var MulticastSendReport $report */
             $report = $messaging->sendMulticast($message, $tokens);
 
             $successCount = $report->successes()->count();
@@ -150,8 +153,9 @@ class SendViolationFcmNotification implements ShouldQueue
 
             // Detail per-token agar tahu token mana gagal dan kenapa
             $itemsDetail = array_map(function ($item) {
-                /** @var \Kreait\Firebase\Messaging\SendReport $item */
+                /** @var SendReport $item */
                 $err = $item->error();
+
                 return [
                     'token_preview' => substr($item->target()->value(), 0, 16).'...',
                     'success' => $item->isSuccess(),

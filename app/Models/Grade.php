@@ -12,6 +12,7 @@ class Grade extends Model
         'subject_id',
         'classroom_id',
         'student_id',
+        'semester_id',
         'score',
         'note',
         'is_override',

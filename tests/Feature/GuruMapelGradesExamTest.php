@@ -7,10 +7,13 @@ use App\Models\ExamAnswer;
 use App\Models\ExamResult;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
+use App\Models\ExamType;
 use App\Models\GuruMapel;
 use App\Models\Question;
+use App\Models\Semester;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Models\SubjectGrade;
 use App\Models\TeacherSubjectClassAssignment;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
@@ -49,6 +52,35 @@ class GuruMapelGradesExamTest extends TestCase
         ]);
 
         return [$guru, $subject, $classroom, $students];
+    }
+
+    private function makeActiveSemester(): Semester
+    {
+        return Semester::create(['year' => '2024/2025', 'semester' => 1, 'is_active' => true]);
+    }
+
+    private function makeCbtSubjectGrade(
+        int $guruId,
+        Student $student,
+        int $classroomId,
+        int $subjectId,
+        int $semesterId,
+        float $score,
+    ): SubjectGrade {
+        $uasId = ExamType::query()->where('code', 'uas')->value('id');
+
+        return SubjectGrade::create([
+            'student_id' => $student->id,
+            'classroom_id' => $classroomId,
+            'subject_id' => $subjectId,
+            'guru_mapel_id' => $guruId,
+            'semester_id' => $semesterId,
+            'exam_type_id' => $uasId,
+            'title' => 'CBT',
+            'score' => $score,
+            'source' => SubjectGrade::SOURCE_CBT,
+            'is_override' => false,
+        ]);
     }
 
     /**
@@ -124,20 +156,21 @@ class GuruMapelGradesExamTest extends TestCase
     {
         [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(1);
         $student = $students->first();
+        $semester = $this->makeActiveSemester();
 
-        $this->makeGradedSession($subject->id, $classroom, $student, [], 80.50);
+        $this->makeCbtSubjectGrade($guru->id, $student, $classroom->id, $subject->id, $semester->id, 80.50);
 
         $this->actingAs($guru->user)
             ->get(route('guru_mapel.grades.index', [
                 'subject_id' => $subject->id,
                 'classroom_id' => $classroom->id,
+                'semester_id' => $semester->id,
             ]))
             ->assertOk()
             ->assertSee($student->user?->name)
-            ->assertSee('80.50')
-            ->assertSee('Otomatis CBT');
+            ->assertSee('80.50');
 
-        // Sync otomatis menulis grades (is_override=false) sebagai nilai resmi.
+        // Nilai Akhir tersinkron ke grades (is_override=false).
         $this->assertDatabaseHas('grades', [
             'guru_mapel_id' => $guru->id,
             'student_id' => $student->id,
@@ -151,14 +184,16 @@ class GuruMapelGradesExamTest extends TestCase
     public function test_grade_index_marks_student_without_exam_result(): void
     {
         [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(1);
+        $semester = $this->makeActiveSemester();
 
         $this->actingAs($guru->user)
             ->get(route('guru_mapel.grades.index', [
                 'subject_id' => $subject->id,
                 'classroom_id' => $classroom->id,
+                'semester_id' => $semester->id,
             ]))
             ->assertOk()
-            ->assertSee('Belum ada hasil ujian');
+            ->assertSee('Belum ada nilai');
 
         $this->assertDatabaseCount('grades', 0);
     }
@@ -324,6 +359,7 @@ class GuruMapelGradesExamTest extends TestCase
     {
         [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(1);
         $student = $students->first();
+        $semester = $this->makeActiveSemester();
 
         $objective = $this->objectiveQuestion($subject->id, $classroom);
         $essay = $this->essayQuestion($subject->id, $classroom);
@@ -353,6 +389,7 @@ class GuruMapelGradesExamTest extends TestCase
                 'classroom_id' => $classroom->id,
                 'student_id' => $student->id,
                 'session_id' => $session1->id,
+                'semester_id' => $semester->id,
                 'scores' => [$essayAnswer->id => 17.5],
             ])
             ->assertRedirect()
@@ -366,9 +403,9 @@ class GuruMapelGradesExamTest extends TestCase
             ->get(route('guru_mapel.grades.index', [
                 'subject_id' => $subject->id,
                 'classroom_id' => $classroom->id,
+                'semester_id' => $semester->id,
             ]))
             ->assertOk()
-            ->assertSee('Koreksi Guru')
             ->assertSee('27.50')
             ->assertDontSee('90.00');
 
@@ -378,10 +415,11 @@ class GuruMapelGradesExamTest extends TestCase
             'subject_id' => $subject->id,
             'classroom_id' => $classroom->id,
             'score' => '27.50',
+            'semester_id' => $semester->id,
             'is_override' => true,
         ]);
 
-        // Sync otomatis tidak membuat baris baru / menimpa baris override.
+        // Sinkronisasi tidak membuat baris baru / menimpa baris override.
         $this->assertDatabaseCount('grades', 1);
     }
 
@@ -710,18 +748,19 @@ class GuruMapelGradesExamTest extends TestCase
     {
         [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(1);
         $student = $students->first();
+        $semester = $this->makeActiveSemester();
 
-        $this->makeGradedSessionWithEmptyClassName($subject->id, $student, 90.00);
+        $this->makeCbtSubjectGrade($guru->id, $student, $classroom->id, $subject->id, $semester->id, 90.00);
 
         $this->actingAs($guru->user)
             ->get(route('guru_mapel.grades.index', [
                 'subject_id' => $subject->id,
                 'classroom_id' => $classroom->id,
+                'semester_id' => $semester->id,
             ]))
             ->assertOk()
             ->assertSee($student->user?->name)
-            ->assertSee('90.00')
-            ->assertSee('Otomatis CBT');
+            ->assertSee('90.00');
 
         $this->assertDatabaseHas('grades', [
             'guru_mapel_id' => $guru->id,
