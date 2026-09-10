@@ -4,47 +4,77 @@ namespace App\Http\Controllers\WaliKelas;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\WaliKelas\StoreAttitudeGradeRequest;
+use App\Http\Requests\WaliKelas\StoreAttitudeGradesBulkRequest;
 use App\Http\Requests\WaliKelas\UpdateAttitudeGradeRequest;
-use App\Models\AttitudeAspect;
 use App\Models\AttitudeGrade;
-use App\Models\Semester;
-use App\Models\Student;
 use App\Traits\ScopesWaliKelas;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\View\View;
 
 class AttitudeGradeController extends Controller
 {
     use ScopesWaliKelas;
 
     /**
-     * Tampilkan daftar nilai sikap untuk kelas wali, difilter per semester.
+     * Bulk store/update nilai sikap untuk satu siswa (semua aspek sekaligus).
+     *
+     * Logika skor kosong (eksplisit, 3 skenario):
+     * - Field skor kosong DAN belum ada record sebelumnya → SKIP, jangan create.
+     * - Field skor kosong DAN record sebelumnya SUDAH ADA → DELETE record tersebut.
+     * - Field skor terisi → updateOrCreate seperti biasa.
      */
-    public function index(): View
+    public function bulkStore(StoreAttitudeGradesBulkRequest $request): RedirectResponse
     {
-        $wali = $this->currentWaliKelas()->load('classroom');
+        $wali = $this->currentWaliKelas();
 
-        $semesters = Semester::query()->orderByDesc('year')->orderByDesc('semester')->get();
-        $activeSemester = Semester::where('is_active', true)->first();
-        $selectedSemesterId = request()->integer('semester_id', $activeSemester?->id ?? $semesters->first()?->id);
+        $studentId = (int) $request->input('student_id');
+        $semesterId = (int) $request->input('semester_id');
+        $grades = $request->input('grades', []);
 
-        $students = Student::query()
-            ->with('user')
-            ->where('classroom_id', $wali->classroom_id)
-            ->orderBy('nisn')
-            ->get();
+        // Loop untuk setiap aspek
+        foreach ($grades as $gradeData) {
+            $aspectId = (int) $gradeData['aspect_id'];
+            $score = $gradeData['score'] ?? null;
+            $note = $gradeData['note'] ?? null;
 
-        $aspects = AttitudeAspect::query()->orderBy('name')->get();
+            // Cek apakah record untuk aspek ini sudah ada di database
+            $existingGrade = AttitudeGrade::query()
+                ->where('student_id', $studentId)
+                ->where('classroom_id', $wali->classroom_id)
+                ->where('attitude_aspect_id', $aspectId)
+                ->where('semester_id', $semesterId)
+                ->first();
 
-        $existingGrades = AttitudeGrade::query()
-            ->where('classroom_id', $wali->classroom_id)
-            ->where('semester_id', $selectedSemesterId)
-            ->get()
-            ->keyBy(fn (AttitudeGrade $g) => $g->student_id.'_'.$g->attitude_aspect_id);
+            // LOGIKA 3 SKENARIO:
+            // 1. Skor kosong DAN belum ada record → SKIP (tidak create)
+            // 2. Skor kosong DAN sudah ada record → DELETE (hapus record)
+            // 3. Skor terisi → updateOrCreate
 
-        return view('wali_kelas.attitude-grades.index', compact(
-            'wali', 'students', 'aspects', 'semesters', 'selectedSemesterId', 'existingGrades',
-        ));
+            if ($score === null || $score === '') {
+                // Skor kosong
+                if ($existingGrade !== null) {
+                    // Skenario 2: hapus record yang ada
+                    $existingGrade->delete();
+                }
+                // Skenario 1: skip (tidak create record baru)
+            } else {
+                // Skor terisi
+                AttitudeGrade::updateOrCreate(
+                    [
+                        'student_id' => $studentId,
+                        'classroom_id' => $wali->classroom_id,
+                        'attitude_aspect_id' => $aspectId,
+                        'semester_id' => $semesterId,
+                    ],
+                    [
+                        'wali_kelas_id' => $wali->id,
+                        'score' => $score,
+                        'note' => $note,
+                    ]
+                );
+            }
+        }
+
+        return back()->with('success', 'Nilai sikap berhasil diperbarui.');
     }
 
     /**

@@ -3,12 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Classroom;
-use App\Models\ExamResult;
-use App\Models\ExamSchedule;
-use App\Models\ExamSession;
 use App\Models\Grade;
 use App\Models\GuruMapel;
-use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\WaliKelas;
@@ -100,24 +96,17 @@ class WaliKelasNilaiAkademikTest extends TestCase
         $wali = WaliKelas::factory()->create(['classroom_id' => $classroom->id]);
         $student = Student::factory()->create(['classroom_id' => $classroom->id]);
         $subject = Subject::factory()->create(['name' => 'Biologi']);
-        $room = Room::factory()->create();
+        $guru = GuruMapel::factory()->create();
 
-        $schedule = ExamSchedule::factory()->create([
+        // Nilai otomatis hasil syncFinalScores (is_override=false) yang sudah
+        // disimpan ke tabel grades sebagai Nilai Akhir teragregasi.
+        Grade::create([
+            'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
-            'room_id' => $room->id,
-            'class_name' => $classroom->name,
-        ]);
-
-        $session = ExamSession::factory()->create([
+            'classroom_id' => $classroom->id,
             'student_id' => $student->id,
-            'exam_schedule_id' => $schedule->id,
-            'status' => ExamSession::STATUS_COMPLETED,
-        ]);
-
-        ExamResult::create([
-            'exam_session_id' => $session->id,
-            'total_score' => 78.25,
-            'is_passed' => true,
+            'score' => 78.25,
+            'is_override' => false,
         ]);
 
         $response = $this->actingAs($wali->user)
@@ -126,7 +115,7 @@ class WaliKelasNilaiAkademikTest extends TestCase
         $response->assertOk()
             ->assertSee('Biologi')
             ->assertSee('78.25')
-            ->assertSee('CBT Otomatis');
+            ->assertSee('Terhitung Otomatis');
     }
 
     public function test_student_without_grades_or_exam_results_shows_empty_state_gracefully(): void

@@ -22,6 +22,7 @@ use App\Http\Controllers\Admin\SupervisorController;
 use App\Http\Controllers\Admin\SupervisorImportExportController;
 use App\Http\Controllers\Admin\ViolationController;
 use App\Http\Controllers\Admin\WaliKelasController;
+use App\Http\Controllers\FcmTokenController;
 use App\Http\Controllers\GuruMapel\AttendanceController;
 use App\Http\Controllers\GuruMapel\DashboardController as GuruMapelDashboardController;
 use App\Http\Controllers\GuruMapel\GradeController;
@@ -40,10 +41,10 @@ use App\Http\Controllers\Pengawas\ViolationController as PengawasViolationContro
 use App\Http\Controllers\Peserta\DashboardController as PesertaDashboardController;
 use App\Http\Controllers\Peserta\ExamController as PesertaExamController;
 use App\Http\Controllers\Peserta\ViolationController as PesertaViolationController;
-use App\Http\Controllers\FcmTokenController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\WaliKelas\AttitudeGradeController as WaliKelasAttitudeGradeController;
 use App\Http\Controllers\WaliKelas\DashboardController as WaliKelasDashboardController;
+use App\Http\Controllers\WaliKelas\WaliKelasNoteController;
 use App\Http\Middleware\RedirectLocalhost;
 use Illuminate\Support\Facades\Route;
 
@@ -249,10 +250,13 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
 
     Route::prefix('wali_kelas')->middleware(['auth', 'verified', 'role:wali_kelas'])->name('wali_kelas.')->group(function () {
         Route::get('/dashboard', WaliKelasDashboardController::class)->name('dashboard');
-        Route::get('/attitude-grades', [WaliKelasAttitudeGradeController::class, 'index'])->name('attitude-grades.index');
+        Route::post('/attitude-grades/bulk', [WaliKelasAttitudeGradeController::class, 'bulkStore'])->name('attitude-grades.bulk');
         Route::post('/attitude-grades', [WaliKelasAttitudeGradeController::class, 'store'])->name('attitude-grades.store');
         Route::put('/attitude-grades/{attitudeGrade}', [WaliKelasAttitudeGradeController::class, 'update'])->name('attitude-grades.update');
         Route::delete('/attitude-grades/{attitudeGrade}', [WaliKelasAttitudeGradeController::class, 'destroy'])->name('attitude-grades.destroy');
+
+        // Catatan adalah tab inline di dashboard — hanya butuh endpoint store (POST).
+        Route::post('/catatan', [WaliKelasNoteController::class, 'store'])->name('catatan.store');
     });
 
     Route::prefix('kepala_sekolah')->middleware(['auth', 'verified', 'role:kepala_sekolah'])->name('kepala_sekolah.')->group(function () {

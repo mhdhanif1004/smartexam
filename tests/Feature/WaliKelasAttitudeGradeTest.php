@@ -202,11 +202,6 @@ class WaliKelasAttitudeGradeTest extends TestCase
     {
         $admin = User::factory()->admin()->create();
 
-        // GET index
-        $this->actingAs($admin)
-            ->get(route('wali_kelas.attitude-grades.index'))
-            ->assertForbidden();
-
         // POST store
         $this->actingAs($admin)
             ->post(route('wali_kelas.attitude-grades.store'), [
@@ -312,11 +307,158 @@ class WaliKelasAttitudeGradeTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->waliA->user)
-            ->get(route('wali_kelas.attitude-grades.index', ['semester_id' => $this->semester2->id]));
+            ->get(route('wali_kelas.dashboard', ['semester_id' => $this->semester2->id]));
 
         $response->assertOk()
             ->assertSee($this->studentA->user->name)
             ->assertSee('88')
             ->assertDontSee($this->studentB->user->name);
+    }
+
+    public function test_wali_kelas_cannot_bulk_update_grade_for_student_in_other_classroom(): void
+    {
+        // Wali A mencoba bulk-update nilai siswa B (kelas lain) — harus 403 / validation error
+        $response = $this->actingAs($this->waliA->user)
+            ->post(route('wali_kelas.attitude-grades.bulk'), [
+                'semester_id' => $this->semester2->id,
+                'student_id' => $this->studentB->id,
+                'grades' => [
+                    ['aspect_id' => $this->discipline->id, 'score' => 90, 'note' => 'Perbaikan'],
+                    ['aspect_id' => $this->neatness->id, 'score' => 85, 'note' => 'Rapi'],
+                ],
+            ]);
+
+        $response->assertSessionHasErrors('student_id');
+
+        // Tidak ada record baru untuk siswa B milik wali A
+        $this->assertDatabaseMissing('attitude_grades', [
+            'student_id' => $this->studentB->id,
+            'classroom_id' => $this->classroomA->id,
+        ]);
+    }
+
+    public function test_wali_kelas_can_bulk_store_attitude_grades_for_own_student(): void
+    {
+        // Wali A bulk-store untuk siswa A (kelas A)
+        $response = $this->actingAs($this->waliA->user)
+            ->post(route('wali_kelas.attitude-grades.bulk'), [
+                'semester_id' => $this->semester2->id,
+                'student_id' => $this->studentA->id,
+                'grades' => [
+                    ['aspect_id' => $this->discipline->id, 'score' => 85, 'note' => 'Tertib'],
+                    ['aspect_id' => $this->neatness->id, 'score' => 90, 'note' => 'Rapi'],
+                ],
+            ]);
+
+        $response->assertRedirect()->assertSessionHas('success');
+
+        // Keduanya tersimpan
+        $this->assertDatabaseHas('attitude_grades', [
+            'student_id' => $this->studentA->id,
+            'classroom_id' => $this->classroomA->id,
+            'wali_kelas_id' => $this->waliA->id,
+            'attitude_aspect_id' => $this->discipline->id,
+            'semester_id' => $this->semester2->id,
+            'score' => 85,
+            'note' => 'Tertib',
+        ]);
+
+        $this->assertDatabaseHas('attitude_grades', [
+            'student_id' => $this->studentA->id,
+            'classroom_id' => $this->classroomA->id,
+            'wali_kelas_id' => $this->waliA->id,
+            'attitude_aspect_id' => $this->neatness->id,
+            'semester_id' => $this->semester2->id,
+            'score' => 90,
+            'note' => 'Rapi',
+        ]);
+    }
+
+    public function test_modal_form_renders_hidden_aspect_id_for_each_field(): void
+    {
+        $response = $this->actingAs($this->waliA->user)
+            ->get(route('wali_kelas.dashboard', ['semester_id' => $this->semester2->id]));
+
+        $html = $response->getContent();
+
+        // Setiap aspek harus punya hidden input aspect_id agar validasi bulkStore tidak gagal
+        $this->assertStringContainsString(
+            'name="grades['.$this->discipline->id.'][aspect_id]" value="'.$this->discipline->id.'"',
+            $html,
+        );
+        $this->assertStringContainsString(
+            'name="grades['.$this->neatness->id.'][aspect_id]" value="'.$this->neatness->id.'"',
+            $html,
+        );
+    }
+
+    public function test_bulk_submit_fails_without_aspect_id(): void
+    {
+        // Simulasi payload tanpa aspect_id (seperti yang terjadi di bug modal sebelumnya)
+        $response = $this->actingAs($this->waliA->user)
+            ->post(route('wali_kelas.attitude-grades.bulk'), [
+                'semester_id' => $this->semester2->id,
+                'student_id' => $this->studentA->id,
+                'grades' => [
+                    [$this->discipline->id => ['score' => 85, 'note' => 'Tertib']],
+                ],
+            ]);
+
+        $response->assertSessionHasErrors();
+    }
+
+    public function test_dashboard_embeds_prefill_data_for_multiple_students(): void
+    {
+        // Buat 3 siswa di kelas A dengan kombinasi data berbeda
+        $studentC = Student::factory()->create(['classroom_id' => $this->classroomA->id]);
+        $studentD = Student::factory()->create(['classroom_id' => $this->classroomA->id]);
+
+        // Siswa A: 2 aspek terisi
+        AttitudeGrade::create([
+            'student_id' => $this->studentA->id,
+            'classroom_id' => $this->classroomA->id,
+            'wali_kelas_id' => $this->waliA->id,
+            'attitude_aspect_id' => $this->discipline->id,
+            'semester_id' => $this->semester2->id,
+            'score' => 88,
+        ]);
+        AttitudeGrade::create([
+            'student_id' => $this->studentA->id,
+            'classroom_id' => $this->classroomA->id,
+            'wali_kelas_id' => $this->waliA->id,
+            'attitude_aspect_id' => $this->neatness->id,
+            'semester_id' => $this->semester2->id,
+            'score' => 90,
+            'note' => 'Sangat rapi',
+        ]);
+
+        // Siswa C: 1 aspek terisi
+        AttitudeGrade::create([
+            'student_id' => $studentC->id,
+            'classroom_id' => $this->classroomA->id,
+            'wali_kelas_id' => $this->waliA->id,
+            'attitude_aspect_id' => $this->discipline->id,
+            'semester_id' => $this->semester2->id,
+            'score' => 75,
+        ]);
+
+        // Siswa D: tanpa data sama sekali
+
+        $response = $this->actingAs($this->waliA->user)
+            ->get(route('wali_kelas.dashboard', ['semester_id' => $this->semester2->id]));
+
+        $html = $response->getContent();
+
+        // Siswa A muncul di tabel + allGrades JSON (cek render tabel + embedded JSON)
+        $response->assertSee($this->studentA->user->name);
+        $response->assertSee('88');
+        $response->assertSee('90');
+
+        // Siswa C muncul di tabel + allGrades JSON
+        $response->assertSee($studentC->user->name);
+        $response->assertSee('75');
+
+        // Siswa D muncul di tabel
+        $response->assertSee($studentD->user->name);
     }
 }
