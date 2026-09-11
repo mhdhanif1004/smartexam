@@ -25,7 +25,7 @@ yarn-error.log
 /.zed
 /_ide_helper.php
 /.phpstorm.meta.php
-
+opencode.json
 # Firebase credentials (jangan commit service account JSON)
 /storage/app/firebase/
 /firebase-credentials.json
