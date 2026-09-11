@@ -35,6 +35,42 @@ trait ScopesSupervisorRoom
     }
 
     /**
+     * SEMUA ruangan yang menjadi tanggung jawab pengawas pada hari ini.
+     * Diambil dari supervisor_room_assignments untuk tanggal hari ini (dedup
+     * room_id); bila tidak ada baris rotasi hari ini, fallback ke koleksi
+     * berisi ruangan statis Supervisor->room bila ada, atau kosong.
+     *
+     * Ditambahkan untuk KRITIS-1 (pengawas multi-ruangan): panel pelanggaran
+     * harus melihat pelanggaran dari SEMUA ruangannya, bukan cuma satu.
+     * Method lama supervisorRoom() tetap dipertahankan apa adanya demi
+     * backward-compat (dipakai Attendance/Token yang by-design single-room).
+     *
+     * @return Collection<int, Room>
+     */
+    protected function supervisorRooms(): Collection
+    {
+        $supervisor = auth()->user()?->supervisor;
+
+        abort_unless($supervisor instanceof Supervisor, 403, 'Anda tidak terdaftar sebagai pengawas.');
+
+        $assignments = $supervisor->roomAssignments()
+            ->with('room')
+            ->where('exam_date', now()->toDateString())
+            ->get();
+
+        if ($assignments->isNotEmpty()) {
+            $rooms = $assignments->pluck('room')->filter()->unique('id')->values();
+            if ($rooms->isNotEmpty()) {
+                return $rooms;
+            }
+        }
+
+        $fallback = $supervisor->room;
+
+        return $fallback ? collect([$fallback]) : collect();
+    }
+
+    /**
      * ID periode ujian yang ditugaskan untuk pengawas ini pada hari ini di
      * ruangan tertentu. Dipakai untuk membatasi dropdown jadwal hanya ke
      * periode yang menjadi tanggung jawab pengawas tersebut.
@@ -253,6 +289,31 @@ trait ScopesSupervisorRoom
         return Violation::query()
             ->with(['examSession.student.user', 'examSession.examSchedule.subject', 'examSession.examSchedule.room'])
             ->whereHas('examSession.examSchedule', fn ($query) => $query->where('room_id', $room->id))
+            ->latest('occurred_at')
+            ->limit($limit)
+            ->get()
+            ->map(fn (Violation $violation) => Violation::panelPayload($violation));
+    }
+
+    /**
+     * Pelanggaran terbaru untuk SEMUA ruangan pengawas (multi-room).
+     * Dipakai setelah KRITIS-1: whereIn room_ids, bukan where tunggal.
+     * Untuk kasus 1 ruangan hasilnya identik dengan roomViolations().
+     *
+     * @param  Collection<int, Room>  $rooms
+     * @return Collection<int, array<string, mixed>>
+     */
+    protected function violationsForRooms(Collection $rooms, int $limit = 5): Collection
+    {
+        if ($rooms->isEmpty()) {
+            return collect();
+        }
+
+        $roomIds = $rooms->pluck('id')->all();
+
+        return Violation::query()
+            ->with(['examSession.student.user', 'examSession.examSchedule.subject', 'examSession.examSchedule.room'])
+            ->whereHas('examSession.examSchedule', fn ($query) => $query->whereIn('room_id', $roomIds))
             ->latest('occurred_at')
             ->limit($limit)
             ->get()

@@ -36,12 +36,12 @@
             <div class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
                     <div>
-                        <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Jadwal Ujian Terdekat</h3>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">5 jadwal berikutnya dari hari ini.</p>
+                        <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Jadwal Ujian Hari Ini</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Jadwal ujian yang berlangsung hari ini.</p>
                     </div>
                     <a href="{{ route('admin.exam-schedules.index') }}" class="text-xs font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400">Lihat semua</a>
                 </div>
-                <ul class="divide-y divide-gray-100 dark:divide-gray-800">
+                <ul class="max-h-96 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
                     @forelse ($upcomingSchedules as $schedule)
                         <li class="flex items-center gap-3 sm:gap-4 px-5 py-3">
                             <div class="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
@@ -61,7 +61,7 @@
                             </div>
                         </li>
                     @empty
-                        <li class="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada jadwal ujian.</li>
+                        <li class="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada jadwal ujian hari ini.</li>
                     @endforelse
                 </ul>
             </div>
@@ -79,7 +79,7 @@
             >
                 <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
                     <div class="flex items-center gap-3">
-                        <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Pelanggaran Terbaru</h3>
+                        <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Pelanggaran Hari Ini</h3>
                         <span x-show="badgeCount > 0" x-text="badgeCount" @click="dismissBadge()"
                               class="inline-flex h-5 min-w-[20px] cursor-pointer items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white"></span>
                     </div>
@@ -100,7 +100,7 @@
                     </div>
                 </div>
 
-                <ul data-violation-list class="divide-y divide-gray-100 dark:divide-gray-800">
+                <ul data-violation-list class="max-h-96 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
                     <template x-for="violation in violations" :key="violation.id">
                         <li class="flex items-center gap-3 sm:gap-4 px-5 py-3">
                             <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">
@@ -118,19 +118,19 @@
                             </div>
                         </li>
                     </template>
-                    <li x-show="violations.length === 0" class="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada pelanggaran.</li>
+                    <li x-show="violations.length === 0" class="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada pelanggaran hari ini.</li>
                 </ul>
             </div>
 
             <div class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
                     <div>
-                        <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Absensi Pengawas Terbaru</h3>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">5 absensi pengawas terakhir.</p>
+                        <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Absensi Pengawas Hari Ini</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Absensi pengawas untuk jadwal hari ini.</p>
                     </div>
                     <a href="{{ route('admin.attendance.index') }}" class="text-xs font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400">Lihat semua</a>
                 </div>
-                <ul class="divide-y divide-gray-100 dark:divide-gray-800">
+                <ul class="max-h-96 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
                     @forelse ($recentSupervisorAttendances as $attendance)
                         @php
                             $isPresent = $attendance->status === \App\Models\SupervisorAttendance::STATUS_PRESENT;
@@ -156,11 +156,11 @@
                                 <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {{ $bgColor }} {{ $statusColor }}">
                                     {{ $statusText }}
                                 </span>
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $attendance->checked_in_at->format('d M H:i') }}</p>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $attendance->checked_in_at?->format('d M H:i') ?? '-' }}</p>
                             </div>
                         </li>
                     @empty
-                        <li class="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada data absensi pengawas.</li>
+                        <li class="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">Belum ada data absensi pengawas hari ini.</li>
                     @endforelse
                 </ul>
             </div>

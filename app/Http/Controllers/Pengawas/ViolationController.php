@@ -18,14 +18,15 @@ class ViolationController extends Controller
      */
     public function recent(): JsonResponse
     {
-        $room = $this->supervisorRoom();
+        $rooms = $this->supervisorRooms();
 
-        if ($room === null) {
-            return response()->json(['violations' => []]);
+        if ($rooms->isEmpty()) {
+            return response()->json(['violations' => [], 'room_ids' => []]);
         }
 
         return response()->json([
-            'violations' => $this->roomViolations($room, 5),
+            'violations' => $this->violationsForRooms($rooms, 5),
+            'room_ids' => $rooms->pluck('id')->values()->all(),
         ]);
     }
 
@@ -36,29 +37,36 @@ class ViolationController extends Controller
      */
     public function polling(Request $request): JsonResponse
     {
-        $room = $this->supervisorRoom();
+        $rooms = $this->supervisorRooms();
         $since = (int) $request->query('since', 0);
 
-        if ($room === null) {
-            return response()->json(['violations' => [], 'unhandled_count' => 0]);
+        if ($rooms->isEmpty()) {
+            return response()->json(['violations' => [], 'unhandled_count' => 0, 'room_ids' => []]);
         }
+
+        $roomIds = $rooms->pluck('id')->all();
 
         $violations = Violation::query()
             ->with(['examSession.student.user', 'examSession.examSchedule.subject', 'examSession.examSchedule.room'])
-            ->whereHas('examSession.examSchedule', fn ($query) => $query->where('room_id', $room->id))
+            ->whereHas('examSession.examSchedule', fn ($query) => $query->whereIn('room_id', $roomIds))
             ->latest('occurred_at')
             ->limit(20)
             ->get()
             ->map(fn (Violation $v) => Violation::panelPayload($v, $v->id > $since))
             ->values();
 
-        // Badge bersumber dari jumlah item BELUM ditangani dalam daftar yang
-        // ditampilkan — konsisten dengan panel, tidak pernah >0 saat daftar kosong.
-        $unhandledCount = $violations->where('handled', false)->count();
+        // Badge sekarang menghitung TOTAL belum ditangani di SEMUA ruangan
+        // pengawas (tanpa limit 20) agar akurat; sebagian aman karena hanya
+        // menghitung violations milik room_ids pengawas, bukan global.
+        $unhandledCount = Violation::query()
+            ->whereHas('examSession.examSchedule', fn ($query) => $query->whereIn('room_id', $roomIds))
+            ->where('handled_by_supervisor', false)
+            ->count();
 
         return response()->json([
             'violations' => $violations,
             'unhandled_count' => $unhandledCount,
+            'room_ids' => $roomIds,
         ]);
     }
 
@@ -69,15 +77,17 @@ class ViolationController extends Controller
      */
     public function handle(Request $request, Violation $violation): JsonResponse
     {
-        $room = $this->supervisorRoom();
+        $rooms = $this->supervisorRooms();
 
-        if ($room === null) {
+        if ($rooms->isEmpty()) {
             return response()->json(['error' => 'Anda belum ditugaskan ke ruangan ujian mana pun.'], 403);
         }
 
+        $roomIds = $rooms->pluck('id')->all();
+
         $owned = Violation::query()
             ->whereKey($violation->id)
-            ->whereHas('examSession.examSchedule', fn ($query) => $query->where('room_id', $room->id))
+            ->whereHas('examSession.examSchedule', fn ($query) => $query->whereIn('room_id', $roomIds))
             ->exists();
 
         if (! $owned) {

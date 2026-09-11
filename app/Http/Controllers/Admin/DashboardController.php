@@ -83,8 +83,8 @@ class DashboardController extends Controller
 
         $recentSupervisorAttendances = SupervisorAttendance::query()
             ->with(['supervisor.user', 'examSchedule.subject', 'room'])
+            ->whereHas('examSchedule', fn ($q) => $q->whereDate('exam_date', $today))
             ->latest('checked_in_at')
-            ->take(5)
             ->get();
 
         return view('admin.dashboard', [
@@ -100,15 +100,13 @@ class DashboardController extends Controller
             'distributionData' => array_values($distributionBuckets),
             'upcomingSchedules' => ExamSchedule::query()
                 ->with(['subject', 'room'])
-                ->whereDate('exam_date', '>=', Carbon::today())
-                ->orderBy('exam_date')
+                ->whereDate('exam_date', $today)
                 ->orderBy('start_time')
-                ->take(5)
                 ->get(),
             'recentViolations' => Violation::query()
                 ->with(['examSession.student.user', 'examSession.examSchedule.subject', 'examSession.examSchedule.room'])
+                ->whereDate('occurred_at', $today)
                 ->latest('occurred_at')
-                ->take(5)
                 ->get()
                 ->map(fn (Violation $violation) => Violation::panelPayload($violation))
                 ->values()->all(),

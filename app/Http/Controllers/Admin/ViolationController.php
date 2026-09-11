@@ -135,8 +135,11 @@ class ViolationController extends Controller
     {
         $since = (int) $request->query('since', 0);
 
+        $today = \Illuminate\Support\Carbon::today();
+
         $violations = Violation::query()
             ->with(['examSession.student.user', 'examSession.examSchedule.subject', 'examSession.examSchedule.room'])
+            ->whereDate('occurred_at', $today)
             ->latest('occurred_at')
             ->limit(50)
             ->get()

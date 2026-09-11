@@ -49,11 +49,14 @@ let soundEmitter = null;
 let sharedCsrfInterval = null;
 let workerPollingActive = false;
 
-// --- Singleton Reverb state ---
-let sharedReverbChannel = null;
-let sharedReverbChannelName = null;
+// --- Singleton Reverb state (multi-room) ---
+let sharedReverbChannels = new Map(); // channelName -> channel
 let sharedReverbConnected = false;
 let sharedReverbRetryTimer = null;
+let sharedReverbSubscribedRoomIds = [];
+// Legacy aliases demi compat bila ada kode lama yang baca variabel ini
+let sharedReverbChannel = null;
+let sharedReverbChannelName = null;
 
 function initWorker(config) {
     if (!sharedWorker) {
@@ -64,6 +67,7 @@ function initWorker(config) {
                 const msg = event.data;
 
                 if (msg.type === 'newViolations' || msg.type === 'unhandledCount') {
+                    if (Array.isArray(msg.room_ids)) reconcileReverbSubscriptions(msg.room_ids);
                     sharedListeners.forEach((fn) => fn(msg));
                 } else if (msg.type === 'csrfRefreshed') {
                     if (sharedConfig) sharedConfig.csrf = msg.csrf;
@@ -130,42 +134,104 @@ function resumeWorkerPolling(config) {
     } catch (e) {}
 }
 
-function tryInitReverb(config) {
-    // Guard: Reverb harus enabled & Echo tersedia
-    if (!window.SMARTEXAM_REVERB_ENABLED || !window.Echo) return false;
-    // Sudah subscribe channel yang sama — tidak perlu lagi
+function normalizeRoomIds(config) {
+    if (Array.isArray(config.roomIds) && config.roomIds.length > 0) {
+        return config.roomIds.map((v) => Number(v)).filter((v) => Number.isFinite(v) && v > 0);
+    }
+    const single = config.roomId ?? null;
+    if (single !== null && single !== undefined && Number(single) > 0) return [Number(single)];
+    return [];
+}
+
+function channelNamesForConfig(config) {
     const isAdmin = !!config.isAdmin;
-    const roomId = config.roomId ?? null;
-    let channelName = null;
-    if (isAdmin) {
-        channelName = 'violations.admin';
-    } else if (roomId) {
-        channelName = `violations.room.${roomId}`;
-    } else {
-        return false; // tidak tahu channel mana, tetap polling
-    }
+    if (isAdmin) return ['violations.admin'];
+    return normalizeRoomIds(config).map((id) => `violations.room.${id}`);
+}
 
-    if (sharedReverbChannel && sharedReverbChannelName === channelName) {
-        return true;
-    }
-
+function subscribeReverbChannel(channelName) {
+    if (sharedReverbChannels.has(channelName)) return sharedReverbChannels.get(channelName);
     try {
         const channel = window.Echo.private(channelName);
+        sharedReverbChannels.set(channelName, channel);
+        // keep legacy alias pointing to last subscribed (compat)
         sharedReverbChannel = channel;
         sharedReverbChannelName = channelName;
-
         channel.listen('.ViolationCreated', (e) => {
             const payload = e.violation ?? e;
             if (!payload || !payload.id) return;
             const fresh = [payload];
-            // Broadcast ke semua listener (sama seperti Worker)
-            // unhandled_count tidak ada di event -> biarkan listener refresh badge jika perlu
             sharedListeners.forEach((fn) => fn({ type: 'newViolations', violations: fresh, unhandled_count: null }));
         });
+        channel.error(() => {
+            sharedReverbConnected = false;
+            resumeWorkerPolling(sharedConfig || (window.__lastViolationConfig ?? {}));
+        });
+        return channel;
+    } catch (e) {
+        return null;
+    }
+}
 
-        // Deteksi koneksi: saat terhubung → pause polling, saat putus → resume
-        const pusher = window.Echo.connector?.pusher;
-        if (pusher && pusher.connection) {
+function leaveReverbChannel(channelName) {
+    const ch = sharedReverbChannels.get(channelName);
+    if (!ch) return;
+    try {
+        const base = channelName.replace('private-', '');
+        if (window.Echo) window.Echo.leave(base);
+    } catch (e) {}
+    sharedReverbChannels.delete(channelName);
+    if (sharedReverbChannelName === channelName) {
+        sharedReverbChannel = null;
+        sharedReverbChannelName = null;
+    }
+}
+
+function reconcileReverbSubscriptions(newRoomIds) {
+    if (!window.SMARTEXAM_REVERB_ENABLED || !window.Echo) return;
+    const cfg = sharedConfig || {};
+    if (cfg.isAdmin) return; // admin single channel, tidak perlu reconcile
+    const normalized = (Array.isArray(newRoomIds) ? newRoomIds : []).map((v) => Number(v)).filter((v) => Number.isFinite(v) && v > 0);
+    const prev = sharedReverbSubscribedRoomIds.slice().sort((a, b) => a - b);
+    const next = normalized.slice().sort((a, b) => a - b);
+    if (prev.length === next.length && prev.every((v, i) => v === next[i])) return;
+    const prevSet = new Set(prev.map((id) => `violations.room.${id}`));
+    const nextSet = new Set(next.map((id) => `violations.room.${id}`));
+    for (const name of prevSet) if (!nextSet.has(name)) leaveReverbChannel(name);
+    for (const name of nextSet) if (!prevSet.has(name)) subscribeReverbChannel(name);
+    sharedReverbSubscribedRoomIds = normalized;
+    // update sharedConfig.roomIds agar tryInitReverb berikutnya konsisten
+    if (sharedConfig) {
+        sharedConfig.roomIds = normalized;
+        if (normalized.length === 1) sharedConfig.roomId = normalized[0];
+        else if (normalized.length === 0) sharedConfig.roomId = null;
+    }
+}
+
+function tryInitReverb(config) {
+    if (!window.SMARTEXAM_REVERB_ENABLED || !window.Echo) return false;
+    const channelNames = channelNamesForConfig(config);
+    if (channelNames.length === 0) return false;
+    // simpan roomIds yang di-subscribe untuk deteksi stale (KRITIS-2)
+    const roomIds = normalizeRoomIds(config);
+    if (!config.isAdmin) sharedReverbSubscribedRoomIds = roomIds.slice();
+    if (sharedConfig) {
+        sharedConfig.roomIds = roomIds;
+        window.__lastViolationConfig = sharedConfig;
+    } else {
+        window.__lastViolationConfig = config;
+    }
+    let subscribedAny = false;
+    for (const name of channelNames) {
+        const ch = subscribeReverbChannel(name);
+        if (ch) subscribedAny = true;
+    }
+    if (!subscribedAny) return false;
+    const pusher = window.Echo.connector?.pusher;
+    if (pusher && pusher.connection) {
+        // bind sekali saja (guard via flag di connection)
+        if (!pusher.connection.__violationBound) {
+            pusher.connection.__violationBound = true;
             pusher.connection.bind('connected', () => {
                 sharedReverbConnected = true;
                 pauseWorkerPolling();
@@ -173,7 +239,6 @@ function tryInitReverb(config) {
             });
             pusher.connection.bind('disconnected', () => {
                 sharedReverbConnected = false;
-                // jangan spam resume, tunggu 1s
                 if (!sharedReverbRetryTimer) {
                     sharedReverbRetryTimer = setTimeout(() => {
                         resumeWorkerPolling(sharedConfig || config);
@@ -189,42 +254,32 @@ function tryInitReverb(config) {
                 sharedReverbConnected = false;
                 resumeWorkerPolling(sharedConfig || config);
             });
-
-            // Jika sudah connected saat init, langsung pause polling
-            if (pusher.connection.state === 'connected') {
-                sharedReverbConnected = true;
-                pauseWorkerPolling();
-            }
-        } else {
-            // Fallback: anggap Reverb siap, pause polling
+        }
+        if (pusher.connection.state === 'connected') {
+            sharedReverbConnected = true;
             pauseWorkerPolling();
         }
-
-        // Error subscription → fallback polling
-        channel.error(() => {
-            sharedReverbConnected = false;
-            resumeWorkerPolling(sharedConfig || config);
-        });
-
-        return true;
-    } catch (e) {
-        return false;
+    } else {
+        pauseWorkerPolling();
     }
+    return true;
 }
 
 function teardownReverbIfLastListener() {
-    if (sharedListeners.length === 0 && sharedReverbChannel) {
-        try {
-            const name = sharedReverbChannelName;
-            if (name) window.Echo.leave(name.replace('private-', ''));
-        } catch (e) {}
+    if (sharedListeners.length === 0 && sharedReverbChannels.size > 0) {
+        for (const name of Array.from(sharedReverbChannels.keys())) {
+            try { if (window.Echo) window.Echo.leave(name.replace('private-', '')); } catch (e) {}
+        }
+        sharedReverbChannels.clear();
         sharedReverbChannel = null;
         sharedReverbChannelName = null;
         sharedReverbConnected = false;
+        sharedReverbSubscribedRoomIds = [];
     }
 }
 
 export function violationPolling(config) {
+    const initialMulti = Array.isArray(config.roomIds) && config.roomIds.length > 1;
     return {
         violations: config.initialViolations || [],
         lastSeenId: readLastSeenId(config.userKey),
@@ -234,6 +289,7 @@ export function violationPolling(config) {
         badgeCount: 0,
         hasPanel: false,
         seenIds: new Set(),
+        isMultiRoom: initialMulti,
 
         init() {
             // pastikan state awalnya punya ID terbaru yang sudah dikenal
@@ -254,6 +310,11 @@ export function violationPolling(config) {
             }
 
             this._listener = (msg) => {
+                if (Array.isArray(msg.room_ids)) {
+                    this.isMultiRoom = msg.room_ids.length > 1;
+                    // Reconcile sudah dipanggil di onmessage pusat, tapi panggil lagi idempotent demi instance tanpa worker
+                    reconcileReverbSubscriptions(msg.room_ids);
+                }
                 if (msg.type === 'newViolations') {
                     this.handleNewViolations(msg.violations, msg.unhandled_count);
                 } else if (msg.type === 'unhandledCount') {
@@ -287,6 +348,10 @@ export function violationPolling(config) {
                 });
                 if (!res.ok) return;
                 const data = await res.json();
+                if (Array.isArray(data.room_ids)) {
+                    this.isMultiRoom = data.room_ids.length > 1;
+                    reconcileReverbSubscriptions(data.room_ids);
+                }
                 if (typeof data.unhandled_count === 'number') {
                     this.applyBadgeFromServer(data.unhandled_count);
                 }

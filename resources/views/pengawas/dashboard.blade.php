@@ -3,7 +3,10 @@
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Selamat datang, {{ auth()->user()->name }}!</h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                @if ($room !== null)
+                @if (($rooms ?? collect())->count() > 1)
+                    Ruangan Anda: <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $rooms->pluck('display_name')->join(', ') }}</span>
+                    <span class="text-xs">({{ $rooms->count() }} ruangan)</span>
+                @elseif ($room !== null)
                     Ruangan Anda: <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $room->display_name }}</span> (kapasitas {{ $room->capacity }} peserta).
                 @else
                     Anda belum ditugaskan ke ruangan mana pun hari ini.
@@ -119,6 +122,7 @@
                 handleUrl: '{{ route('pengawas.violations.handle', '__ID__') }}',
                 initialViolations: @js($recentViolations instanceof \Illuminate\Support\Collection ? $recentViolations->values()->all() : $recentViolations),
                 roomId: {{ $room?->id ?? 'null' }},
+                roomIds: @js(($rooms ?? collect([$room]))->filter()->pluck('id')->values()->all()),
             })"
             class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900"
         >
@@ -154,6 +158,7 @@
                             <div class="min-w-0 flex-1">
                                 <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="violation.student_name"></p>
                                 <p class="text-xs text-gray-500 dark:text-gray-400" x-text="violation.class_name + ' \u00b7 ' + violation.subject"></p>
+                                <p class="text-[11px] font-medium text-indigo-600 dark:text-indigo-400" x-show="isMultiRoom && violation.room_name" x-text="violation.room_name"></p>
                             </div>
                             <div class="text-right">
                                 <p class="text-xs font-semibold text-rose-600 dark:text-rose-400" x-text="violation.violation_label"></p>

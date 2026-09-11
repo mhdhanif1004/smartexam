@@ -22,47 +22,47 @@
 
     $menuGroups = [
         'admin' => [
-            ['label' => 'Dashboard', 'route' => 'admin.dashboard', 'icon' => 'dashboard'],
-            ['label' => 'Siswa', 'route' => 'admin.students.index', 'icon' => 'academic-cap'],
-            ['label' => 'Kelas', 'route' => 'admin.classrooms.index', 'icon' => 'users'],
-            ['label' => 'Pengawas', 'route' => 'admin.supervisors.index', 'icon' => 'user-group'],
-            ['label' => 'Guru Mapel', 'route' => 'admin.guru-mapels.index', 'icon' => 'academic-cap'],
-            ['label' => 'Wali Kelas', 'route' => 'admin.wali-kelas.index', 'icon' => 'user-group'],
-            ['label' => 'Kepala Sekolah', 'route' => 'admin.kepala-sekolahs.index', 'icon' => 'academic-cap'],
-            ['label' => 'Mata Pelajaran', 'route' => 'admin.subjects.index', 'icon' => 'book-open'],
-            ['label' => 'Ruangan', 'route' => 'admin.rooms.index', 'icon' => 'building-office'],
-            ['label' => 'Soal', 'route' => 'admin.questions.index', 'icon' => 'question-mark'],
-            ['label' => 'Jadwal Ujian', 'route' => 'admin.exam-schedules.index', 'icon' => 'calendar-days'],
-            ['label' => 'Sesi Ujian', 'route' => 'admin.exam-periods.index', 'icon' => 'clock'],
-            ['label' => 'Kartu Login', 'route' => 'admin.student-cards.index', 'icon' => 'key'],
-            ['label' => 'Pengaturan Kartu', 'route' => 'admin.card-settings.edit', 'icon' => 'document-text'],
-            ['label' => 'Absensi', 'route' => 'admin.attendance.index', 'icon' => 'clipboard-check'],
-            ['label' => 'Laporan Hasil Ujian', 'route' => 'admin.reports.index', 'icon' => 'chart-bar'],
-            ['label' => 'Pelanggaran', 'route' => 'admin.violations.index', 'icon' => 'eye'],
+            ['label' => 'Dashboard', 'route' => 'admin.dashboard', 'active' => 'admin.dashboard', 'icon' => 'dashboard'],
+            ['label' => 'Siswa', 'route' => 'admin.students.index', 'active' => 'admin.students.*', 'icon' => 'academic-cap'],
+            ['label' => 'Kelas', 'route' => 'admin.classrooms.index', 'active' => 'admin.classrooms.*', 'icon' => 'users'],
+            ['label' => 'Pengawas', 'route' => 'admin.supervisors.index', 'active' => 'admin.supervisors.*', 'icon' => 'user-group'],
+            ['label' => 'Guru Mapel', 'route' => 'admin.guru-mapels.index', 'active' => 'admin.guru-mapels.*', 'icon' => 'academic-cap'],
+            ['label' => 'Wali Kelas', 'route' => 'admin.wali-kelas.index', 'active' => 'admin.wali-kelas.*', 'icon' => 'user-group'],
+            ['label' => 'Kepala Sekolah', 'route' => 'admin.kepala-sekolahs.index', 'active' => 'admin.kepala-sekolahs.*', 'icon' => 'academic-cap'],
+            ['label' => 'Mata Pelajaran', 'route' => 'admin.subjects.index', 'active' => 'admin.subjects.*', 'icon' => 'book-open'],
+            ['label' => 'Ruangan', 'route' => 'admin.rooms.index', 'active' => 'admin.rooms.*', 'icon' => 'building-office'],
+            ['label' => 'Soal', 'route' => 'admin.questions.index', 'active' => 'admin.questions.*', 'icon' => 'question-mark'],
+            ['label' => 'Jadwal Ujian', 'route' => 'admin.exam-schedules.index', 'active' => 'admin.exam-schedules.*', 'icon' => 'calendar-days'],
+            ['label' => 'Sesi Ujian', 'route' => 'admin.exam-periods.index', 'active' => 'admin.exam-periods.*', 'icon' => 'clock'],
+            ['label' => 'Kartu Login', 'route' => 'admin.student-cards.index', 'active' => 'admin.student-cards.*', 'icon' => 'key'],
+            ['label' => 'Pengaturan Kartu', 'route' => 'admin.card-settings.edit', 'active' => 'admin.card-settings.*', 'icon' => 'document-text'],
+            ['label' => 'Absensi', 'route' => 'admin.attendance.index', 'active' => 'admin.attendance.*', 'icon' => 'clipboard-check'],
+            ['label' => 'Laporan Hasil Ujian', 'route' => 'admin.reports.index', 'active' => 'admin.reports.*', 'icon' => 'chart-bar'],
+            ['label' => 'Pelanggaran', 'route' => 'admin.violations.index', 'active' => 'admin.violations.*', 'icon' => 'eye'],
         ],
         'pengawas' => [
-            ['label' => 'Dashboard', 'route' => 'pengawas.dashboard', 'icon' => 'dashboard'],
-            ['label' => 'Absensi', 'route' => 'pengawas.attendance.index', 'icon' => 'clipboard-check'],
-            ['label' => 'Token Ujian', 'route' => 'pengawas.tokens.index', 'icon' => 'key'],
+            ['label' => 'Dashboard', 'route' => 'pengawas.dashboard', 'active' => 'pengawas.dashboard', 'icon' => 'dashboard'],
+            ['label' => 'Absensi', 'route' => 'pengawas.attendance.index', 'active' => 'pengawas.attendance.*', 'icon' => 'clipboard-check'],
+            ['label' => 'Token Ujian', 'route' => 'pengawas.tokens.index', 'active' => 'pengawas.tokens.*', 'icon' => 'key'],
         ],
         'guru_mapel' => [
-            ['label' => 'Dashboard', 'route' => 'guru_mapel.dashboard', 'icon' => 'dashboard'],
-            ['label' => 'Soal', 'route' => 'guru_mapel.questions.index', 'icon' => 'question-mark'],
-            ['label' => 'Nilai', 'route' => 'guru_mapel.grades.index', 'icon' => 'chart-bar'],
-            ['label' => 'Absensi Ujian', 'route' => 'guru_mapel.attendances.index', 'icon' => 'clipboard-check'],
+            ['label' => 'Dashboard', 'route' => 'guru_mapel.dashboard', 'active' => 'guru_mapel.dashboard', 'icon' => 'dashboard'],
+            ['label' => 'Soal', 'route' => 'guru_mapel.questions.index', 'active' => 'guru_mapel.questions.*', 'icon' => 'question-mark'],
+            ['label' => 'Nilai', 'route' => 'guru_mapel.grades.index', 'active' => 'guru_mapel.grades.*', 'icon' => 'chart-bar'],
+            ['label' => 'Absensi Ujian', 'route' => 'guru_mapel.attendances.index', 'active' => 'guru_mapel.attendances.*', 'icon' => 'clipboard-check'],
         ],
         'kepala_sekolah' => [
-            ['label' => 'Dashboard', 'route' => 'kepala_sekolah.dashboard', 'icon' => 'dashboard'],
-            ['label' => 'Data Siswa', 'route' => 'kepala_sekolah.students.index', 'icon' => 'academic-cap'],
-            ['label' => 'Data Pengawas', 'route' => 'kepala_sekolah.supervisors.index', 'icon' => 'user-group'],
-            ['label' => 'Data Guru Mapel', 'route' => 'kepala_sekolah.guru-mapels.index', 'icon' => 'academic-cap'],
-            ['label' => 'Absensi', 'route' => 'kepala_sekolah.attendance.index', 'icon' => 'clipboard-check'],
+            ['label' => 'Dashboard', 'route' => 'kepala_sekolah.dashboard', 'active' => 'kepala_sekolah.dashboard', 'icon' => 'dashboard'],
+            ['label' => 'Data Siswa', 'route' => 'kepala_sekolah.students.index', 'active' => 'kepala_sekolah.students.*', 'icon' => 'academic-cap'],
+            ['label' => 'Data Pengawas', 'route' => 'kepala_sekolah.supervisors.index', 'active' => 'kepala_sekolah.supervisors.*', 'icon' => 'user-group'],
+            ['label' => 'Data Guru Mapel', 'route' => 'kepala_sekolah.guru-mapels.index', 'active' => 'kepala_sekolah.guru-mapels.*', 'icon' => 'academic-cap'],
+            ['label' => 'Absensi', 'route' => 'kepala_sekolah.attendance.index', 'active' => 'kepala_sekolah.attendance.*', 'icon' => 'clipboard-check'],
         ],
         'wali_kelas' => [
-            ['label' => 'Dashboard', 'route' => 'wali_kelas.dashboard', 'icon' => 'dashboard'],
+            ['label' => 'Dashboard', 'route' => 'wali_kelas.dashboard', 'active' => 'wali_kelas.dashboard', 'icon' => 'dashboard'],
         ],
         'peserta' => [
-            ['label' => 'Dashboard', 'route' => 'peserta.dashboard', 'icon' => 'dashboard'],
+            ['label' => 'Dashboard', 'route' => 'peserta.dashboard', 'active' => 'peserta.dashboard', 'icon' => 'dashboard'],
         ],
     ];
 
@@ -106,9 +106,12 @@
 
         <nav class="flex-1 space-y-0.5 px-2.5 pb-6">
             @foreach ($items as $menu)
-                @php($active = request()->routeIs($menu['route']))
+                @php($active = request()->routeIs($menu['active'] ?? $menu['route']))
                 <a
                     href="{{ Route::has($menu['route']) ? route($menu['route']) : '#' }}"
+                    data-sidebar-link
+                    data-no-instant
+                    data-active-pattern="{{ $menu['active'] ?? $menu['route'] }}"
                     class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {{ $active ? 'bg-indigo-600 text-white shadow-sm mx-1' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100' }}"
                 >
                     <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -121,3 +124,57 @@
 
     </div>
 </aside>
+
+{{-- Sinkronisasi highlight sidebar saat Turbo Drive aktif.
+     Sidebar & overlay memakai `data-turbo-permanent` sehingga DOM tidak di-replace
+     saat navigasi Turbo — class aktif yang di-render server di halaman baru harus
+     disalin ke sidebar permanen. Fallback: path-prefix matching untuk jaga-jaga. --}}
+@once
+@push('scripts')
+<script>
+(function () {
+    const ACTIVE_CLASSES = ['bg-indigo-600', 'text-white', 'shadow-sm', 'mx-1'];
+    const INACTIVE_CLASSES = ['text-gray-600', 'hover:bg-gray-100', 'hover:text-gray-900', 'dark:text-gray-400', 'dark:hover:bg-gray-800', 'dark:hover:text-gray-100'];
+    function syncFromNewBody(newBody) {
+        const curNav = document.querySelector('[data-sidebar-link]')?.closest('nav');
+        const newNav = newBody?.querySelector('[data-sidebar-link]')?.closest('nav');
+        if (!curNav || !newNav) return false;
+        const curLinks = [...curNav.querySelectorAll('[data-sidebar-link]')];
+        const newLinks = [...newNav.querySelectorAll('[data-sidebar-link]')];
+        if (curLinks.length !== newLinks.length) return false;
+        curLinks.forEach((a, i) => {
+            a.className = newLinks[i].className;
+        });
+        return true;
+    }
+    function syncByPath() {
+        const path = window.location.pathname.replace(/\/+$/, '') || '/';
+        document.querySelectorAll('[data-sidebar-link]').forEach((a) => {
+            try {
+                const href = new URL(a.getAttribute('href'), window.location.origin).pathname.replace(/\/+$/, '') || '/';
+                const pattern = a.getAttribute('data-active-pattern') || '';
+                let isActive = false;
+                if (pattern.endsWith('.*')) {
+                    const prefix = href;
+                    isActive = path === prefix || path.startsWith(prefix + '/');
+                } else {
+                    isActive = path === href;
+                }
+                a.classList.remove(...ACTIVE_CLASSES, ...INACTIVE_CLASSES);
+                if (isActive) a.classList.add(...ACTIVE_CLASSES);
+                else a.classList.add(...INACTIVE_CLASSES);
+            } catch (e) {}
+        });
+    }
+    document.addEventListener('turbo:before-render', (e) => {
+        const newBody = e.detail?.newBody || e.detail?.newElement || null;
+        const body = newBody instanceof Document ? newBody.body : (newBody?.querySelector ? newBody : null);
+        if (body && syncFromNewBody(body)) return;
+        if (newBody && newBody.querySelector && syncFromNewBody(newBody)) return;
+    });
+    document.addEventListener('turbo:render', syncByPath);
+    document.addEventListener('turbo:load', syncByPath);
+})();
+</script>
+@endpush
+@endonce
