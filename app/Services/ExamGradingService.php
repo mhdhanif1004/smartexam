@@ -164,7 +164,7 @@ class ExamGradingService
 
     private function activeSemesterId(): ?int
     {
-        return Semester::query()->where('is_active', true)->value('id');
+        return Semester::getActive()?->id;
     }
 
     private function sameBool(mixed $answer, mixed $key): bool

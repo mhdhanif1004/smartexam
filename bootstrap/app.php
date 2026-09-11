@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureOwnsExamPeriod;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\PreventBackHistoryCache;
 use Illuminate\Foundation\Application;
@@ -19,6 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'role' => EnsureUserHasRole::class,
+            // Otorisasi "pengawas mandiri" guru: role guru_mapel + pemilik period.
+            // Alias tanpa parameter — middleware membaca route('examPeriod') sendiri.
+            'owner' => EnsureOwnsExamPeriod::class,
         ]);
 
         $middleware->web(append: [

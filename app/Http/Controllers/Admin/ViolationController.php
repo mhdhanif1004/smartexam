@@ -10,6 +10,7 @@ use App\Models\Violation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -135,7 +136,7 @@ class ViolationController extends Controller
     {
         $since = (int) $request->query('since', 0);
 
-        $today = \Illuminate\Support\Carbon::today();
+        $today = Carbon::today();
 
         $violations = Violation::query()
             ->with(['examSession.student.user', 'examSession.examSchedule.subject', 'examSession.examSchedule.room'])

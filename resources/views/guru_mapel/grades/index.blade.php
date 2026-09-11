@@ -33,7 +33,7 @@
                     <select id="semester_id" name="semester_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                         @foreach ($semesters as $semester)
                             <option value="{{ $semester->id }}" @selected((string) $semesterId === (string) $semester->id)>
-                                {{ $semester->year }} — Semester {{ $semester->semester }} {{ $semester->is_active ? '(Aktif)' : '' }}
+                                {{ $semester->nama_lengkap }} {{ $semester->is_active ? '(Aktif)' : '' }}
                             </option>
                         @endforeach
                     </select>

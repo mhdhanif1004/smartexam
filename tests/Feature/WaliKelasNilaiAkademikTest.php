@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Classroom;
 use App\Models\Grade;
 use App\Models\GuruMapel;
+use App\Models\Semester;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\WaliKelas;
@@ -14,6 +15,14 @@ use Tests\TestCase;
 class WaliKelasNilaiAkademikTest extends TestCase
 {
     use RefreshDatabase;
+
+    private Semester $semester;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->semester = Semester::factory()->aktif()->create();
+    }
 
     public function test_wali_kelas_can_only_see_academic_grades_of_own_classroom_students(): void
     {
@@ -37,6 +46,7 @@ class WaliKelasNilaiAkademikTest extends TestCase
             'student_id' => $studentA->id,
             'score' => 88.50,
             'is_override' => true,
+            'semester_id' => $this->semester->id,
         ]);
 
         // Siswa B di Kelas B dengan nilai
@@ -48,11 +58,12 @@ class WaliKelasNilaiAkademikTest extends TestCase
             'student_id' => $studentB->id,
             'score' => 95.00,
             'is_override' => true,
+            'semester_id' => $this->semester->id,
         ]);
 
         // Wali Kelas A lihat dashboard
         $response = $this->actingAs($waliA->user)
-            ->get(route('wali_kelas.dashboard'));
+            ->get(route('wali_kelas.nilai-akademik'));
 
         $response->assertOk()
             ->assertSee($studentA->user->name)
@@ -77,11 +88,12 @@ class WaliKelasNilaiAkademikTest extends TestCase
             'student_id' => $student->id,
             'score' => 90.00,
             'is_override' => true,
+            'semester_id' => $this->semester->id,
             'note' => 'Remedial tugas',
         ]);
 
         $response = $this->actingAs($wali->user)
-            ->get(route('wali_kelas.dashboard'));
+            ->get(route('wali_kelas.nilai-akademik'));
 
         $response->assertOk()
             ->assertSee('Fisika')
@@ -105,12 +117,13 @@ class WaliKelasNilaiAkademikTest extends TestCase
             'subject_id' => $subject->id,
             'classroom_id' => $classroom->id,
             'student_id' => $student->id,
+            'semester_id' => $this->semester->id,
             'score' => 78.25,
             'is_override' => false,
         ]);
 
         $response = $this->actingAs($wali->user)
-            ->get(route('wali_kelas.dashboard'));
+            ->get(route('wali_kelas.nilai-akademik'));
 
         $response->assertOk()
             ->assertSee('Biologi')
@@ -126,7 +139,7 @@ class WaliKelasNilaiAkademikTest extends TestCase
         Student::factory()->create(['classroom_id' => $classroom->id]);
 
         $response = $this->actingAs($wali->user)
-            ->get(route('wali_kelas.dashboard'));
+            ->get(route('wali_kelas.nilai-akademik'));
 
         $response->assertOk()
             ->assertSee('Belum ada data nilai akademik untuk siswa di kelas ini.');

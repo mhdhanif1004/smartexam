@@ -12,11 +12,13 @@ class ExamType extends Model
         'code',
         'sort_order',
         'is_active',
+        'boleh_dijadwalkan_guru',
     ];
 
     protected $casts = [
         'sort_order' => 'integer',
         'is_active' => 'boolean',
+        'boleh_dijadwalkan_guru' => 'boolean',
     ];
 
     public function schedules(): HasMany

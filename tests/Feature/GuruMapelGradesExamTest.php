@@ -56,7 +56,7 @@ class GuruMapelGradesExamTest extends TestCase
 
     private function makeActiveSemester(): Semester
     {
-        return Semester::create(['year' => '2024/2025', 'semester' => 1, 'is_active' => true]);
+        return Semester::factory()->ganjil()->aktif()->create();
     }
 
     private function makeCbtSubjectGrade(
@@ -257,7 +257,7 @@ class GuruMapelGradesExamTest extends TestCase
     }
 
     // -----------------------------------------------------------------
-    // KOREKSI SKOR (ESSAY / OVERRIDE) → RECALCULATE TOTAL
+    // KOREKSI SKOR (ESSAY / OVERRIDE) â†’ RECALCULATE TOTAL
     // -----------------------------------------------------------------
 
     public function test_guru_can_grade_essay_and_total_recalculates(): void
@@ -364,7 +364,7 @@ class GuruMapelGradesExamTest extends TestCase
         $objective = $this->objectiveQuestion($subject->id, $classroom);
         $essay = $this->essayQuestion($subject->id, $classroom);
 
-        // Ujian pertama selesai → nilai otomatis 10.00 (is_override=false).
+        // Ujian pertama selesai â†’ nilai otomatis 10.00 (is_override=false).
         $session1 = $this->makeGradedSession($subject->id, $classroom, $student, [
             [
                 'question_id' => $objective->id,
@@ -380,7 +380,7 @@ class GuruMapelGradesExamTest extends TestCase
             ],
         ], 10.0);
 
-        // Guru menilai essay → total recalculate 27.50, tersimpan is_override=true.
+        // Guru menilai essay â†’ total recalculate 27.50, tersimpan is_override=true.
         $essayAnswer = ExamAnswer::query()->where('exam_session_id', $session1->id)->where('question_id', $essay->id)->firstOrFail();
 
         $this->actingAs($guru->user)
@@ -395,7 +395,7 @@ class GuruMapelGradesExamTest extends TestCase
             ->assertRedirect()
             ->assertSessionHas('success');
 
-        // Siswa mengulang ujian (re-attempt) → ExamResult BARU dengan skor berbeda (90.00).
+        // Siswa mengulang ujian (re-attempt) â†’ ExamResult BARU dengan skor berbeda (90.00).
         $this->makeGradedSession($subject->id, $classroom, $student, [], 90.0);
 
         // Buka halaman Nilai: koreksi guru TIDAK boleh tertimpa hasil CBT baru.
@@ -503,9 +503,9 @@ class GuruMapelGradesExamTest extends TestCase
     // -----------------------------------------------------------------
 
     /**
-     * Siswa menjawab 2 dari 3 soal — detail harus menampilkan ketiga soal,
+     * Siswa menjawab 2 dari 3 soal â€” detail harus menampilkan ketiga soal,
      * termasuk soal tak terjawab dengan label "Tidak dijawab" dan skor 0.
-     * Bug lama: query dimulai dari examAnswers → soal tak dijawab hilang.
+     * Bug lama: query dimulai dari examAnswers â†’ soal tak dijawab hilang.
      */
     public function test_detail_shows_unanswered_questions_with_tidak_dijawab_label(): void
     {
@@ -526,7 +526,7 @@ class GuruMapelGradesExamTest extends TestCase
 
         $q3 = $this->essayQuestion($subject->id, $classroom);
 
-        // Siswa hanya menjawab q1 dan q3 — q2 TIDAK dijawab
+        // Siswa hanya menjawab q1 dan q3 â€” q2 TIDAK dijawab
         $session = $this->makeGradedSession($subject->id, $classroom, $student, [
             [
                 'question_id' => $q1->id,
@@ -568,12 +568,12 @@ class GuruMapelGradesExamTest extends TestCase
         $response->assertSee('0.00');
 
         // PENTING: membuka halaman detail TIDAK boleh membuat row exam_answers
-        // baru untuk soal tak terjawab — stub hanya in-memory.
+        // baru untuk soal tak terjawab â€” stub hanya in-memory.
         $this->assertDatabaseCount('exam_answers', 2);
     }
 
     /**
-     * Siswa menjawab 0 dari 2 soal — detail tetap menampilkan kedua soal
+     * Siswa menjawab 0 dari 2 soal â€” detail tetap menampilkan kedua soal
      * dengan label "Tidak dijawab" semua.
      */
     public function test_detail_shows_all_questions_when_student_answered_nothing(): void
@@ -628,7 +628,7 @@ class GuruMapelGradesExamTest extends TestCase
 
     /**
      * Guru mengisi "Koreksi Guru" untuk soal yang TIDAK dijawab siswa dan
-     * klik "Simpan Skor & Nilai" — baru di titik ini row ExamAnswer dibuat.
+     * klik "Simpan Skor & Nilai" â€” baru di titik ini row ExamAnswer dibuat.
      * Sebelum submit, soal tak terjawab tidak punya row di database.
      */
     public function test_save_scores_creates_exam_answer_for_unanswered_question_on_submit(): void
@@ -639,7 +639,7 @@ class GuruMapelGradesExamTest extends TestCase
         $q1 = $this->objectiveQuestion($subject->id, $classroom);
         $q2 = $this->essayQuestion($subject->id, $classroom);
 
-        // Siswa hanya menjawab q1 — q2 TIDAK dijawab
+        // Siswa hanya menjawab q1 â€” q2 TIDAK dijawab
         $session = $this->makeGradedSession($subject->id, $classroom, $student, [
             [
                 'question_id' => $q1->id,
@@ -717,7 +717,7 @@ class GuruMapelGradesExamTest extends TestCase
             'question_text' => 'Soal di kelas lain.',
             'score_weight' => 20,
         ]);
-        // Tidak di-attach ke classroom → targetingClassroom gagal
+        // Tidak di-attach ke classroom â†’ targetingClassroom gagal
 
         // Key `scores` harus answer ID milik q1 (bukan question ID)
         $q1Answer = ExamAnswer::query()

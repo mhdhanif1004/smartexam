@@ -25,7 +25,8 @@ class StoreExamScheduleRequest extends FormRequest
     {
         return [
             'subject_id' => ['required', 'integer', Rule::exists('subjects', 'id')],
-            'room_id' => ['required', 'integer', Rule::exists('rooms', 'id')],
+            'room_id' => ['nullable', 'integer', Rule::exists('rooms', 'id')],
+            'classroom_id' => ['nullable', 'integer', Rule::exists('classes', 'id')],
             'class_name' => ['required', 'string', 'max:100'],
             'exam_date' => ['required', 'date'],
             'start_time' => ['required', 'date_format:H:i'],
@@ -41,6 +42,15 @@ class StoreExamScheduleRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
+                $hasRoom = $this->input('room_id') !== null;
+                $hasClassroom = $this->input('classroom_id') !== null;
+
+                if (! ($hasRoom ^ $hasClassroom)) {
+                    $validator->errors()->add('room_id', 'Harus ada salah satu Ruangan atau Kelas yang diisi (tidak boleh keduanya atau keduanya kosong).');
+
+                    return;
+                }
+
                 $start = Carbon::createFromFormat('H:i', (string) $this->input('start_time'));
                 $end = $start->copy()->addMinutes((int) $this->input('duration_minutes'));
 
@@ -48,7 +58,10 @@ class StoreExamScheduleRequest extends FormRequest
                     $validator->errors()->add('duration_minutes', 'Waktu selesai ujian melebihi pukul 24:00. Periksa kembali durasi.');
                 }
 
-                $this->validateNoRoomConflict($validator, $start);
+                if ($hasRoom) {
+                    $this->validateNoRoomConflict($validator, $start);
+                }
+
                 $this->validateSubjectHasActiveQuestions($validator);
                 $this->validateWeightTotal($validator);
             },

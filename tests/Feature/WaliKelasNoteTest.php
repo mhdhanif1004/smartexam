@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicYear;
 use App\Models\Classroom;
 use App\Models\Semester;
 use App\Models\Student;
@@ -42,8 +43,9 @@ class WaliKelasNoteTest extends TestCase
         $this->waliA = WaliKelas::factory()->create(['classroom_id' => $this->classroomA->id]);
         $this->waliB = WaliKelas::factory()->create(['classroom_id' => $this->classroomB->id]);
 
-        $this->semester1 = Semester::create(['year' => '2024/2025', 'semester' => 1, 'is_active' => false]);
-        $this->semester2 = Semester::create(['year' => '2024/2025', 'semester' => 2, 'is_active' => true]);
+        $tahunAjaran = AcademicYear::factory()->create(['nama' => '2024/2025']);
+        $this->semester1 = Semester::create(['academic_year_id' => $tahunAjaran->id, 'jenis' => 'ganjil', 'is_active' => false]);
+        $this->semester2 = Semester::create(['academic_year_id' => $tahunAjaran->id, 'jenis' => 'genap', 'is_active' => true]);
 
         $this->studentA1 = Student::factory()->create(['classroom_id' => $this->classroomA->id]);
         $this->studentA2 = Student::factory()->create(['classroom_id' => $this->classroomA->id]);
@@ -64,7 +66,7 @@ class WaliKelasNoteTest extends TestCase
     public function test_wali_kelas_can_access_dashboard_with_catatan(): void
     {
         $this->actingAs($this->waliA->user)
-            ->get(route('wali_kelas.dashboard', ['tab' => 'catatan']))
+            ->get(route('wali_kelas.catatan'))
             ->assertOk()
             ->assertSee('Catatan Wali Kelas');
     }
@@ -91,6 +93,52 @@ class WaliKelasNoteTest extends TestCase
             'tipe' => 'observasi',
             'catatan' => 'Siswa aktif di kelas hari ini.',
         ]);
+    }
+
+    // ── Redirect URL Integrity ──────────────────────────────────────────
+
+    public function test_store_redirect_goes_to_catatan_page_preserving_student_id(): void
+    {
+        $response = $this->actingAs($this->waliA->user)
+            ->post(route('wali_kelas.catatan.store'), [
+                'student_id' => $this->studentA1->id,
+                'semester_id' => $this->semester2->id,
+                'tipe' => 'observasi',
+                'catatan' => 'Test redirect.',
+            ]);
+
+        $redirectUrl = $response->headers->get('Location');
+
+        // Redirect harus menuju halaman Catatan (bukan dashboard),
+        // dengan student_id terbawa supaya entri baru langsung terlihat.
+        $this->assertStringContainsString('wali_kelas/catatan', $redirectUrl);
+        $this->assertStringContainsString('student_id='.$this->studentA1->id, $redirectUrl);
+
+        // Tidak boleh ada sisa query-string rusak (double '?' atau tab=).
+        $this->assertStringNotContainsString('tab=', $redirectUrl);
+        $queryStart = strpos($redirectUrl, '?');
+        if ($queryStart !== false) {
+            $queryPart = substr($redirectUrl, $queryStart + 1);
+            $this->assertStringNotContainsString('?', $queryPart, 'URL redirect tidak boleh memiliki double ?');
+        }
+    }
+
+    public function test_store_redirect_url_parses_to_catatan_route(): void
+    {
+        $response = $this->actingAs($this->waliA->user)
+            ->post(route('wali_kelas.catatan.store'), [
+                'student_id' => $this->studentA1->id,
+                'semester_id' => $this->semester2->id,
+                'catatan' => 'Test redirect parse.',
+            ]);
+
+        $redirectUrl = $response->headers->get('Location');
+        $parsedUrl = parse_url($redirectUrl);
+        parse_str($parsedUrl['query'] ?? '', $queryParams);
+
+        // student_id harus bernilai persis, bukan string gabungan.
+        $this->assertArrayHasKey('student_id', $queryParams);
+        $this->assertEquals((string) $this->studentA1->id, $queryParams['student_id']);
     }
 
     public function test_store_creates_new_entry_not_overwrite(): void
@@ -161,7 +209,7 @@ class WaliKelasNoteTest extends TestCase
         $mid->forceFill(['created_at' => now()->subDay()])->save();
 
         $this->actingAs($this->waliA->user)
-            ->get(route('wali_kelas.dashboard', ['tab' => 'catatan']))
+            ->get(route('wali_kelas.catatan'))
             ->assertOk();
 
         // Verifikasi urutan via query langsung
@@ -212,7 +260,7 @@ class WaliKelasNoteTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->waliA->user)
-            ->get(route('wali_kelas.dashboard', ['tab' => 'catatan']));
+            ->get(route('wali_kelas.catatan'));
 
         $response->assertOk();
 
@@ -242,7 +290,8 @@ class WaliKelasNoteTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->waliA->user)
-            ->get(route('wali_kelas.dashboard', ['tab' => 'catatan', 'semester_id' => $this->semester1->id]));
+            ->withSession(['wali_kelas_semester_id' => $this->semester1->id])
+            ->get(route('wali_kelas.catatan'));
 
         $response->assertOk();
         $response->assertSee('Catatan semester 1.');
@@ -268,7 +317,7 @@ class WaliKelasNoteTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->waliA->user)
-            ->get(route('wali_kelas.dashboard', ['tab' => 'catatan', 'student_id' => $this->studentA1->id]));
+            ->get(route('wali_kelas.catatan', ['student_id' => $this->studentA1->id]));
 
         $response->assertOk();
         $response->assertSee('Catatan untuk A1.');
@@ -283,8 +332,7 @@ class WaliKelasNoteTest extends TestCase
         // Manipulasi ?student_id=B1 harus TIDAK menampilkan data apapun
         // (di-ignore oleh query, bukan bocor data kelas B).
         $response = $this->actingAs($this->waliA->user)
-            ->get(route('wali_kelas.dashboard', [
-                'tab' => 'catatan',
+            ->get(route('wali_kelas.catatan', [
                 'student_id' => $this->studentB1->id,
             ]));
 

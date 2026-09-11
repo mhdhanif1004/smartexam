@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicYear;
 use App\Models\AttitudeAspect;
 use App\Models\AttitudeGrade;
 use App\Models\Classroom;
@@ -47,8 +48,9 @@ class WaliKelasAttitudeGradeTest extends TestCase
         $this->waliB = WaliKelas::factory()->create(['classroom_id' => $this->classroomB->id]);
 
         // Dua semester berbeda agar bisa diuji isolasi per semester
-        $this->semester1 = Semester::create(['year' => '2024/2025', 'semester' => 1, 'is_active' => false]);
-        $this->semester2 = Semester::create(['year' => '2024/2025', 'semester' => 2, 'is_active' => true]);
+        $tahunAjaran = AcademicYear::factory()->create(['nama' => '2024/2025']);
+        $this->semester1 = Semester::create(['academic_year_id' => $tahunAjaran->id, 'jenis' => 'ganjil', 'is_active' => false]);
+        $this->semester2 = Semester::create(['academic_year_id' => $tahunAjaran->id, 'jenis' => 'genap', 'is_active' => true]);
 
         // Dua aspek sikap
         $this->discipline = AttitudeAspect::create(['name' => 'Kedisiplinan', 'description' => null]);
@@ -307,7 +309,7 @@ class WaliKelasAttitudeGradeTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->waliA->user)
-            ->get(route('wali_kelas.dashboard', ['semester_id' => $this->semester2->id]));
+            ->withSession(['wali_kelas_semester_id' => $this->semester2->id])->get(route('wali_kelas.nilai-sikap'));
 
         $response->assertOk()
             ->assertSee($this->studentA->user->name)
@@ -377,7 +379,7 @@ class WaliKelasAttitudeGradeTest extends TestCase
     public function test_modal_form_renders_hidden_aspect_id_for_each_field(): void
     {
         $response = $this->actingAs($this->waliA->user)
-            ->get(route('wali_kelas.dashboard', ['semester_id' => $this->semester2->id]));
+            ->withSession(['wali_kelas_semester_id' => $this->semester2->id])->get(route('wali_kelas.nilai-sikap'));
 
         $html = $response->getContent();
 
@@ -445,7 +447,7 @@ class WaliKelasAttitudeGradeTest extends TestCase
         // Siswa D: tanpa data sama sekali
 
         $response = $this->actingAs($this->waliA->user)
-            ->get(route('wali_kelas.dashboard', ['semester_id' => $this->semester2->id]));
+            ->withSession(['wali_kelas_semester_id' => $this->semester2->id])->get(route('wali_kelas.nilai-sikap'));
 
         $html = $response->getContent();
 

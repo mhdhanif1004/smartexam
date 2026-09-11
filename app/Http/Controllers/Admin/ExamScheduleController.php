@@ -177,7 +177,9 @@ class ExamScheduleController extends Controller
                     $roomSchedule = $group->firstWhere('room_id', $roomId);
                     $roomDetails[] = [
                         'room_id' => $roomId,
-                        'room_name' => $rooms->get($roomId)?->display_name ?? "Ruang #{$roomId}",
+                        'room_name' => $roomId !== null
+                            ? ($rooms->get($roomId)?->display_name ?? "Ruang #{$roomId}")
+                            : 'Kelas '.($roomSchedule?->class_name ?? '-'),
                         'student_count' => null,
                         'classes' => [
                             ['name' => $roomSchedule?->class_name ?? '-', 'count' => 0],

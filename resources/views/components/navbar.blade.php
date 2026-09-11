@@ -1,5 +1,11 @@
 @props(['title' => 'Dashboard'])
 
+@if (! empty($viteStaleHotFile ?? null))
+    <div class="fixed inset-x-0 top-0 z-[60] bg-red-600 px-4 py-2 text-center text-xs font-semibold text-white shadow-md" role="alert">
+        {{ $viteStaleHotFile }}
+    </div>
+@endif
+
 <header class="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 dark:border-gray-800 dark:bg-gray-900 sm:px-6">
     <div class="flex min-w-0 flex-1 items-center gap-3">
         @if (auth()->user()->role !== 'peserta')

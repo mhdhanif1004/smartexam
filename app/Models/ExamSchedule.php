@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
 
 class ExamSchedule extends Model
 {
@@ -31,6 +32,7 @@ class ExamSchedule extends Model
     protected $fillable = [
         'subject_id',
         'room_id',
+        'classroom_id',
         'exam_period_id',
         'class_name',
         'exam_date',
@@ -48,6 +50,27 @@ class ExamSchedule extends Model
     }
 
     protected $appends = ['current_status'];
+
+    /**
+     * Pertahanan level model: tepat SATU dari room_id atau classroom_id
+     * harus terisi — exactly one. Melengkapi validasi di Form Request
+     * + CHECK constraint di database sebagai defense-in-depth.
+     */
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::saving(function (self $model): void {
+            $hasRoom = $model->room_id !== null;
+            $hasClassroom = $model->classroom_id !== null;
+
+            if (! ($hasRoom ^ $hasClassroom)) {
+                throw ValidationException::withMessages([
+                    'room_id' => ['Sisi ujian harus memiliki salah satu: Ruangan atau Kelas — tidak boleh keduanya maupun kosong.'],
+                ]);
+            }
+        });
+    }
 
     /**
      * Status yang dihitung REAL-TIME berdasarkan waktu sekarang (Carbon::now())
@@ -262,6 +285,11 @@ class ExamSchedule extends Model
         return $this->belongsTo(Room::class);
     }
 
+    public function classroom(): BelongsTo
+    {
+        return $this->belongsTo(Classroom::class);
+    }
+
     public function examPeriod(): BelongsTo
     {
         return $this->belongsTo(ExamPeriod::class);
@@ -287,6 +315,12 @@ class ExamSchedule extends Model
      */
     public function participantStudentIds(): array
     {
+        if ($this->room_id === null) {
+            return $this->classroom_id !== null
+                ? Student::query()->where('classroom_id', $this->classroom_id)->pluck('id')->all()
+                : [];
+        }
+
         if ($this->exam_period_id !== null) {
             return ExamRoomAssignment::query()
                 ->where('exam_period_id', $this->exam_period_id)
@@ -319,17 +353,18 @@ class ExamSchedule extends Model
             return $result;
         }
 
-        $periodSchedules = $schedules->filter(fn (self $schedule) => $schedule->exam_period_id !== null);
-        $legacySchedules = $schedules->filter(fn (self $schedule) => $schedule->exam_period_id === null);
+        $periodRoomSchedules = $schedules->filter(fn (self $s) => $s->exam_period_id !== null && $s->room_id !== null);
+        $legacyRoomSchedules = $schedules->filter(fn (self $s) => $s->exam_period_id === null && $s->room_id !== null);
+        $classroomSchedules = $schedules->filter(fn (self $s) => $s->room_id === null && $s->classroom_id !== null);
 
-        if ($periodSchedules->isNotEmpty()) {
+        if ($periodRoomSchedules->isNotEmpty()) {
             $assignments = ExamRoomAssignment::query()
-                ->whereIn('exam_period_id', $periodSchedules->pluck('exam_period_id')->unique()->values())
-                ->whereIn('room_id', $periodSchedules->pluck('room_id')->unique()->values())
+                ->whereIn('exam_period_id', $periodRoomSchedules->pluck('exam_period_id')->unique()->values())
+                ->whereIn('room_id', $periodRoomSchedules->pluck('room_id')->unique()->values())
                 ->get(['exam_period_id', 'room_id', 'student_id'])
                 ->groupBy(fn ($assignment) => $assignment->exam_period_id.'|'.$assignment->room_id);
 
-            foreach ($periodSchedules as $schedule) {
+            foreach ($periodRoomSchedules as $schedule) {
                 $result[$schedule->id] = $assignments
                     ->get($schedule->exam_period_id.'|'.$schedule->room_id, collect())
                     ->pluck('student_id')
@@ -338,15 +373,30 @@ class ExamSchedule extends Model
             }
         }
 
-        if ($legacySchedules->isNotEmpty()) {
+        if ($legacyRoomSchedules->isNotEmpty()) {
             $studentsByRoom = Student::query()
-                ->whereIn('room_id', $legacySchedules->pluck('room_id')->unique()->values())
+                ->whereIn('room_id', $legacyRoomSchedules->pluck('room_id')->unique()->values())
                 ->get(['room_id', 'id'])
                 ->groupBy('room_id');
 
-            foreach ($legacySchedules as $schedule) {
+            foreach ($legacyRoomSchedules as $schedule) {
                 $result[$schedule->id] = $studentsByRoom
                     ->get($schedule->room_id, collect())
+                    ->pluck('id')
+                    ->values()
+                    ->all();
+            }
+        }
+
+        if ($classroomSchedules->isNotEmpty()) {
+            $studentsByClassroom = Student::query()
+                ->whereIn('classroom_id', $classroomSchedules->pluck('classroom_id')->unique()->values())
+                ->get(['classroom_id', 'id'])
+                ->groupBy('classroom_id');
+
+            foreach ($classroomSchedules as $schedule) {
+                $result[$schedule->id] = $studentsByClassroom
+                    ->get($schedule->classroom_id, collect())
                     ->pluck('id')
                     ->values()
                     ->all();
@@ -377,12 +427,20 @@ class ExamSchedule extends Model
 
     public function scopeForParticipant(Builder $query, int $studentId): Builder
     {
-        return $query->where(function (Builder $query) use ($studentId) {
+        $studentClassroomId = Student::whereKey($studentId)->value('classroom_id');
+
+        return $query->where(function (Builder $query) use ($studentId, $studentClassroomId) {
             $query->whereNull('exam_period_id')
+                ->whereNull('classroom_id')
                 ->whereHas('room.students', fn ($students) => $students->whereKey($studentId))
                 ->orWhere(function (Builder $query) use ($studentId) {
                     $query->whereNotNull('exam_period_id')
+                        ->whereNull('classroom_id')
                         ->whereHas('examPeriod.roomAssignments', fn ($assignments) => $assignments->where('student_id', $studentId));
+                })
+                ->orWhere(function (Builder $query) use ($studentClassroomId) {
+                    $query->whereNull('room_id')
+                        ->where('classroom_id', $studentClassroomId);
                 });
         });
     }
@@ -397,10 +455,14 @@ class ExamSchedule extends Model
     public function scopeAccessibleToStudent(Builder $query, Student $student): Builder
     {
         return $query->where(function (Builder $query) use ($student) {
+            // Legacy room-only (no period, no classroom)
             $query->whereNull('exam_period_id')
+                ->whereNull('classroom_id')
                 ->where('room_id', $student->room_id)
+                // Period + room (admin schedule assignment)
                 ->orWhere(function (Builder $query) use ($student) {
                     $query->whereNotNull('exam_period_id')
+                        ->whereNull('classroom_id')
                         ->whereExists(function ($query) use ($student) {
                             $query->selectRaw('1')
                                 ->from('exam_room_assignments')
@@ -408,6 +470,11 @@ class ExamSchedule extends Model
                                 ->whereColumn('exam_room_assignments.room_id', 'exam_schedules.room_id')
                                 ->where('exam_room_assignments.student_id', $student->id);
                         });
+                })
+                // Classroom-based (guru ujian)
+                ->orWhere(function (Builder $query) use ($student) {
+                    $query->whereNull('room_id')
+                        ->where('classroom_id', $student->classroom_id);
                 });
         });
     }
@@ -444,16 +511,29 @@ class ExamSchedule extends Model
      * Bila suatu saat ada status "batal", jadwal tersebut tidak dihitung.
      */
     public static function findConflicting(
-        int $roomId,
+        ?int $roomId,
         string $examDate,
         int $startMinutes,
         int $endMinutes,
         ?int $excludeId = null,
+        ?int $classroomId = null,
     ): ?ExamSchedule {
-        return self::query()
+        $query = self::query()
             ->with('subject')
-            ->where('room_id', $roomId)
-            ->whereDate('exam_date', $examDate)
+            ->whereDate('exam_date', $examDate);
+
+        if ($classroomId !== null) {
+            $query->whereNull('room_id')
+                ->where('classroom_id', $classroomId);
+        } elseif ($roomId !== null) {
+            $query->where('room_id', $roomId);
+        } else {
+            return null;
+        }
+
+        return $query
+            ->when($excludeId !== null, fn ($query) => $query->where('id', '!=', $excludeId))
+            ->when(in_array('cancelled', array_keys(self::STATUSES), true), fn ($query) => $query->where('status', '!=', 'cancelled'))
             ->when($excludeId !== null, fn ($query) => $query->where('id', '!=', $excludeId))
             ->when(in_array('cancelled', array_keys(self::STATUSES), true), fn ($query) => $query->where('status', '!=', 'cancelled'))
             ->get()

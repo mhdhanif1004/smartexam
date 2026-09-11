@@ -41,13 +41,6 @@ $gradesByStudent = $gradesByStudent ?? [];
              this.showModal = true;
          }
      }">
-    <div>
-        <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Nilai Sikap</h2>
-        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Kelola nilai sikap siswa di kelas <span class="font-semibold">{{ $wali->classroom?->name ?? '-' }}</span>.
-        </p>
-    </div>
-
     {{-- Flash messages --}}
     @if (session('success'))
         <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
@@ -64,22 +57,6 @@ $gradesByStudent = $gradesByStudent ?? [];
             </ul>
         </div>
     @endif
-
-    {{-- Pilih Semester --}}
-    <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <label for="semester_select" class="block text-sm font-semibold text-gray-700 dark:text-gray-300">Semester</label>
-        <select
-            id="semester_select"
-            class="mt-1 block w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-            onchange="window.location.href='{{ route('wali_kelas.dashboard') }}?semester_id=' + this.value + '&tab=attitude'"
-        >
-            @foreach ($semesters as $semester)
-                <option value="{{ $semester->id }}" {{ $semester->id == $selectedSemesterId ? 'selected' : '' }}>
-                    {{ $semester->year }} — Semester {{ $semester->semester }} {{ $semester->is_active ? '(Aktif)' : '' }}
-                </option>
-            @endforeach
-        </select>
-    </div>
 
     {{-- Tabel Nilai Sikap --}}
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">

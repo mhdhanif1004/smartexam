@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\ExamPeriodFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ExamPeriod extends Model
@@ -21,6 +22,7 @@ class ExamPeriod extends Model
         'exam_date',
         'start_time',
         'end_time',
+        'created_by_user_id',
     ];
 
     protected function casts(): array
@@ -28,6 +30,19 @@ class ExamPeriod extends Model
         return [
             'exam_date' => 'date',
         ];
+    }
+
+    /**
+     * User pembuat session ini (guru mapel). Null = dibuat admin/sistem lama.
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    public function examType(): BelongsTo
+    {
+        return $this->belongsTo(ExamType::class);
     }
 
     public function schedules(): HasMany

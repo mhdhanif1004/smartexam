@@ -2,8 +2,9 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build",
+        "build": "node scripts/remove-stale-hot.mjs && vite build",
         "dev": "vite",
+        "predev": "node scripts/remove-stale-hot.mjs",
         "test:js": "node --test \"tests/js/*.test.mjs\""
     },
     "devDependencies": {

@@ -5,19 +5,37 @@ namespace App\Http\Controllers\WaliKelas;
 use App\Http\Controllers\Controller;
 use App\Models\Student;
 use App\Models\WaliKelasNote;
+use App\Services\WaliKelasDataService;
+use App\Traits\ResolvesSelectedSemester;
 use App\Traits\ScopesWaliKelas;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 
 class WaliKelasNoteController extends Controller
 {
+    use ResolvesSelectedSemester;
     use ScopesWaliKelas;
 
     /**
+     * Halaman Catatan Wali Kelas (list per siswa + form tambah).
+     */
+    public function index(): View
+    {
+        $wali = $this->currentWaliKelas()->load('classroom');
+        $data = app(WaliKelasDataService::class);
+
+        $selectorData = $this->semesterSelectorData();
+        $selectedSemesterId = $selectorData['selectedSemesterId'];
+
+        $catatan = $data->catatan($wali->classroom_id, $selectedSemesterId);
+
+        return view('wali_kelas.catatan.index', compact(
+            'wali', 'catatan',
+        ) + ['semesters' => $selectorData['semesters'], 'selectedSemesterId' => $selectedSemesterId]);
+    }
+
+    /**
      * Simpan entri catatan baru (append-only).
-     *
-     * List/show catatan ditangani inline oleh tab 'catatan' pada dashboard
-     * Wali Kelas (lihat WaliKelasDashboardController::getCatatan) — endpoint
-     * ini hanya bertugas menerima POST dari form "Tambah Catatan Baru".
      */
     public function store(): RedirectResponse
     {
@@ -50,14 +68,10 @@ class WaliKelasNoteController extends Controller
             'catatan' => $validated['catatan'],
         ]);
 
-        // Kembali ke dashboard dengan tab 'catatan' tetap aktif agar user
-        // tidak "kehilangan tempat" setelah submit, dan semester ikut
-        // dipertahankan supaya entri baru langsung terlihat.
+        // Kembali ke halaman Catatan (halaman sendiri, bukan tab lagi),
+        // filter siswa tetap terbawa supaya entri baru langsung terlihat.
         return redirect()
-            ->route('wali_kelas.dashboard', [
-                'tab' => 'catatan',
-                'semester_id' => $semesterId,
-            ])
+            ->route('wali_kelas.catatan', ['student_id' => $studentId])
             ->with('success', 'Catatan berhasil ditambahkan.');
     }
 }

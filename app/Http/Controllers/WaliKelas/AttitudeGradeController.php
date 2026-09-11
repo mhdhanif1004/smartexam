@@ -7,12 +7,34 @@ use App\Http\Requests\WaliKelas\StoreAttitudeGradeRequest;
 use App\Http\Requests\WaliKelas\StoreAttitudeGradesBulkRequest;
 use App\Http\Requests\WaliKelas\UpdateAttitudeGradeRequest;
 use App\Models\AttitudeGrade;
+use App\Services\WaliKelasDataService;
+use App\Traits\ResolvesSelectedSemester;
 use App\Traits\ScopesWaliKelas;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 
 class AttitudeGradeController extends Controller
 {
+    use ResolvesSelectedSemester;
     use ScopesWaliKelas;
+
+    /**
+     * Halaman Nilai Sikap (list + modal edit).
+     */
+    public function index(): View
+    {
+        $wali = $this->currentWaliKelas()->load('classroom');
+        $data = app(WaliKelasDataService::class);
+
+        $selectorData = $this->semesterSelectorData();
+        $selectedSemesterId = $selectorData['selectedSemesterId'];
+
+        $attitudeGrades = $data->attitudeGrades($wali->classroom_id, $selectedSemesterId, $wali);
+
+        return view('wali_kelas.attitude-grades.index', compact(
+            'wali', 'attitudeGrades',
+        ) + ['semesters' => $selectorData['semesters'], 'selectedSemesterId' => $selectedSemesterId]);
+    }
 
     /**
      * Bulk store/update nilai sikap untuk satu siswa (semua aspek sekaligus).

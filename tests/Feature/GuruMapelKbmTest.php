@@ -529,7 +529,7 @@ class GuruMapelKbmTest extends TestCase
     {
         [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(2);
 
-        $semester = Semester::create(['year' => '2024/2025', 'semester' => 1, 'is_active' => true]);
+        $semester = Semester::factory()->ganjil()->aktif()->create();
 
         $this->actingAs($guru->user)
             ->post(route('guru_mapel.grades.store'), [
@@ -571,7 +571,7 @@ class GuruMapelKbmTest extends TestCase
     {
         [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(1);
 
-        $semester = Semester::create(['year' => '2024/2025', 'semester' => 1, 'is_active' => true]);
+        $semester = Semester::factory()->ganjil()->aktif()->create();
 
         $this->actingAs($guru->user)
             ->post(route('guru_mapel.grades.store'), [
@@ -593,7 +593,7 @@ class GuruMapelKbmTest extends TestCase
         [$guru, $subject] = $this->makeAmpuGuru(1);
         $otherClassroom = Classroom::factory()->create();
 
-        $semester = Semester::create(['year' => '2024/2025', 'semester' => 1, 'is_active' => true]);
+        $semester = Semester::factory()->ganjil()->aktif()->create();
 
         $this->actingAs($guru->user)
             ->post(route('guru_mapel.grades.store'), [
@@ -611,9 +611,9 @@ class GuruMapelKbmTest extends TestCase
     {
         [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(1);
 
-        $semester = Semester::create(['year' => '2024/2025', 'semester' => 1, 'is_active' => true]);
+        $semester = Semester::factory()->ganjil()->aktif()->create();
 
-        // Title 'CBT' dan 'Kehadiran' (case-insensitive) dipakai sistem —
+        // Title 'CBT' dan 'Kehadiran' (case-insensitive) dipakai sistem â€”
         // guru tidak boleh memakainya agar tidak ambigu dengan baris otomatis.
         foreach (['CBT', 'cbt', 'Kehadiran', 'kehadiran'] as $reservedTitle) {
             $this->actingAs($guru->user)
@@ -636,7 +636,7 @@ class GuruMapelKbmTest extends TestCase
     {
         [$guru, $subject, $classroom, $students] = $this->makeAmpuGuru(1);
 
-        $semester = Semester::create(['year' => '2024/2025', 'semester' => 1, 'is_active' => true]);
+        $semester = Semester::factory()->ganjil()->aktif()->create();
 
         $this->actingAs($guru->user)
             ->post(route('guru_mapel.grades.store'), [

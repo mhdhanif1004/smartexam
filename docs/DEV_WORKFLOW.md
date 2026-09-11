@@ -89,3 +89,56 @@ Build sekali untuk menghasilkan file optimized di `public/build/`. Jalankan ini:
 | Halaman 500 | Cek `storage/logs/laravel.log` |
 | npm install error | Hapus `node_modules/`, jalankan `npm install` ulang |
 | Port 8000 sudah dipakai | Stop process lain yang pakai port 8000, atau `php artisan serve --port=8001` |
+| **CSS/JS hilang total** (SVG ikon raksasa, tanpa styling) | Lihat section **public/hot basi** di bawah |
+
+---
+
+## `public/hot` Basi (CSS/JS Hilang Total)
+
+### Apa itu `public/hot`
+
+File `public/hot` berisi URL Vite dev server (mis. `http://[::1]:5173`). Selama
+`npm run dev` berjalan, Laravel membaca file ini dan memuat asset langsung dari
+dev server. File ini dibuat otomatis saat Vite start dan **dihapus otomatis saat
+Vite exit graceful** (Ctrl+C).
+
+### Kenapa bisa basi
+
+Saat Vite **di-kill paksa** (tutup window terminal/VS Code, komputer sleep,
+`composer dev` dimatikan mendadak — bukan Ctrl+C), Vite **tidak sempat menghapus**
+`public/hot`. File orphan tetap ada dan menunjuk port lama yang sudah mati →
+Laravel tetap coba load asset dari situ → **seluruh halaman kehilangan styling**
+(SVG ikon jadi raksasa tanpa constraint ukuran). Ini keterbatasan Windows:
+kill paksa tidak mengirim signal graceful shutdown sama sekali, jadi tidak ada
+cara murni-kode mencegahnya — yang ada hanya deteksi dini + recovery cepat.
+
+### Cara ketahui
+
+- Semua halaman tanpa styling (CSS hilang, ikon raksasa)
+- **Banner merah di pojok atas** setiap halaman (local env saja): *"File Vite dev
+  server (`public/hot`) terdeteksi basi..."* — muncul dalam ≤30 detik setelah
+  server mati
+- `storage/logs/laravel.log` berisi warning `public/hot terdeteksi basi`
+
+### Fix cepat (1 perintah)
+
+```bash
+npm run build
+```
+
+`npm run build` otomatis menghapus `public/hot` basi sebelum build (lihat
+`scripts/remove-stale-hot.mjs`). Alternatif manual:
+
+```bash
+del public\hot         # Windows
+rm public/hot          # Linux/macOS
+npm run build
+```
+
+### Pencegahan otomatis
+
+- `npm run dev` → `predev` otomatis menghapus `public/hot` lama sebelum Vite
+  menulis yang baru (jadi restart dev selalu bersih, suka-suka port-nya beda
+  atau sama)
+- Banner merah + log warning saat `php artisan serve` mendeteksi hot basi —
+  developer langsung sadar tanpa debug CSS hilang dari nol

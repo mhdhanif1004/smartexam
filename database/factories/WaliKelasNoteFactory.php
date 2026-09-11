@@ -22,11 +22,7 @@ class WaliKelasNoteFactory extends Factory
             'student_id' => Student::factory(),
             'classroom_id' => Classroom::factory(),
             'wali_kelas_id' => WaliKelas::factory(),
-            'semester_id' => fn () => Semester::create([
-                'year' => '2025/2026',
-                'semester' => 1,
-                'is_active' => false,
-            ])->id,
+            'semester_id' => fn () => Semester::factory()->create()->id,
             'tipe' => fake()->optional(0.7)->randomElement(['observasi', 'pelanggaran', 'prestasi', 'lainnya']),
             'catatan' => fake()->sentence(8),
         ];

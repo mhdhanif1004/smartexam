@@ -1,11 +1,13 @@
 <?php
 
+use App\Http\Controllers\Admin\AcademicYearController;
 use App\Http\Controllers\Admin\AttendanceController as AdminAttendanceController;
 use App\Http\Controllers\Admin\CardSettingsController;
 use App\Http\Controllers\Admin\ClassroomController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ExamPeriodController;
 use App\Http\Controllers\Admin\ExamScheduleController;
+use App\Http\Controllers\Admin\ExamTypeController;
 use App\Http\Controllers\Admin\GuruMapelController;
 use App\Http\Controllers\Admin\GuruMapelImportExportController;
 use App\Http\Controllers\Admin\KepalaSekolahController;
@@ -15,6 +17,7 @@ use App\Http\Controllers\Admin\QuestionController;
 use App\Http\Controllers\Admin\QuestionImportExportController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoomController;
+use App\Http\Controllers\Admin\SemesterController;
 use App\Http\Controllers\Admin\StudentController;
 use App\Http\Controllers\Admin\StudentImportExportController;
 use App\Http\Controllers\Admin\SubjectController;
@@ -25,7 +28,9 @@ use App\Http\Controllers\Admin\WaliKelasController;
 use App\Http\Controllers\FcmTokenController;
 use App\Http\Controllers\GuruMapel\AttendanceController;
 use App\Http\Controllers\GuruMapel\DashboardController as GuruMapelDashboardController;
+use App\Http\Controllers\GuruMapel\ExamScheduleController as GuruMapelExamScheduleController;
 use App\Http\Controllers\GuruMapel\GradeController;
+use App\Http\Controllers\GuruMapel\ProctorController as GuruMapelProctorController;
 use App\Http\Controllers\GuruMapel\QuestionController as GuruMapelQuestionController;
 use App\Http\Controllers\GuruMapel\QuestionImportExportController as GuruMapelQuestionImportExportController;
 use App\Http\Controllers\KepalaSekolah\AttendanceController as KepalaSekolahAttendanceController;
@@ -42,8 +47,12 @@ use App\Http\Controllers\Peserta\DashboardController as PesertaDashboardControll
 use App\Http\Controllers\Peserta\ExamController as PesertaExamController;
 use App\Http\Controllers\Peserta\ViolationController as PesertaViolationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\WaliKelas\AcademicGradeController as WaliKelasAcademicGradeController;
 use App\Http\Controllers\WaliKelas\AttitudeGradeController as WaliKelasAttitudeGradeController;
 use App\Http\Controllers\WaliKelas\DashboardController as WaliKelasDashboardController;
+use App\Http\Controllers\WaliKelas\ExportController as WaliKelasExportController;
+use App\Http\Controllers\WaliKelas\SemesterController as WaliKelasSemesterController;
+use App\Http\Controllers\WaliKelas\ViolationController as WaliKelasViolationController;
 use App\Http\Controllers\WaliKelas\WaliKelasNoteController;
 use App\Http\Middleware\RedirectLocalhost;
 use Illuminate\Support\Facades\Route;
@@ -126,6 +135,9 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::patch('subjects/{subject}/name', [SubjectController::class, 'updateName'])->name('subjects.update-name');
         Route::post('subjects/bulk-delete-preview', [SubjectController::class, 'bulkDeletePreview'])->name('subjects.bulk-delete-preview');
         Route::post('subjects/bulk-delete', [SubjectController::class, 'bulkDelete'])->name('subjects.bulk-delete');
+        Route::resource('semesters', SemesterController::class)->except(['show']);
+        Route::post('semesters/{semester}/make-active', [SemesterController::class, 'makeActive'])->name('semesters.make-active');
+        Route::resource('academic-years', AcademicYearController::class)->except(['show']);
         Route::resource('rooms', RoomController::class)->except(['show']);
         Route::post('rooms/bulk-delete', [RoomController::class, 'bulkDelete'])->name('rooms.bulk-delete');
         Route::get('rooms/{room}/detail', [RoomController::class, 'detail'])->name('rooms.detail');
@@ -135,6 +147,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::get('exam-schedules/{examSchedule}/detail', [ExamScheduleController::class, 'detail'])->name('exam-schedules.detail');
         Route::resource('exam-schedules', ExamScheduleController::class)->except(['show']);
         Route::post('exam-schedules/bulk-delete', [ExamScheduleController::class, 'bulkDelete'])->name('exam-schedules.bulk-delete');
+        Route::resource('exam-types', ExamTypeController::class)->except(['show']);
 
         // Penting: route statis harus didefinisikan SEBELUM resource agar tidak di-shadow oleh {examPeriod} (mis. /auto-generate/create tertangkap sebagai show).
         Route::get('exam-periods/auto-generate/create', [ExamPeriodController::class, 'autoGenerateCreate'])->name('exam-periods.auto-generate.create');
@@ -246,16 +259,45 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('/{schedule}', 'schedule')->name('schedule');
         });
+
+        // Jadwal Ujian Mandiri Guru Mapel (classroom-based, tanpa ruang fisik).
+        Route::get('/exam-schedules', [GuruMapelExamScheduleController::class, 'index'])->name('exam-schedules.index');
+        Route::get('/exam-schedules/create', [GuruMapelExamScheduleController::class, 'create'])->name('exam-schedules.create');
+        Route::post('/exam-schedules', [GuruMapelExamScheduleController::class, 'store'])->name('exam-schedules.store');
+
+        // Mode "Pengawas Mandiri": HANYA period milik guru ini (middleware
+        // owner). Jalur terpisah dari role:pengawas asli.
+        Route::middleware('owner')->prefix('proctor')->name('proctor.')->group(function () {
+            Route::get('/{examPeriod}', [GuruMapelProctorController::class, 'show'])->name('show');
+            Route::get('/{examPeriod}/token', [GuruMapelProctorController::class, 'token'])->name('token');
+            Route::get('/{examPeriod}/violations', [GuruMapelProctorController::class, 'violations'])->name('violations');
+            Route::patch('/{examPeriod}/attendance/{schedule}', [GuruMapelProctorController::class, 'confirmAttendance'])->name('attendance.confirm');
+        });
     });
 
     Route::prefix('wali_kelas')->middleware(['auth', 'verified', 'role:wali_kelas'])->name('wali_kelas.')->group(function () {
         Route::get('/dashboard', WaliKelasDashboardController::class)->name('dashboard');
+
+        // Export rekap 4 sheet (semester terpilih dari session).
+        Route::get('/export-excel', [WaliKelasExportController::class, 'exportExcel'])->name('export-excel');
+
+        // Semester global via session. POST /set-semester menyimpan pilihan
+        // user dan redirect()->back() ke halaman asal.
+        Route::post('/set-semester', [WaliKelasSemesterController::class, 'setSemester'])->name('set-semester');
+
+        // Halaman terpisah (bekas tab dashboard).
+        Route::get('/nilai-akademik', [WaliKelasAcademicGradeController::class, 'index'])->name('nilai-akademik');
+        Route::get('/nilai-sikap', [WaliKelasAttitudeGradeController::class, 'index'])->name('nilai-sikap');
+        Route::get('/pelanggaran', [WaliKelasViolationController::class, 'index'])->name('pelanggaran');
+        Route::get('/catatan', [WaliKelasNoteController::class, 'index'])->name('catatan');
+
+        // Endpoint CRUD nilai sikap (POST/PUT/DELETE).
         Route::post('/attitude-grades/bulk', [WaliKelasAttitudeGradeController::class, 'bulkStore'])->name('attitude-grades.bulk');
         Route::post('/attitude-grades', [WaliKelasAttitudeGradeController::class, 'store'])->name('attitude-grades.store');
         Route::put('/attitude-grades/{attitudeGrade}', [WaliKelasAttitudeGradeController::class, 'update'])->name('attitude-grades.update');
         Route::delete('/attitude-grades/{attitudeGrade}', [WaliKelasAttitudeGradeController::class, 'destroy'])->name('attitude-grades.destroy');
 
-        // Catatan adalah tab inline di dashboard — hanya butuh endpoint store (POST).
+        // Catatan adalah halaman sendiri — butuh endpoint GET (index) dan store (POST).
         Route::post('/catatan', [WaliKelasNoteController::class, 'store'])->name('catatan.store');
     });
 

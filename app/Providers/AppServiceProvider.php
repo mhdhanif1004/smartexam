@@ -5,11 +5,14 @@ namespace App\Providers;
 use App\Models\ExamSchedule;
 use App\Models\SupervisorAttendance;
 use App\Models\SupervisorRoomAssignment;
+use App\Support\ViteHotFileHealth;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Middleware\RedirectIfAuthenticated;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -31,6 +34,8 @@ class AppServiceProvider extends ServiceProvider
         if (str_contains(request()->getHost(), 'ngrok')) {
             URL::forceScheme('https');
         }
+
+        $this->warnIfStaleHotFile();
 
         RedirectIfAuthenticated::redirectUsing(function (Request $request) {
             return $request->expectsJson() ? null : route(auth()->user()->dashboardRoute());
@@ -113,5 +118,29 @@ class AppServiceProvider extends ServiceProvider
                 );
             }
         });
+    }
+
+    /**
+     * Deteksi dini `public/hot` basi (Vite dev server sudah mati tapi file
+     * orphan masih nunjuk port lama — umum saat kill paksa di Windows).
+     *
+     * HANYA aktif di env local. Tidak pernah crash/block halaman — paling
+     * parah share variabel warning yang dirender login navbar.
+     */
+    private function warnIfStaleHotFile(): void
+    {
+        if (! app()->isLocal()) {
+            return;
+        }
+
+        $health = app(ViteHotFileHealth::class);
+
+        if (! $health->isStale()) {
+            return;
+        }
+
+        Log::warning('public/hot terdeteksi basi — Vite dev server tidak berjalan. CSS/JS akan gagal dimuat. Fix: `del public\\hot` lalu `npm run build` (atau restart `npm run dev`).');
+
+        View::share('viteStaleHotFile', 'File Vite dev server (`public/hot`) terdeteksi basi — CSS/JS tidak dimuat. Fix cepat: jalankan `npm run build`, atau hapus `public/hot` lalu restart `npm run dev`.');
     }
 }

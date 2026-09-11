@@ -8,6 +8,7 @@ use App\Models\ExamSession;
 use App\Models\Grade;
 use App\Models\GuruMapel;
 use App\Models\Room;
+use App\Models\Semester;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\User;
@@ -22,11 +23,14 @@ class WaliKelasModuleTest extends TestCase
 
     private User $admin;
 
+    private Semester $semester;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->admin = User::factory()->admin()->create();
+        $this->semester = Semester::factory()->aktif()->create();
     }
 
     public function test_admin_can_view_wali_kelas_index(): void
@@ -213,8 +217,8 @@ class WaliKelasModuleTest extends TestCase
         $guru = GuruMapel::factory()->create();
 
         // Nilai untuk s1 (80) dan s2 (60) — s3 tanpa nilai (perlu perhatian)
-        Grade::create(['guru_mapel_id' => $guru->id, 'subject_id' => $subject->id, 'classroom_id' => $classroomId, 'student_id' => $s1->id, 'score' => 80, 'is_override' => false]);
-        Grade::create(['guru_mapel_id' => $guru->id, 'subject_id' => $subject->id, 'classroom_id' => $classroomId, 'student_id' => $s2->id, 'score' => 60, 'is_override' => false]);
+        Grade::create(['guru_mapel_id' => $guru->id, 'subject_id' => $subject->id, 'classroom_id' => $classroomId, 'student_id' => $s1->id, 'semester_id' => $this->semester->id, 'score' => 80, 'is_override' => false]);
+        Grade::create(['guru_mapel_id' => $guru->id, 'subject_id' => $subject->id, 'classroom_id' => $classroomId, 'student_id' => $s2->id, 'semester_id' => $this->semester->id, 'score' => 60, 'is_override' => false]);
 
         $this->actingAs($wali->user)
             ->get(route('wali_kelas.dashboard'))
@@ -302,7 +306,7 @@ class WaliKelasModuleTest extends TestCase
         ]);
 
         $this->actingAs($wali->user)
-            ->get(route('wali_kelas.dashboard'))
+            ->get(route('wali_kelas.pelanggaran'))
             ->assertOk()
             ->assertSee('Rekap Pelanggaran')
             ->assertSee($s1->user->name)
@@ -317,7 +321,7 @@ class WaliKelasModuleTest extends TestCase
         Student::factory()->count(3)->create(['classroom_id' => $wali->classroom_id]);
 
         $this->actingAs($wali->user)
-            ->get(route('wali_kelas.dashboard'))
+            ->get(route('wali_kelas.pelanggaran'))
             ->assertOk()
             ->assertSee('Rekap Pelanggaran')
             ->assertSee('Tidak ada pelanggaran tercatat');

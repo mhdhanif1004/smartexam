@@ -28,10 +28,8 @@ class DatabaseSeeder extends Seeder
 
         // Master data kelas dipakai dropdown form siswa & validasi import.
         $this->call(ClassroomSeeder::class);
-        $this->call(SemesterSeeder::class);
         $this->call(AttitudeAspectSeeder::class);
         $this->call(ExamTypeSeeder::class);
-        $this->call(WaliKelasDummyDataSeeder::class);
 
         // 1 akun administrator.
         User::factory()->admin()->create([

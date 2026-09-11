@@ -1,19 +1,24 @@
 @php
 $wali = $wali ?? null;
-$students = $students ?? collect();
+$students = $catatan['students'] ?? collect();
+$selectedStudentId = $catatan['selectedStudentId'] ?? null;
+$notes = $catatan['notes'] ?? collect();
 $semesters = $semesters ?? collect();
-$selectedSemesterId = $selectedSemesterId ?? null;
-$selectedStudentId = $selectedStudentId ?? null;
-$notes = $notes ?? collect();
+$selectedSemesterId = $selectedSemesterId ?? ($catatan['selectedSemesterId'] ?? null);
 @endphp
 
-<div class="space-y-6">
-    <div>
-        <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Catatan Wali Kelas</h2>
-        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Tulis dan lihat catatan pembinaan siswa di kelas <span class="font-semibold">{{ $wali->classroom?->name ?? '-' }}</span>.
-            Setiap entri bersifat kronologis (append-only).
-        </p>
+<x-layouts.wali_kelas title="Catatan Wali Kelas">
+    <div class="space-y-6">
+    <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Catatan Wali Kelas</h2>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Kelas <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $wali->classroom?->name ?? '-' }}</span> — tulis dan lihat catatan pembinaan siswa. Setiap entri bersifat kronologis (append-only).
+                </p>
+            </div>
+            <x-semester-selector :semesters="$semesters" :selected-semester-id="$selectedSemesterId" />
+        </div>
     </div>
 
     {{-- Flash messages --}}
@@ -33,30 +38,15 @@ $notes = $notes ?? collect();
         </div>
     @endif
 
-    {{-- Filter Semester + Siswa --}}
+    {{-- Filter Siswa --}}
     <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <div class="grid gap-4 sm:grid-cols-2">
-            <div>
-                <label for="semester_select" class="block text-sm font-semibold text-gray-700 dark:text-gray-300">Semester</label>
-                <select
-                    id="semester_select"
-                    class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-                    onchange="window.location.href='{{ route('wali_kelas.dashboard', ['tab' => 'catatan']) }}?semester_id=' + this.value + '&student_id=' + (document.getElementById('student_select').value || '')"
-                >
-                    @foreach ($semesters as $semester)
-                        <option value="{{ $semester->id }}" {{ $semester->id == $selectedSemesterId ? 'selected' : '' }}>
-                            {{ $semester->year }} — Semester {{ $semester->semester }} {{ $semester->is_active ? '(Aktif)' : '' }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-
+        <div class="grid gap-4 sm:grid-cols-1">
             <div>
                 <label for="student_select" class="block text-sm font-semibold text-gray-700 dark:text-gray-300">Filter Siswa (opsional)</label>
                 <select
                     id="student_select"
                     class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-                    onchange="window.location.href='{{ route('wali_kelas.dashboard', ['tab' => 'catatan']) }}?semester_id={{ $selectedSemesterId }}&student_id=' + this.value"
+                    onchange="window.location.href='{{ route('wali_kelas.catatan') }}?student_id=' + this.value"
                 >
                     <option value="">Semua Siswa</option>
                     @foreach ($students as $student)
@@ -230,4 +220,5 @@ $notes = $notes ?? collect();
             </div>
         @endforelse
     </div>
-</div>
+    </div>
+</x-layouts.wali_kelas>

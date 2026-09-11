@@ -39,7 +39,7 @@ class ScoreRedesignServicesTest extends TestCase
 
         $student = Student::factory()->create(['classroom_id' => $classroom->id]);
 
-        $semester = Semester::create(['year' => '2024/2025', 'semester' => 1, 'is_active' => true]);
+        $semester = Semester::factory()->ganjil()->aktif()->create();
 
         return [$guru, $subject, $classroom, $student, $semester];
     }
@@ -89,7 +89,7 @@ class ScoreRedesignServicesTest extends TestCase
     }
 
     // -----------------------------------------------------------------
-    // 1. ExamGradingService::finalize() → subject_grades (source=cbt)
+    // 1. ExamGradingService::finalize() â†’ subject_grades (source=cbt)
     // -----------------------------------------------------------------
 
     public function test_finalize_creates_cbt_subject_grade_with_period_exam_type(): void
@@ -167,7 +167,7 @@ class ScoreRedesignServicesTest extends TestCase
 
         $service = app(ExamGradingService::class);
         $service->finalize($session, $schedule);
-        // Ubah sesi ke completed + finalize ulang — harus updateOrCreate (1 baris)
+        // Ubah sesi ke completed + finalize ulang â€” harus updateOrCreate (1 baris)
         $session->update(['status' => ExamSession::STATUS_COMPLETED]);
         $service->finalize($session, $schedule);
 
@@ -205,7 +205,7 @@ class ScoreRedesignServicesTest extends TestCase
             'is_override' => true,
         ]);
 
-        // Harian: 80, 90 → avg 85; UTS: 70; UAS: 60; Kehadiran: 100
+        // Harian: 80, 90 â†’ avg 85; UTS: 70; UAS: 60; Kehadiran: 100
         $make($harian, 80, 'UH 1');
         $make($harian, 90, 'UH 2');
         $make($uts, 70);
@@ -226,7 +226,7 @@ class ScoreRedesignServicesTest extends TestCase
 
         $uts = ExamType::query()->where('code', 'uts')->firstOrFail();
 
-        // Hanya UTS terisi → final = 70 (bukan 70/4=17.5)
+        // Hanya UTS terisi â†’ final = 70 (bukan 70/4=17.5)
         SubjectGrade::create([
             'student_id' => $student->id,
             'classroom_id' => $classroom->id,

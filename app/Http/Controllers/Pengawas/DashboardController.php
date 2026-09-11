@@ -60,7 +60,7 @@ class DashboardController extends Controller
                     foreach ($todayAssignments as $assignment) {
                         $query->orWhere(function ($q) use ($assignment) {
                             $q->where('room_id', $assignment->room_id)
-                              ->where('exam_period_id', $assignment->exam_period_id);
+                                ->where('exam_period_id', $assignment->exam_period_id);
                         });
                     }
                 })

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Classroom;
 use App\Models\ExamSchedule;
 use App\Models\Room;
 use App\Models\Subject;
@@ -22,6 +23,7 @@ class ExamScheduleFactory extends Factory
         return [
             'subject_id' => Subject::factory(),
             'room_id' => Room::factory(),
+            'classroom_id' => null,
             'class_name' => fake()->randomElement([
                 'X RPL 1',
                 'XI RPL 1',
@@ -34,5 +36,16 @@ class ExamScheduleFactory extends Factory
             'duration_minutes' => 90,
             'status' => ExamSchedule::STATUS_SCHEDULED,
         ];
+    }
+
+    /**
+     * Jadwal berbasis kelas (tanpa ruang) — dipakai flow Guru Mapel.
+     */
+    public function classroomBased(?Classroom $classroom = null): static
+    {
+        return $this->state(fn () => [
+            'room_id' => null,
+            'classroom_id' => $classroom?->id ?? Classroom::factory(),
+        ]);
     }
 }

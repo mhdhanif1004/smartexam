@@ -5,6 +5,7 @@ namespace App\Http\Controllers\GuruMapel;
 use App\Exports\GradesExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GuruMapel\StoreGuruMapelEntriesRequest;
+use App\Models\AcademicYear;
 use App\Models\Classroom;
 use App\Models\ExamAnswer;
 use App\Models\ExamSchedule;
@@ -43,8 +44,16 @@ class GradeController extends Controller
         $subjectId = $request->filled('subject_id') ? (int) $request->integer('subject_id') : null;
         $classroomId = $request->filled('classroom_id') ? (int) $request->integer('classroom_id') : null;
 
-        $semesters = Semester::query()->orderByDesc('year')->orderByDesc('semester')->get();
-        $activeSemesterId = Semester::query()->where('is_active', true)->value('id');
+        $semesters = Semester::query()
+            ->with('academicYear')
+            ->orderByDesc(
+                AcademicYear::query()
+                    ->select('nama')
+                    ->whereColumn('academic_years.id', 'semesters.academic_year_id')
+            )
+            ->orderByDesc('jenis')
+            ->get();
+        $activeSemesterId = Semester::getActive()?->id;
         $semesterId = $request->filled('semester_id') ? (int) $request->integer('semester_id') : $activeSemesterId;
 
         $examTypes = ExamType::query()->orderBy('sort_order')->get();
@@ -75,6 +84,7 @@ class GradeController extends Controller
                 ->where('guru_mapel_id', $guru->id)
                 ->where('subject_id', $subjectId)
                 ->where('classroom_id', $classroomId)
+                ->where('semester_id', $semesterId)
                 ->get()
                 ->keyBy('student_id');
 
@@ -343,11 +353,12 @@ class GradeController extends Controller
     ): void {
         $calculator = app(FinalScoreCalculator::class);
 
-        // Preload grades existing utk mapel-kelas ini (1 query, bukan N+1).
+        // Preload grades existing utk mapel-kelas-SEMESTER ini (1 query, bukan N+1).
         $existingGrades = Grade::query()
             ->where('guru_mapel_id', $guru->id)
             ->where('subject_id', $subjectId)
             ->where('classroom_id', $classroomId)
+            ->where('semester_id', $semesterId)
             ->get()
             ->keyBy('student_id');
 
@@ -374,6 +385,7 @@ class GradeController extends Controller
                     'student_id' => $student->id,
                     'subject_id' => $subjectId,
                     'classroom_id' => $classroomId,
+                    'semester_id' => $semesterId,
                 ],
                 [
                     'score' => round($final, 2),
@@ -431,14 +443,17 @@ class GradeController extends Controller
                 ->first();
         }
 
-        $grade = Grade::query()
-            ->where('guru_mapel_id', $guru->id)
-            ->where('student_id', $studentId)
-            ->where('subject_id', $subjectId)
-            ->where('classroom_id', $classroomId)
-            ->first();
+        $activeSemesterId = Semester::getActive()?->id;
 
-        $activeSemesterId = Semester::query()->where('is_active', true)->value('id');
+        $grade = $activeSemesterId !== null
+            ? Grade::query()
+                ->where('guru_mapel_id', $guru->id)
+                ->where('student_id', $studentId)
+                ->where('subject_id', $subjectId)
+                ->where('classroom_id', $classroomId)
+                ->where('semester_id', $activeSemesterId)
+                ->first()
+            : null;
 
         // === Sumber kebenaran: SEMUA soal yang relevan untuk mapel+kelas ===
         $allQuestions = Question::query()
@@ -760,7 +775,7 @@ class GradeController extends Controller
         $classroomId = (int) $request->integer('classroom_id');
         $semesterId = $request->filled('semester_id')
             ? (int) $request->integer('semester_id')
-            : (Semester::query()->where('is_active', true)->value('id') ?? 0);
+            : (Semester::getActive()?->id ?? 0);
 
         if (! $guru->isAmpu(subjectId: $subjectId, classroomId: $classroomId)) {
             abort(403, 'Anda tidak mengampu kombinasi mapel-kelas ini.');
@@ -771,6 +786,7 @@ class GradeController extends Controller
             ->where('guru_mapel_id', $guru->id)
             ->where('subject_id', $subjectId)
             ->where('classroom_id', $classroomId)
+            ->where('semester_id', $semesterId)
             ->orderByDesc('created_at')
             ->get();
 

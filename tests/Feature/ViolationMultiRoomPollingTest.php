@@ -7,9 +7,10 @@ use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\Room;
 use App\Models\Student;
+use App\Models\Subject;
 use App\Models\Supervisor;
 use App\Models\SupervisorRoomAssignment;
-use App\Models\Subject;
+use App\Models\User;
 use App\Models\Violation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -19,20 +20,27 @@ class ViolationMultiRoomPollingTest extends TestCase
     use RefreshDatabase;
 
     private Room $roomA;
+
     private Room $roomB;
+
     private Room $roomC;
 
     private Subject $subjectA;
+
     private Subject $subjectB;
 
     private Supervisor $supervisorMulti;
-    private \App\Models\User $pengawasMulti;
+
+    private User $pengawasMulti;
 
     private ExamPeriod $periodA;
+
     private ExamPeriod $periodB;
 
     private ExamSchedule $scheduleA;
+
     private ExamSchedule $scheduleB;
+
     private ExamSchedule $scheduleC;
 
     protected function setUp(): void
@@ -62,7 +70,7 @@ class ViolationMultiRoomPollingTest extends TestCase
 
         $this->supervisorMulti = Supervisor::factory()->create(['room_id' => null]);
         $this->pengawasMulti = $this->supervisorMulti->user;
-        $this->pengawasMulti->update(['role' => \App\Models\User::ROLE_PENGAWAS]);
+        $this->pengawasMulti->update(['role' => User::ROLE_PENGAWAS]);
 
         SupervisorRoomAssignment::factory()->create([
             'exam_period_id' => $this->periodA->id,
@@ -196,7 +204,7 @@ class ViolationMultiRoomPollingTest extends TestCase
     {
         $single = Supervisor::factory()->create(['room_id' => $this->roomC->id]);
         $pengawasSingle = $single->user;
-        $pengawasSingle->update(['role' => \App\Models\User::ROLE_PENGAWAS]);
+        $pengawasSingle->update(['role' => User::ROLE_PENGAWAS]);
 
         $vA = $this->createViolation($this->scheduleA);
         $vC = $this->createViolation($this->scheduleC);

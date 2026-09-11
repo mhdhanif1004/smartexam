@@ -30,10 +30,13 @@
             ['label' => 'Wali Kelas', 'route' => 'admin.wali-kelas.index', 'active' => 'admin.wali-kelas.*', 'icon' => 'user-group'],
             ['label' => 'Kepala Sekolah', 'route' => 'admin.kepala-sekolahs.index', 'active' => 'admin.kepala-sekolahs.*', 'icon' => 'academic-cap'],
             ['label' => 'Mata Pelajaran', 'route' => 'admin.subjects.index', 'active' => 'admin.subjects.*', 'icon' => 'book-open'],
+            ['label' => 'Tahun Ajaran', 'route' => 'admin.academic-years.index', 'active' => 'admin.academic-years.*', 'icon' => 'calendar-days'],
+            ['label' => 'Semester', 'route' => 'admin.semesters.index', 'active' => 'admin.semesters.*', 'icon' => 'calendar-days'],
             ['label' => 'Ruangan', 'route' => 'admin.rooms.index', 'active' => 'admin.rooms.*', 'icon' => 'building-office'],
             ['label' => 'Soal', 'route' => 'admin.questions.index', 'active' => 'admin.questions.*', 'icon' => 'question-mark'],
             ['label' => 'Jadwal Ujian', 'route' => 'admin.exam-schedules.index', 'active' => 'admin.exam-schedules.*', 'icon' => 'calendar-days'],
             ['label' => 'Sesi Ujian', 'route' => 'admin.exam-periods.index', 'active' => 'admin.exam-periods.*', 'icon' => 'clock'],
+            ['label' => 'Jenis Ujian', 'route' => 'admin.exam-types.index', 'active' => 'admin.exam-types.*', 'icon' => 'document-text'],
             ['label' => 'Kartu Login', 'route' => 'admin.student-cards.index', 'active' => 'admin.student-cards.*', 'icon' => 'key'],
             ['label' => 'Pengaturan Kartu', 'route' => 'admin.card-settings.edit', 'active' => 'admin.card-settings.*', 'icon' => 'document-text'],
             ['label' => 'Absensi', 'route' => 'admin.attendance.index', 'active' => 'admin.attendance.*', 'icon' => 'clipboard-check'],
@@ -50,6 +53,7 @@
             ['label' => 'Soal', 'route' => 'guru_mapel.questions.index', 'active' => 'guru_mapel.questions.*', 'icon' => 'question-mark'],
             ['label' => 'Nilai', 'route' => 'guru_mapel.grades.index', 'active' => 'guru_mapel.grades.*', 'icon' => 'chart-bar'],
             ['label' => 'Absensi Ujian', 'route' => 'guru_mapel.attendances.index', 'active' => 'guru_mapel.attendances.*', 'icon' => 'clipboard-check'],
+            ['label' => 'Jadwal Ujian Saya', 'route' => 'guru_mapel.exam-schedules.index', 'active' => ['guru_mapel.exam-schedules.*', 'guru_mapel.proctor.*'], 'icon' => 'calendar-days'],
         ],
         'kepala_sekolah' => [
             ['label' => 'Dashboard', 'route' => 'kepala_sekolah.dashboard', 'active' => 'kepala_sekolah.dashboard', 'icon' => 'dashboard'],
@@ -60,6 +64,10 @@
         ],
         'wali_kelas' => [
             ['label' => 'Dashboard', 'route' => 'wali_kelas.dashboard', 'active' => 'wali_kelas.dashboard', 'icon' => 'dashboard'],
+            ['label' => 'Nilai Akademik', 'route' => 'wali_kelas.nilai-akademik', 'active' => 'wali_kelas.nilai-akademik', 'icon' => 'chart-bar'],
+            ['label' => 'Nilai Sikap', 'route' => 'wali_kelas.nilai-sikap', 'active' => 'wali_kelas.nilai-sikap', 'icon' => 'clipboard-check'],
+            ['label' => 'Rekap Pelanggaran', 'route' => 'wali_kelas.pelanggaran', 'active' => 'wali_kelas.pelanggaran', 'icon' => 'eye'],
+            ['label' => 'Catatan Wali Kelas', 'route' => 'wali_kelas.catatan', 'active' => 'wali_kelas.catatan', 'icon' => 'document-text'],
         ],
         'peserta' => [
             ['label' => 'Dashboard', 'route' => 'peserta.dashboard', 'active' => 'peserta.dashboard', 'icon' => 'dashboard'],
@@ -106,12 +114,16 @@
 
         <nav class="flex-1 space-y-0.5 px-2.5 pb-6">
             @foreach ($items as $menu)
-                @php($active = request()->routeIs($menu['active'] ?? $menu['route']))
+                @php
+                    $menuActive = $menu['active'] ?? $menu['route'];
+                    $active = request()->routeIs($menuActive);
+                    $activePatternAttr = is_array($menuActive) ? implode(' ', $menuActive) : $menuActive;
+                @endphp
                 <a
                     href="{{ Route::has($menu['route']) ? route($menu['route']) : '#' }}"
                     data-sidebar-link
                     data-no-instant
-                    data-active-pattern="{{ $menu['active'] ?? $menu['route'] }}"
+                    data-active-pattern="{{ $activePatternAttr }}"
                     class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {{ $active ? 'bg-indigo-600 text-white shadow-sm mx-1' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100' }}"
                 >
                     <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
