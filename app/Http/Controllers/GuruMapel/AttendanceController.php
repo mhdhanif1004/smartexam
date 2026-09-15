@@ -5,6 +5,7 @@ namespace App\Http\Controllers\GuruMapel;
 use App\Http\Controllers\Controller;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
+use App\Models\ExamType;
 use App\Models\Student;
 use App\Traits\ScopesGuruMapel;
 use Illuminate\Http\Request;
@@ -23,10 +24,18 @@ class AttendanceController extends Controller
         $subjectId = $request->filled('subject_id') ? (int) $request->integer('subject_id') : null;
         $classroomId = $request->filled('classroom_id') ? (int) $request->integer('classroom_id') : null;
 
+        $examTypes = ExamType::query()->orderBy('sort_order')->get();
+        $selectedExamTypeId = $request->filled('jenis_ujian') ? (int) $request->integer('jenis_ujian') : null;
+        $selectedExamTypeId = $examTypes->contains('id', $selectedExamTypeId) ? $selectedExamTypeId : null;
+
         $classrooms = collect();
         if ($subjectId !== null) {
             $classrooms = $this->ampuClassrooms($guru, $subjectId);
         }
+
+        // Dropdown kelas dependen (client-side) — muncul langsung setelah
+        // user pilih mapel, tanpa perlu tekan tombol dulu.
+        $classroomsBySubject = $guru->classScopeBySubject();
 
         $schedules = collect();
         $validSelection = $subjectId !== null
@@ -43,6 +52,10 @@ class AttendanceController extends Controller
             $schedules = ExamSchedule::query()
                 ->with(['subject', 'examPeriod'])
                 ->where('subject_id', $subjectId)
+                ->when($selectedExamTypeId !== null, fn ($q) => $q->whereHas(
+                    'examPeriod',
+                    fn ($period) => $period->where('exam_type_id', $selectedExamTypeId)
+                ))
                 ->whereHas('examSessions', fn ($q) => $q->whereIn('student_id', $classStudentIds))
                 ->orderByDesc('exam_date')
                 ->orderBy('start_time')
@@ -65,7 +78,8 @@ class AttendanceController extends Controller
         }
 
         return view('guru_mapel.attendances.index', compact(
-            'guru', 'subjects', 'classrooms', 'subjectId', 'classroomId', 'schedules', 'validSelection',
+            'guru', 'subjects', 'classrooms', 'classroomsBySubject', 'subjectId', 'classroomId', 'schedules', 'validSelection',
+            'examTypes', 'selectedExamTypeId',
         ));
     }
 

@@ -364,6 +364,17 @@ class ExamScheduleTimingTest extends TestCase
             'status' => ExamSchedule::STATUS_FINISHED,
         ]);
 
+        // Siswa sudah diabsen (attendance_confirmed) tapi belum mulai —
+        // badge harus dari computedStatus (ongoing → Bisa Dimulai), bukan
+        // kolom status statis (finished).
+        ExamSession::create([
+            'student_id' => $student->id,
+            'exam_schedule_id' => ExamSchedule::latest('id')->first()->id,
+            'status' => ExamSession::STATUS_NOT_STARTED,
+            'attendance_confirmed' => true,
+            'attendance_status' => ExamSession::ATTENDANCE_PRESENT,
+        ]);
+
         Carbon::setTestNow(Carbon::parse('2026-08-10 09:30:00'));
 
         $this->actingAs($peserta)->get(route('peserta.dashboard'))

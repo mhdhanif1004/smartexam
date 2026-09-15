@@ -13,10 +13,12 @@ use App\Models\Subject;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
+use Tests\Feature\Concerns\BalancesQuestionWeights;
 use Tests\TestCase;
 
 class ExamPeriodAutoGenerateTest extends TestCase
 {
+    use BalancesQuestionWeights;
     use RefreshDatabase;
 
     private User $admin;
@@ -43,6 +45,13 @@ class ExamPeriodAutoGenerateTest extends TestCase
 
         foreach ([$this->mtk, $this->bindo, $this->bing] as $subject) {
             Question::factory()->create(['subject_id' => $subject->id]);
+        }
+
+        // Invariant bobot: tiap kombinasi mapel×kelas harus total 100.
+        // Siapkan coverage penuh utk kelas yang dipakai mayoritas test.
+        $kelasDefault = Classroom::firstOrCreate(['name' => 'XII RPL 1']);
+        foreach ([$this->mtk, $this->bindo, $this->bing] as $subject) {
+            $this->seedBalancedQuestions($subject, $kelasDefault);
         }
 
         $this->roomA = Room::factory()->create(['room_number' => 1, 'capacity' => 25]);
@@ -269,6 +278,33 @@ class ExamPeriodAutoGenerateTest extends TestCase
      */
     public function test_mixed_grade_rooms_maintain_grade_exclusivity(): void
     {
+        // Coverage bobot utk 15 kelas: 2 soal bobot 50 per mapel,
+        // tiap soal di-attach ke semua kelas (total 100 per pasangan).
+        // XII RPL 1 SENGAJA dikecualikan — sudah ter-cover di setUp.
+        $classes = [
+            'X RPL 1', 'X RPL 2', 'X RPL 3', 'X RPL 4', 'X RPL 5',
+            'XI RPL 1', 'XI RPL 2', 'XI RPL 3', 'XI RPL 4', 'XI RPL 5',
+            'XII RPL 2', 'XII RPL 3', 'XII RPL 4', 'XII RPL 5',
+        ];
+        $classroomIds = collect($classes)
+            ->map(fn ($name) => Classroom::idForName($name))
+            ->all();
+
+        $questions = [];
+        foreach ([$this->mtk, $this->bindo, $this->bing] as $subject) {
+            foreach ([50, 50] as $weight) {
+                $questions[] = Question::factory()->create([
+                    'subject_id' => $subject->id,
+                    'type' => Question::TYPE_SINGLE_CHOICE,
+                    'score_weight' => $weight,
+                    'is_active' => true,
+                ]);
+            }
+        }
+        foreach ($questions as $question) {
+            $question->classrooms()->attach($classroomIds);
+        }
+
         // Create 12 rooms with capacity 30 each (start at 100 to avoid conflict with setUp's rooms)
         $rooms = [];
         foreach (range(1, 12) as $i) {
@@ -399,74 +435,54 @@ class ExamPeriodAutoGenerateTest extends TestCase
         $this->assertSame('XI', $s2r1Grades[0], 'Sesi 2 Room 1 should contain only grade XI students.');
     }
 
-    public function test_generate_warns_when_classroom_lacks_questions_for_subject(): void
+    public function test_generate_blocks_when_classroom_lacks_questions_for_subject(): void
     {
+        $this->student('Siswa 001', 'XII RPL 2');
+
+        // SetUp men-seed coverage untuk XII RPL 1 — kelas ini SENGAJA tanpa
+        // soal (0 bobot) sehingga ketiga pasangan mapel×kelas ditolak/blok.
+        $this->postGenerate(['class_names' => ['XII RPL 2']])
+            ->assertSessionHasErrors('subjects');
+
+        $errors = session('errors')->getBag('default')->get('subjects');
+        $this->assertNotEmpty($errors);
+        $joined = implode(' ', $errors);
+        $this->assertStringContainsString('XII RPL 2 × Matematika', $joined);
+        $this->assertStringContainsString('XII RPL 2 × Bahasa Indonesia', $joined);
+        $this->assertStringContainsString('XII RPL 2 × Bahasa Inggris', $joined);
+    }
+
+    public function test_generate_succeeds_when_all_classrooms_have_questions(): void
+    {
+        // SetUp sudah men-seed bobot 100 utk XII RPL 1 di semua mapel.
         $this->student('Siswa 001', 'XII RPL 1');
 
-        // Questions exist for all 3 subjects but NOT linked to XII RPL 1
-        // → all 3 (classroom × subject) pairs are missing
         $this->postGenerate()
             ->assertRedirect(route('admin.exam-periods.index'))
-            ->assertSessionHas('success')
-            ->assertSessionHas('warning');
+            ->assertSessionHas('success');
 
-        $warning = session('warning');
-        $this->assertStringContainsString('3 kombinasi', $warning);
-        $this->assertStringContainsString('XII RPL 1 × Matematika', $warning);
-        $this->assertStringContainsString('XII RPL 1 × Bahasa Indonesia', $warning);
-        $this->assertStringContainsString('XII RPL 1 × Bahasa Inggris', $warning);
+        $this->assertDatabaseCount('exam_periods', 1);
     }
 
-    public function test_generate_no_warning_when_all_classrooms_have_questions(): void
+    public function test_generate_blocks_only_for_missing_pairs_in_multi_classroom(): void
     {
-        $student = $this->student('Siswa 001', 'XII RPL 1');
+        $this->student('Alpha', 'XII RPL 1');
+        $this->student('Beta', 'XII RPL 2');
 
-        // Sync all questions to XII RPL 1 → all pairs covered
-        $classroomId = $student->classroom_id;
-        foreach ([$this->mtk, $this->bindo, $this->bing] as $subject) {
-            $question = Question::query()->where('subject_id', $subject->id)->first();
-            $question->classrooms()->sync($classroomId);
-        }
-
-        $this->postGenerate()
-            ->assertRedirect(route('admin.exam-periods.index'))
-            ->assertSessionHas('success')
-            ->assertSessionMissing('warning');
-    }
-
-    public function test_generate_warns_only_for_missing_pairs_in_multi_classroom(): void
-    {
-        $studentA = $this->student('Alpha', 'XII RPL 1');
-        $studentB = $this->student('Beta', 'XII RPL 2');
-
-        // Link questions only to XII RPL 1 for all subjects
-        $classroomId = $studentA->classroom_id;
-        foreach ([$this->mtk, $this->bindo, $this->bing] as $subject) {
-            $question = Question::query()->where('subject_id', $subject->id)->first();
-            $question->classrooms()->sync($classroomId);
-        }
-
-        // Verify: questions ARE linked to XII RPL 1 only
-        $pivotCount = \DB::table('question_classroom')
-            ->where('classroom_id', $classroomId)
-            ->count();
-        $this->assertSame(3, $pivotCount, 'Expected 3 question_classroom rows for XII RPL 1');
-
+        // SetUp: XII RPL 1 ter-cover (bobot 100). XII RPL 2 sengaja kosong.
         $response = $this->postGenerate([
             'class_names' => ['XII RPL 1', 'XII RPL 2'],
         ]);
 
-        $response->assertRedirect(route('admin.exam-periods.index'))
-            ->assertSessionHas('success');
+        $response->assertSessionHasErrors('subjects');
 
-        $allSession = $response->getSession()->all();
-        $this->assertArrayHasKey('warning', $allSession, 'Session keys: '.implode(', ', array_keys($allSession)));
-
-        $warning = session('warning');
-        // XII RPL 1 is covered → no warning for it
-        $this->assertStringNotContainsString('XII RPL 1 ×', $warning);
-        // XII RPL 2 is missing all 3 subjects → 3 missing pairs
-        $this->assertStringContainsString('3 kombinasi', $warning);
-        $this->assertStringContainsString('XII RPL 2 × Matematika', $warning);
+        $errors = session('errors')->getBag('default')->get('subjects');
+        $joined = implode(' ', $errors);
+        // XII RPL 1 ter-cover → tidak disebut dalam error
+        $this->assertStringNotContainsString('XII RPL 1 ×', $joined);
+        // XII RPL 2 kehilangan semua mapel → ketiga pasangan disebut
+        $this->assertStringContainsString('XII RPL 2 × Matematika', $joined);
+        $this->assertStringContainsString('XII RPL 2 × Bahasa Indonesia', $joined);
+        $this->assertStringContainsString('XII RPL 2 × Bahasa Inggris', $joined);
     }
 }

@@ -2,16 +2,19 @@
 
 namespace Tests\Feature;
 
+use App\Models\Classroom;
 use App\Models\ExamSchedule;
 use App\Models\Question;
 use App\Models\Room;
 use App\Models\Subject;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Feature\Concerns\BalancesQuestionWeights;
 use Tests\TestCase;
 
 class ExamScheduleRoomConflictTest extends TestCase
 {
+    use BalancesQuestionWeights;
     use RefreshDatabase;
 
     private User $admin;
@@ -34,6 +37,9 @@ class ExamScheduleRoomConflictTest extends TestCase
         Question::factory()->create(['subject_id' => $this->subject->id]);
         $this->room = Room::factory()->create();
         $this->otherRoom = Room::factory()->create();
+
+        // Invariant bobot: total 100 per mapel×kelas (kelas yang dipakai payload).
+        $this->seedBalancedQuestions($this->subject, Classroom::firstOrCreate(['name' => 'XI RPL 1']));
     }
 
     /**

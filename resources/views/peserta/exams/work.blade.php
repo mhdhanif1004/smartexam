@@ -347,6 +347,30 @@
         </div>
     </div>
 
+    <div x-show="showUnanswered" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-gray-900/50" @click="showUnanswered = false"></div>
+        <div class="relative w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900 dark:ring-1 dark:ring-gray-700">
+            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-500/10">
+                <svg class="h-6 w-6 text-rose-600 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <h3 class="mt-4 text-lg font-bold text-gray-900 dark:text-gray-100">Masih ada soal yang belum dijawab</h3>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Jawab semua soal sebelum mengumpulkan. Klik nomor soal untuk melompat:</p>
+            <div class="mt-4 flex flex-wrap gap-2">
+                <template x-for="n in unansweredNumbers" :key="n">
+                    <button type="button" @click="jumpToUnanswered(n)"
+                            class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-rose-50 text-xs font-bold text-rose-700 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20">
+                        <span x-text="n"></span>
+                    </button>
+                </template>
+            </div>
+            <div class="mt-6 flex justify-end gap-3">
+                <button type="button" @click="showUnanswered = false" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Kembali Mengerjakan</button>
+            </div>
+        </div>
+    </div>
+
     <x-modal name="reset-answer" maxWidth="sm">
         <div class="p-6">
             <div class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-500/10">

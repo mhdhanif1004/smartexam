@@ -58,8 +58,14 @@ class GradeController extends Controller
 
         $examTypes = ExamType::query()->orderBy('sort_order')->get();
 
+        // Filter jenis ujian (opsional) — memengaruhi tab Rekap Nilai saja.
+        $selectedExamTypeId = $request->filled('jenis_ujian') ? (int) $request->integer('jenis_ujian') : null;
+        $selectedExamTypeId = $examTypes->contains('id', $selectedExamTypeId) ? $selectedExamTypeId : null;
+        $kehadiranTypeId = $examTypes->firstWhere('code', 'kehadiran')?->id;
+
         $students = collect();
         $rows = collect();
+        $rekapRows = collect();
         $classroom = null;
         $validSelection = $subjectId !== null
             && $classroomId !== null
@@ -89,14 +95,14 @@ class GradeController extends Controller
                 ->keyBy('student_id');
 
             // Semua baris subject_grades siswa utk mapel-kelas-semester ini.
-            $subjectGrades = SubjectGrade::query()
+            $subjectGradesBase = SubjectGrade::query()
                 ->with('examType')
                 ->where('subject_id', $subjectId)
                 ->where('classroom_id', $classroomId)
                 ->where('semester_id', $semesterId)
-                ->whereIn('student_id', $students->pluck('id'))
-                ->get()
-                ->groupBy('student_id');
+                ->whereIn('student_id', $students->pluck('id'));
+
+            $subjectGrades = (clone $subjectGradesBase)->get()->groupBy('student_id');
 
             $attendanceByStudent = SubjectAttendance::query()
                 ->where('subject_id', $subjectId)
@@ -106,37 +112,40 @@ class GradeController extends Controller
                 ->get()
                 ->keyBy('student_id');
 
-            $calculator = app(FinalScoreCalculator::class);
+            // Tab Rekap Nilai: bila filter jenis ujian aktif, subset data hanya
+            // jenis itu (subject_grades by exam_type; kehadiran hanya saat
+            // filter == kehadiran). Input Manual & Kehadiran KBM tetap pakai
+            // $rows lengkap (tidak terpengaruh filter).
+            if ($selectedExamTypeId !== null) {
+                $filteredGrades = (clone $subjectGradesBase)
+                    ->where('exam_type_id', $selectedExamTypeId)
+                    ->get()
+                    ->groupBy('student_id');
 
-            $rows = $students->map(function (Student $student) use ($subjectId, $semesterId, $subjectGrades, $attendanceByStudent, $calculator, $existingGrades, $harianTypeId) {
-                $studentGrades = $subjectGrades->get($student->id, collect());
-                $attendance = $attendanceByStudent->get($student->id);
+                $filteredAttendance = $selectedExamTypeId === $kehadiranTypeId
+                    ? $attendanceByStudent
+                    : collect();
 
-                $breakdown = $this->breakdownByType($studentGrades, $attendance);
+                $rekapRows = $this->buildRows(
+                    $students, $subjectId, $semesterId,
+                    $filteredGrades, $filteredAttendance, $existingGrades, $harianTypeId,
+                    filteredMode: true,
+                );
+            }
 
-                $calc = $calculator->calculate($student->id, $subjectId, $semesterId);
+            $rows = $this->buildRows(
+                $students, $subjectId, $semesterId,
+                $subjectGrades, $attendanceByStudent, $existingGrades, $harianTypeId,
+                filteredMode: false,
+            );
+        }
 
-                $existing = $existingGrades->get($student->id);
-
-                $effectiveScore = $existing !== null && $existing->is_override
-                    ? (float) $existing->score
-                    : $calc['final_score'];
-
-                return [
-                    'student' => $student,
-                    'breakdown' => $breakdown,
-                    'average' => $calc['final_score'],
-                    'score' => $effectiveScore !== null ? round($effectiveScore, 2) : null,
-                    'source' => $existing !== null && $existing->is_override ? 'override' : ($calc['final_score'] !== null ? 'auto' : 'none'),
-                    'note' => $existing?->note,
-                    'harianCount' => $harianTypeId !== null ? $studentGrades->where('exam_type_id', $harianTypeId)->count() : 0,
-                    'attendanceDays' => $attendance !== null ? [
-                        'total_days' => $attendance->total_days,
-                        'present_days' => $attendance->present_days,
-                        'absent_days' => $attendance->absent_days,
-                    ] : null,
-                ];
-            })->values();
+        if ($selectedExamTypeId !== null) {
+            // Filter aktif: jadikan baris rekap terfilter sebagai sumber.
+            $rekapRows = $rekapRows->isEmpty() ? $rows : $rekapRows;
+        } else {
+            // Tanpa filter: rekap = baris lengkap (semua jenis ujian).
+            $rekapRows = $rows;
         }
 
         $classrooms = collect();
@@ -144,14 +153,76 @@ class GradeController extends Controller
             $classrooms = $this->ampuClassrooms($guru, $subjectId);
         }
 
+        // Dropdown kelas dependen (client-side) — muncul langsung setelah
+        // user pilih mapel, tanpa perlu tekan tombol dulu.
+        $classroomsBySubject = $guru->classScopeBySubject();
+
         $guruId = $guru->id;
         $rowsByStudent = $rows->keyBy(fn ($row) => $row['student']->id);
 
         return view('guru_mapel.grades.index', compact(
-            'guru', 'guruId', 'subjects', 'classrooms', 'subjectId', 'classroomId',
+            'guru', 'guruId', 'subjects', 'classrooms', 'classroomsBySubject', 'subjectId', 'classroomId',
             'students', 'validSelection', 'classroom', 'rows', 'semesters', 'semesterId',
-            'activeSemesterId', 'examTypes', 'rowsByStudent',
+            'activeSemesterId', 'examTypes', 'rowsByStudent', 'rekapRows', 'selectedExamTypeId',
         ));
+    }
+
+    private function buildRows(
+        Collection $students,
+        int $subjectId,
+        int $semesterId,
+        Collection $subjectGradesByStudent,
+        Collection $attendanceByStudent,
+        Collection $existingGrades,
+        int $harianTypeId,
+        bool $filteredMode = false,
+    ): Collection {
+        $calculator = app(FinalScoreCalculator::class);
+
+        return $students->map(function (Student $student) use ($subjectId, $semesterId, $subjectGradesByStudent, $attendanceByStudent, $calculator, $existingGrades, $harianTypeId, $filteredMode) {
+            $studentGrades = $subjectGradesByStudent->get($student->id, collect());
+            $attendance = $attendanceByStudent->get($student->id);
+
+            $breakdown = $this->breakdownByType($studentGrades, $attendance);
+
+            $calc = $calculator->calculate($student->id, $subjectId, $semesterId);
+
+            $existing = $existingGrades->get($student->id);
+
+            // Filtered mode: Nilai Akhir = rata-rata kategori yang ADA
+            // pada set terfilter (satu jenis ujian saja), bukan semua kategori.
+            if ($filteredMode) {
+                $filteredAvg = collect($breakdown)->avg('average');
+                $effectiveScore = $existing !== null && $existing->is_override
+                    ? (float) $existing->score
+                    : ($filteredAvg !== null ? round((float) $filteredAvg, 2) : null);
+                $source = $existing !== null && $existing->is_override
+                    ? 'override'
+                    : ($filteredAvg !== null ? 'auto' : 'none');
+            } else {
+                $effectiveScore = $existing !== null && $existing->is_override
+                    ? (float) $existing->score
+                    : $calc['final_score'];
+                $source = $existing !== null && $existing->is_override
+                    ? 'override'
+                    : ($calc['final_score'] !== null ? 'auto' : 'none');
+            }
+
+            return [
+                'student' => $student,
+                'breakdown' => $breakdown,
+                'average' => $calc['final_score'],
+                'score' => $effectiveScore !== null ? round($effectiveScore, 2) : null,
+                'source' => $source,
+                'note' => $existing?->note,
+                'harianCount' => $harianTypeId !== null ? $studentGrades->where('exam_type_id', $harianTypeId)->count() : 0,
+                'attendanceDays' => $attendance !== null ? [
+                    'total_days' => $attendance->total_days,
+                    'present_days' => $attendance->present_days,
+                    'absent_days' => $attendance->absent_days,
+                ] : null,
+            ];
+        })->values();
     }
 
     public function store(StoreGuruMapelEntriesRequest $request): RedirectResponse

@@ -103,7 +103,7 @@ class SusulanAccessTest extends TestCase
         $this->actingAs($this->student->user)
             ->get(route('peserta.dashboard'))
             ->assertOk()
-            ->assertSee('Susulan')
+            ->assertSee('Bisa Dikerjakan')
             ->assertSee($tokenUrl, false);
 
         $response = $this->actingAs($this->student->user)->get($tokenUrl);
@@ -132,7 +132,7 @@ class SusulanAccessTest extends TestCase
         $this->actingAs($this->student->user)
             ->get(route('peserta.dashboard'))
             ->assertOk()
-            ->assertDontSee('Susulan')
+            ->assertDontSee('Bisa Dikerjakan')
             ->assertDontSee($tokenUrl, false)
             ->assertSee($finishedUrl, false);
 

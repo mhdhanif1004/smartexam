@@ -446,7 +446,7 @@ class ExamController extends Controller
      * jawaban selama grace warning, namun tidak bisa finalize sampai
      * diabsen ulang oleh pengawas.
      */
-    public function submit(Request $request, int $schedule): RedirectResponse
+    public function submit(Request $request, int $schedule): RedirectResponse|JsonResponse
     {
         if (($redirect = $this->resolve($request, $schedule)) !== null) {
             return $redirect;
@@ -470,6 +470,19 @@ class ExamController extends Controller
 
         if (! $isExpired) {
             $this->storeAnswers($session, $this->schedule, (array) $request->input('answers', []), $this->student->classroom_id);
+
+            // Gate kelengkapan — HANYA submit MANUAL (belum expired).
+            // Auto-submit via Timer Sesi (expired) TIDAK kena gate ini dan
+            // tetap unconditional di bawah (jalur independen).
+            $unanswered = $this->unansweredQuestionNumbers($session);
+
+            if ($unanswered['ids'] !== []) {
+                return response()->json([
+                    'message' => 'Masih ada soal yang belum dijawab. Jawab semua soal sebelum mengumpulkan.',
+                    'unanswered_question_ids' => $unanswered['ids'],
+                    'unanswered_numbers' => $unanswered['numbers'],
+                ], 422);
+            }
         }
 
         $this->grading->finalize($session, $this->schedule);
@@ -479,6 +492,60 @@ class ExamController extends Controller
                 $isExpired
                     ? 'Waktu ujian telah habis. Jawaban dikumpulkan otomatis.'
                     : 'Ujian berhasil dikumpulkan.');
+    }
+
+    /**
+     * Daftar soal aktif yang BELUM terjawab (dalam urutan tampilan soal).
+     *
+     * - Pilihan ganda/checkbox: terjawab = ada opsi/filter terpilih (array non-kosong).
+     * - true/false: nilai boolean apa pun dianggap terjawab (false = jawaban sah).
+     * - Essay/isian: terjawab = trim(jawaban) tidak kosong (spasi doang = belum).
+     *
+     * @return array{ids: array<int, int>, numbers: array<int, int>}
+     */
+    private function unansweredQuestionNumbers(ExamSession $session): array
+    {
+        $questions = $this->schedule->subject->questions()
+            ->where('is_active', true)
+            ->targetingClassroom($this->student->classroom_id)
+            ->orderBy('id')
+            ->get();
+
+        $answers = $session->examAnswers()->get()->keyBy('question_id');
+
+        $ids = [];
+        $numbers = [];
+
+        foreach ($questions as $index => $question) {
+            $answer = $answers->get($question->id);
+            $value = $answer?->student_answer;
+
+            if ($this->isQuestionAnswered($value)) {
+                continue;
+            }
+
+            $ids[] = $question->id;
+            $numbers[] = $index + 1;
+        }
+
+        return ['ids' => $ids, 'numbers' => $numbers];
+    }
+
+    private function isQuestionAnswered(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return true; // true/false: false tetap jawaban sah
+        }
+
+        if (is_array($value)) {
+            return $value !== []; // MCQ tanpa opsi / matching tanpa pasangan = belum
+        }
+
+        if ($value === null) {
+            return false;
+        }
+
+        return trim((string) $value) !== '';
     }
 
     public function finished(Request $request, int $schedule): View|RedirectResponse

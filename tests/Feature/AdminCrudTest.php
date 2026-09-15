@@ -12,10 +12,12 @@ use App\Models\Supervisor;
 use App\Models\User;
 use Database\Seeders\ClassroomSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Feature\Concerns\BalancesQuestionWeights;
 use Tests\TestCase;
 
 class AdminCrudTest extends TestCase
 {
+    use BalancesQuestionWeights;
     use RefreshDatabase;
 
     private User $admin;
@@ -191,7 +193,8 @@ class AdminCrudTest extends TestCase
     public function test_admin_can_create_exam_schedule(): void
     {
         $subject = Subject::factory()->create();
-        Question::factory()->create(['subject_id' => $subject->id]);
+        $classroom = Classroom::firstOrCreate(['name' => 'XI RPL 1']);
+        $this->seedBalancedQuestions($subject, $classroom);
         $room = Room::factory()->create();
 
         $this->actingAs($this->admin)->post('/admin/exam-schedules', [

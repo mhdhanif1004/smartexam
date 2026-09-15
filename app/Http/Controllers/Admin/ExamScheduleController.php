@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\UpdateExamScheduleRequest;
 use App\Models\ExamPeriod;
 use App\Models\ExamRoomAssignment;
 use App\Models\ExamSchedule;
+use App\Models\ExamSession;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
@@ -268,6 +269,16 @@ class ExamScheduleController extends Controller
 
         $data = $this->formOptions();
         $data['examSchedule'] = $examSchedule;
+
+        $period = $examSchedule->examPeriod;
+        $scheduleIds = $period !== null
+            ? $period->schedules()->pluck('id')
+            : collect([$examSchedule->id]);
+
+        $data['hasStarted'] = ExamSession::query()
+            ->whereIn('exam_schedule_id', $scheduleIds)
+            ->whereNotNull('started_at')
+            ->exists();
 
         return view('admin.exam-schedules.edit', $data);
     }

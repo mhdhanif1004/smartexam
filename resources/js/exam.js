@@ -32,6 +32,8 @@ export function examApp(config) {
         showConfirm: false,
         resetConfirmId: null,
         zoomImage: null,
+        showUnanswered: false,
+        unansweredNumbers: [],
         toast: '',
         toastVisible: false,
         toastTimer: null,
@@ -54,6 +56,14 @@ export function examApp(config) {
 
         dismissMapelWarning() {
             this.showMapelWarning = false;
+        },
+
+        jumpToUnanswered(number) {
+            this.showUnanswered = false;
+            const index = number - 1;
+            if (index >= 0 && index < this.questions.length) {
+                this.current = index;
+            }
         },
 
         get inGracePeriod() {
@@ -567,23 +577,34 @@ export function examApp(config) {
             }
             this.showConfirm = false;
             this.submitting = true;
-            this.leaving = true;
-            this.teardownViolationListeners();
-            if (this.timer) {
-                clearInterval(this.timer);
-                this.timer = null;
-            }
-            if (this.csrfRefreshTimer) {
-                clearInterval(this.csrfRefreshTimer);
-                this.csrfRefreshTimer = null;
-            }
-            if (this.statusTimer) {
-                clearInterval(this.statusTimer);
-                this.statusTimer = null;
-            }
             try {
                 await this.saveAnswer();
                 const response = await this.post(config.submitUrl, { answers: this.answers });
+
+                // 422 = submit manual ditolak (soal belum lengkap): tampilkan
+                // modal + jaga timer tetap jalan (teardown hanya saat sukses).
+                if (response.status === 422) {
+                    const data = await response.json().catch(() => ({}));
+                    this.submitting = false;
+                    this.unansweredNumbers = Array.isArray(data.unanswered_numbers) ? data.unanswered_numbers : [];
+                    this.showUnanswered = true;
+                    return;
+                }
+
+                this.leaving = true;
+                this.teardownViolationListeners();
+                if (this.timer) {
+                    clearInterval(this.timer);
+                    this.timer = null;
+                }
+                if (this.csrfRefreshTimer) {
+                    clearInterval(this.csrfRefreshTimer);
+                    this.csrfRefreshTimer = null;
+                }
+                if (this.statusTimer) {
+                    clearInterval(this.statusTimer);
+                    this.statusTimer = null;
+                }
                 if (response.redirected) {
                     window.location.assign(response.url);
                 } else {

@@ -223,6 +223,15 @@ class CleanupStuckSessionsTest extends TestCase
             'last_activity_at' => now()->subMinutes(40),
         ]);
 
+        // Mapel 2 sudah diabsen — badge "Bisa Dimulai" mensyaratkan absensi
+        // terkonfirmasi di mapel target (konsisten dengan akses token).
+        ExamSession::create([
+            'student_id' => $this->student->id,
+            'exam_schedule_id' => $this->schedule2->id,
+            'status' => ExamSession::STATUS_NOT_STARTED,
+            'attendance_confirmed' => true,
+        ]);
+
         // Sebelum cleanup: mapel 2 masih "Belum Mulai" (ada in_progress lain)
         $tokenUrl2 = route('peserta.exams.token', $this->schedule2);
         $this->actingAs($this->student->user)

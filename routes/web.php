@@ -265,6 +265,13 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::get('/exam-schedules/create', [GuruMapelExamScheduleController::class, 'create'])->name('exam-schedules.create');
         Route::post('/exam-schedules', [GuruMapelExamScheduleController::class, 'store'])->name('exam-schedules.store');
 
+        // Edit/delete period milik guru — jalur otorisasi SAMA (owner), bukan jalur baru.
+        Route::middleware('owner')->group(function () {
+            Route::get('/exam-schedules/{examPeriod}/edit', [GuruMapelExamScheduleController::class, 'edit'])->name('exam-schedules.edit');
+            Route::put('/exam-schedules/{examPeriod}', [GuruMapelExamScheduleController::class, 'update'])->name('exam-schedules.update');
+            Route::delete('/exam-schedules/{examPeriod}', [GuruMapelExamScheduleController::class, 'destroy'])->name('exam-schedules.destroy');
+        });
+
         // Mode "Pengawas Mandiri": HANYA period milik guru ini (middleware
         // owner). Jalur terpisah dari role:pengawas asli.
         Route::middleware('owner')->prefix('proctor')->name('proctor.')->group(function () {

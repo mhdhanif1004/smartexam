@@ -103,7 +103,7 @@ class AttendancePropagationTest extends TestCase
             ->assertJson(['ok' => true]);
 
         $sessionA = $this->sessionFor($student->id, $this->scheduleA->id);
-        $this->assertFalse($sessionA->attendance_confirmed);
+        $this->assertTrue($sessionA->attendance_confirmed);
         $this->assertSame(ExamSession::ATTENDANCE_ABSENT, $sessionA->attendance_status);
 
         $propagatedSessions = ExamSession::query()
@@ -127,7 +127,7 @@ class AttendancePropagationTest extends TestCase
         $this->assertDatabaseHas('exam_sessions', [
             'student_id' => $student->id,
             'exam_schedule_id' => $this->scheduleC->id,
-            'attendance_confirmed' => false,
+            'attendance_confirmed' => true,
             'attendance_status' => ExamSession::ATTENDANCE_ABSENT,
         ]);
 

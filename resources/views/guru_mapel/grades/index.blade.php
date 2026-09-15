@@ -8,10 +8,15 @@
         @include('admin.partials.flash')
 
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <form method="GET" action="{{ route('guru_mapel.grades.index') }}" class="grid gap-4 sm:grid-cols-3">
+            <form method="GET" action="{{ route('guru_mapel.grades.index') }}" class="grid gap-4 sm:grid-cols-3"
+              x-data="{
+                  subjects: @js($classroomsBySubject),
+                  subjectId: '{{ $subjectId ?? '' }}',
+                  get classrooms() { return this.subjects[this.subjectId] ?? []; },
+              }">
                 <div>
                     <x-input-label for="subject_id" :value="__('Mata Pelajaran')" />
-                    <select id="subject_id" name="subject_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                    <select id="subject_id" name="subject_id" x-model="subjectId" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                         <option value="">-- Pilih Mapel --</option>
                         @foreach ($subjects as $subject)
                             <option value="{{ $subject->id }}" @selected((string) $subjectId === (string) $subject->id)>{{ $subject->name }}</option>
@@ -20,13 +25,13 @@
                 </div>
                 <div>
                     <x-input-label for="classroom_id" :value="__('Kelas')" />
-                    <select id="classroom_id" name="classroom_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                    <select id="classroom_id" name="classroom_id" @change="this.form.submit()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                         <option value="">-- Pilih Kelas --</option>
-                        @foreach ($classrooms as $classroom)
-                            <option value="{{ $classroom->id }}" @selected((string) $classroomId === (string) $classroom->id)>{{ $classroom->name }}</option>
-                        @endforeach
+                        <template x-for="cls in classrooms" :key="cls.id">
+                            <option :value="cls.id" x-text="cls.name" :selected="'{{ $classroomId ?? '' }}' == cls.id"></option>
+                        </template>
                     </select>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Pilih mapel, lalu klik "Tampilkan" untuk melihat kelas yang Anda ampu.</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Kelas muncul otomatis setelah pilih mapel.</p>
                 </div>
                 <div>
                     <x-input-label for="semester_id" :value="__('Semester')" />
@@ -35,6 +40,15 @@
                             <option value="{{ $semester->id }}" @selected((string) $semesterId === (string) $semester->id)>
                                 {{ $semester->nama_lengkap }} {{ $semester->is_active ? '(Aktif)' : '' }}
                             </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <x-input-label for="jenis_ujian" :value="__('Jenis Ujian')" />
+                    <select id="jenis_ujian" name="jenis_ujian" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                        <option value="">Semua Jenis Ujian</option>
+                        @foreach ($examTypes as $examType)
+                            <option value="{{ $examType->id }}" @selected((string) $selectedExamTypeId === (string) $examType->id)>{{ $examType->name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -71,6 +85,9 @@
                         <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Rekap Nilai — {{ $students->count() }} siswa</h3>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                             Kategori dikosongkan bila belum ada data. Nilai Akhir = rata-rata per kategori yang ada.
+                            @if ($selectedExamTypeId !== null)
+                                <span class="font-semibold text-indigo-600 dark:text-indigo-400">Filter aktif: hanya jenis ujian yang dipilih.</span>
+                            @endif
                         </p>
                     </div>
                     <div class="overflow-x-auto">
@@ -87,7 +104,7 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-800 dark:bg-gray-900">
-                                @forelse ($rows as $row)
+                                @forelse ($rekapRows as $row)
                                     @php
                                         $student = $row['student'];
                                     @endphp

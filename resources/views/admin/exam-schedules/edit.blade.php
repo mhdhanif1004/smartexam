@@ -7,6 +7,12 @@
 
         @include('admin.partials.flash')
 
+        @if ($hasStarted ?? false)
+            <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                Sesi ujian sudah mulai dikerjakan siswa — mata pelajaran, ruangan, dan kelas <b>terkunci</b>. Hanya waktu pelaksanaan yang bisa diubah.
+            </div>
+        @endif
+
         <form method="POST" action="{{ route('admin.exam-schedules.update', $examSchedule) }}" class="max-w-2xl space-y-6">
             @csrf
             @method('PUT')
@@ -15,32 +21,41 @@
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div>
                         <x-input-label for="subject_id" :value="__('Mata Pelajaran')" />
-                        <select id="subject_id" name="subject_id" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                        <select id="subject_id" name="subject_id" required {{ ($hasStarted ?? false) ? 'disabled' : '' }} class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                             <option value="">-- Pilih Mata Pelajaran --</option>
                             @foreach ($subjects as $subject)
                                 <option value="{{ $subject->id }}" @selected(old('subject_id', $examSchedule->subject_id) == $subject->id)>{{ $subject->name }} ({{ $subject->code }})</option>
                             @endforeach
                         </select>
+                        @if ($hasStarted ?? false)
+                            <input type="hidden" name="subject_id" value="{{ $examSchedule->subject_id }}">
+                        @endif
                         <x-input-error :messages="$errors->get('subject_id')" class="mt-2" />
                     </div>
                     <div>
                         <x-input-label for="room_id" :value="__('Ruangan Ujian')" />
-                        <select id="room_id" name="room_id" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                        <select id="room_id" name="room_id" required {{ ($hasStarted ?? false) ? 'disabled' : '' }} class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                             <option value="">-- Pilih Ruangan --</option>
                             @foreach ($rooms as $room)
                                 <option value="{{ $room->id }}" @selected(old('room_id', $examSchedule->room_id) == $room->id)>{{ $room->display_name }} (kapasitas {{ $room->capacity }})</option>
                             @endforeach
                         </select>
+                        @if ($hasStarted ?? false)
+                            <input type="hidden" name="room_id" value="{{ $examSchedule->room_id }}">
+                        @endif
                         <x-input-error :messages="$errors->get('room_id')" class="mt-2" />
                     </div>
                     <div class="sm:col-span-2">
                         <x-input-label for="class_name" :value="__('Kelas')" />
-                        <input id="class_name" name="class_name" list="class-list" type="text" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" value="{{ old('class_name', $examSchedule->class_name) }}" placeholder="contoh: XI RPL 1">
+                        <input id="class_name" name="class_name" list="class-list" type="text" required {{ ($hasStarted ?? false) ? 'disabled' : '' }} class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" value="{{ old('class_name', $examSchedule->class_name) }}" placeholder="contoh: XI RPL 1">
                         <datalist id="class-list">
                             @foreach ($classes as $class)
                                 <option value="{{ $class }}"></option>
                             @endforeach
                         </datalist>
+                        @if ($hasStarted ?? false)
+                            <input type="hidden" name="class_name" value="{{ $examSchedule->class_name }}">
+                        @endif
                         <x-input-error :messages="$errors->get('class_name')" class="mt-2" />
                     </div>
                     <div>

@@ -140,6 +140,14 @@ class EarlyStartTest extends TestCase
             'finished_at' => Carbon::parse('2026-08-20 08:50:00'),
         ]);
 
+        // Mapel 2 sudah diabsen (syarat badge "Bisa Dimulai" + akses token).
+        ExamSession::create([
+            'student_id' => $this->student->id,
+            'exam_schedule_id' => $this->schedule2->id,
+            'status' => ExamSession::STATUS_NOT_STARTED,
+            'attendance_confirmed' => true,
+        ]);
+
         // Dashboard harus tampilkan "Bisa Dimulai" untuk mapel 2
         $tokenUrl2 = route('peserta.exams.token', $this->schedule2);
         $this->actingAs($this->student->user)
@@ -162,14 +170,6 @@ class EarlyStartTest extends TestCase
             'rotation_index' => 0,
             'valid_from' => now()->subMinute(),
             'valid_until' => now()->addMinutes(15),
-        ]);
-
-        // Buat session not_started dengan absensi terkonfirmasi (syarat akses token)
-        ExamSession::create([
-            'student_id' => $this->student->id,
-            'exam_schedule_id' => $this->schedule2->id,
-            'status' => ExamSession::STATUS_NOT_STARTED,
-            'attendance_confirmed' => true,
         ]);
 
         $this->actingAs($this->student->user)
@@ -236,6 +236,15 @@ class EarlyStartTest extends TestCase
         ]);
 
         $tokenUrl2 = route('peserta.exams.token', $this->schedule2);
+
+        // Mapel 2 sudah diabsen — badge "Bisa Dimulai" mensyaratkan
+        // absensi terkonfirmasi di mapel target (konsisten dengan akses token).
+        ExamSession::create([
+            'student_id' => $this->student->id,
+            'exam_schedule_id' => $this->schedule2->id,
+            'status' => ExamSession::STATUS_NOT_STARTED,
+            'attendance_confirmed' => true,
+        ]);
 
         // SEBELUM mapel 1 di-submit: mapel 2 harus "Belum Mulai"
         // Karena hasCompletedOtherMapelInPeriod = false (mapel 1 masih in_progress)

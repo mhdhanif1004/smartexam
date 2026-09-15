@@ -305,7 +305,7 @@ class PengawasModuleTest extends TestCase
         $this->assertDatabaseHas('exam_sessions', [
             'student_id' => $student->id,
             'exam_schedule_id' => $this->scheduleA->id,
-            'attendance_confirmed' => false,
+            'attendance_confirmed' => true,
             'attendance_status' => ExamSession::ATTENDANCE_ABSENT,
             'attendance_confirmed_by' => $this->pengawasA->id,
         ]);

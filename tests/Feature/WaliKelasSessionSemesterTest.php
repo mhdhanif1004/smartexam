@@ -28,12 +28,17 @@ class WaliKelasSessionSemesterTest extends TestCase
 
     private function makeSemester(string $jenis, bool $isActive = false): Semester
     {
+        // Nama tahun ajaran eksplisit & unik (factory random bisa duplikat → unique violation).
+        $seed = strval(static::$academicYearCounter++);
+
         return Semester::factory()->create([
-            'academic_year_id' => AcademicYear::factory()->create()->id,
+            'academic_year_id' => AcademicYear::factory()->create(['nama' => '2070/2071-'.$seed])->id,
             'jenis' => $jenis,
             'is_active' => $isActive,
         ]);
     }
+
+    private static int $academicYearCounter = 1;
 
     // ── POST set-semester ─────────────────────────────────────────────
 

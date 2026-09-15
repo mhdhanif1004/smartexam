@@ -3,7 +3,9 @@
 namespace App\Http\Requests\Admin;
 
 use App\Models\Classroom;
+use App\Models\ExamPeriod;
 use App\Models\ExamSchedule;
+use App\Models\ExamSession;
 use App\Models\Subject;
 use App\Services\QuestionWeightService;
 use Carbon\Carbon;
@@ -50,6 +52,8 @@ class UpdateExamScheduleRequest extends FormRequest
 
                     return;
                 }
+
+                $this->validateNotLockedAfterStart($validator);
 
                 $start = Carbon::createFromFormat('H:i', (string) $this->input('start_time'));
                 $end = $start->copy()->addMinutes((int) $this->input('duration_minutes'));
@@ -163,5 +167,59 @@ class UpdateExamScheduleRequest extends FormRequest
             .'–'
             .$conflict->endLabel()
             .'.';
+    }
+
+    /**
+     * Kunci field struktural (mapel/ruangan/kelas) bila sesi di period ini
+     * sudah pernah dikerjakan siswa — konsisten dengan gate guru mapel.
+     * Kalau dipaksa lewat request mentah, tetap ditolak (hard-block).
+     */
+    private function validateNotLockedAfterStart(Validator $validator): void
+    {
+        $current = $this->route('exam_schedule');
+
+        if (! $current instanceof ExamSchedule) {
+            return;
+        }
+
+        $period = $current->examPeriod;
+
+        $hasStarted = $period !== null
+            ? $this->periodHasStartedSessions($period)
+            : $this->scheduleHasStartedSessions($current);
+
+        if (! $hasStarted) {
+            return;
+        }
+
+        $structuralChanged = (int) $this->input('subject_id') !== (int) $current->subject_id
+            || (int) $this->input('room_id') !== (int) $current->room_id
+            || trim((string) $this->input('class_name')) !== trim((string) $current->class_name);
+
+        if ($structuralChanged) {
+            $validator->errors()->add('subject_id', 'Sesi ujian sudah berjalan — mata pelajaran, ruangan, dan kelas tidak dapat diubah.');
+        }
+    }
+
+    private function periodHasStartedSessions(ExamPeriod $period): bool
+    {
+        $scheduleIds = $period->schedules()->pluck('id');
+
+        if ($scheduleIds->isEmpty()) {
+            return false;
+        }
+
+        return ExamSession::query()
+            ->whereIn('exam_schedule_id', $scheduleIds)
+            ->whereNotNull('started_at')
+            ->exists();
+    }
+
+    private function scheduleHasStartedSessions(ExamSchedule $schedule): bool
+    {
+        return ExamSession::query()
+            ->where('exam_schedule_id', $schedule->id)
+            ->whereNotNull('started_at')
+            ->exists();
     }
 }

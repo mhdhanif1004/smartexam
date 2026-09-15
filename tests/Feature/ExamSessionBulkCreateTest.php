@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Classroom;
 use App\Models\ExamPeriod;
 use App\Models\ExamSchedule;
 use App\Models\Question;
@@ -10,10 +11,12 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Feature\Concerns\BalancesQuestionWeights;
 use Tests\TestCase;
 
 class ExamSessionBulkCreateTest extends TestCase
 {
+    use BalancesQuestionWeights;
     use RefreshDatabase;
 
     private User $admin;
@@ -36,6 +39,13 @@ class ExamSessionBulkCreateTest extends TestCase
         $this->subjectB = Subject::factory()->create(['name' => 'B. Indonesia']);
         Question::factory()->create(['subject_id' => $this->subjectA->id]);
         Question::factory()->create(['subject_id' => $this->subjectB->id]);
+
+        // Invariant bobot: tiap pasangan mapel×kelas harus total 100.
+        foreach ([$this->subjectA, $this->subjectB] as $subject) {
+            foreach (['XI RPL 1', 'XII RPL 1'] as $className) {
+                $this->seedBalancedQuestions($subject, Classroom::firstOrCreate(['name' => $className]));
+            }
+        }
 
         $this->period = ExamPeriod::factory()->create([
             'name' => 'Sesi 1',

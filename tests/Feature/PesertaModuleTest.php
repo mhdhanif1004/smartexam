@@ -154,6 +154,16 @@ class PesertaModuleTest extends TestCase
             'status' => 'ongoing',
         ]);
 
+        // Siswa diabsen (attendance_confirmed) supaya tombol "Masuk Ujian" tampil —
+        // dashboard tidak menampilkan aksi tersebut sebelum absensi dikonfirmasi.
+        ExamSession::create([
+            'student_id' => $this->student->id,
+            'exam_schedule_id' => $this->schedule->id,
+            'status' => ExamSession::STATUS_NOT_STARTED,
+            'attendance_confirmed' => true,
+            'attendance_status' => ExamSession::ATTENDANCE_PRESENT,
+        ]);
+
         $this->actingAs($this->user)->get(route('peserta.dashboard'))
             ->assertOk()
             ->assertSee('Matematika')
@@ -467,15 +477,15 @@ class PesertaModuleTest extends TestCase
         $this->assertStringContainsString('Pilihan A', $workHtml);
         $this->assertStringContainsString('Mulai Ujian', $workHtml);
 
-        // Halaman lain portal peserta tetap menampilkan header/sidebar.
+        // Halaman lain portal peserta tetap menampilkan header/navbar (layout
+        // peserta = navbar-only, tanpa sidebar). Marker: URL logout di navbar.
         $this->actingAs($this->user)->get(route('peserta.dashboard'))
             ->assertOk()
-            ->assertSee('sidebarOpen', false)
-            ->assertSee('Aktifkan mode terang', false);
+            ->assertSee('/logout', false);
 
         $this->actingAs($this->user)->get(route('peserta.exams.token', $this->schedule->id))
             ->assertOk()
-            ->assertSee('sidebarOpen', false);
+            ->assertSee('/logout', false);
     }
 
     public function test_save_answer_persists_and_ignores_foreign_question(): void
@@ -537,6 +547,8 @@ class PesertaModuleTest extends TestCase
     public function test_submit_scores_objective_questions_and_creates_result(): void
     {
         $session = $this->beginSession();
+        // Submit manual mensyaratkan attendance_confirmed (sama seperti alur token).
+        $session->update(['attendance_confirmed' => true]);
 
         $single = $this->questionForExam([
             'type' => Question::TYPE_SINGLE_CHOICE,
@@ -815,12 +827,14 @@ class PesertaModuleTest extends TestCase
             'violation_flag_1' => true,
         ]);
 
-        // Masih dalam jendela absensi (sebelum end_time) -> tombol Lanjutkan tampil.
+        // Masih dalam jendela absensi + pelanggaran aktif + belum konfirmasi ulang
+        // → dashboard menampilkan blok 'Pelanggaran' (resume tidak tersedia).
         $this->actingAs($this->user)->get(route('peserta.dashboard'))
             ->assertOk()
-            ->assertSee('Lanjutkan');
+            ->assertSee('Pelanggaran')
+            ->assertDontSee('Lanjutkan');
 
-        // Lewat end_time + toleransi 10 menit (10:30 + 10 = 10:40) -> tombol hilang.
+        // Lewat end_time + toleransi 10 menit (10:30 + 10 = 10:40) -> Sesi Berakhir.
         Carbon::setTestNow(Carbon::parse('2026-07-31 10:41:00'));
         $this->actingAs($this->user)->get(route('peserta.dashboard'))
             ->assertOk()
