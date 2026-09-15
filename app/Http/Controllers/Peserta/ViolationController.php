@@ -8,7 +8,9 @@ use App\Jobs\SendViolationFcmNotification;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\Student;
+use App\Enums\ActivityAction;
 use App\Models\Violation;
+use App\Services\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -70,6 +72,13 @@ class ViolationController extends Controller
             'occurred_at' => now(),
             'reported_by' => null,
         ]);
+
+        ActivityLogger::log(
+            action: ActivityAction::LAPOR_PELANGGARAN,
+            subject: $violation,
+            description: 'Lapor pelanggaran '.$type.' sesi #'.$session->id,
+            properties: ['violation_id' => $violation->id, 'exam_session_id' => $session->id, 'exam_schedule_id' => $schedule->id, 'violation_type' => $type],
+        );
 
         // Broadcast realtime ke pengawas ruangan (private channel). Polling
         // tetap jadi fallback bila Reverb down — event ini best-effort.

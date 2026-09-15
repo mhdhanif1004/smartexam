@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSemesterRequest;
 use App\Http\Requests\Admin\UpdateSemesterRequest;
+use App\Enums\ActivityAction;
 use App\Models\AcademicYear;
 use App\Models\Semester;
+use App\Services\ActivityLogger;
 use App\Services\SemesterService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -38,10 +40,17 @@ class SemesterController extends Controller
 
     public function store(StoreSemesterRequest $request): RedirectResponse
     {
-        Semester::create([
+        $semester = Semester::create([
             'academic_year_id' => $request->academic_year_id,
             'jenis' => $request->jenis,
         ]);
+
+        ActivityLogger::log(
+            action: ActivityAction::TAMBAH_SEMESTER,
+            subject: $semester,
+            description: "Menambah semester: {$semester->nama_lengkap}",
+            properties: ['semester_id' => $semester->id, 'nama_lengkap' => $semester->nama_lengkap],
+        );
 
         return redirect()->route('admin.semesters.index')->with('success', 'Semester berhasil ditambahkan.');
     }
@@ -56,17 +65,33 @@ class SemesterController extends Controller
 
     public function update(UpdateSemesterRequest $request, Semester $semester): RedirectResponse
     {
+        $namaLama = $semester->nama_lengkap;
         $semester->update([
             'academic_year_id' => $request->academic_year_id,
             'jenis' => $request->jenis,
         ]);
+
+        ActivityLogger::log(
+            action: ActivityAction::UBAH_SEMESTER,
+            subject: $semester,
+            description: "Mengubah semester: {$namaLama} -> {$semester->fresh()?->nama_lengkap}",
+            properties: ['semester_id' => $semester->id, 'nama_lama' => $namaLama, 'nama_baru' => $semester->fresh()?->nama_lengkap ?? $semester->nama_lengkap],
+        );
 
         return redirect()->route('admin.semesters.index')->with('success', 'Semester berhasil diperbarui.');
     }
 
     public function destroy(Semester $semester): RedirectResponse
     {
+        $nama = $semester->nama_lengkap;
+        $semesterId = $semester->id;
         $semester->delete();
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_SEMESTER,
+            description: "Menghapus semester: {$nama}",
+            properties: ['semester_id' => $semesterId, 'nama_lengkap' => $nama],
+        );
 
         return redirect()->route('admin.semesters.index')->with('success', 'Semester berhasil dihapus.');
     }
@@ -79,8 +104,18 @@ class SemesterController extends Controller
      */
     public function makeActive(Semester $semester): RedirectResponse
     {
+        $nama = $semester->nama_lengkap;
+        $semesterId = $semester->id;
+
         app(SemesterService::class)->makeActive($semester);
 
-        return redirect()->route('admin.semesters.index')->with('success', "Semester {$semester->nama_lengkap} berhasil dijadikan aktif.");
+        ActivityLogger::log(
+            action: ActivityAction::AKTIFKAN_SEMESTER,
+            subject: $semester,
+            description: "Mengaktifkan semester {$nama}",
+            properties: ['semester_id' => $semesterId, 'nama_lengkap' => $nama],
+        );
+
+        return redirect()->route('admin.semesters.index')->with('success', "Semester {$nama} berhasil dijadikan aktif.");
     }
 }

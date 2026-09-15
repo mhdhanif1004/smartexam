@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreExamTypeRequest;
 use App\Http\Requests\Admin\UpdateExamTypeRequest;
+use App\Enums\ActivityAction;
 use App\Models\ExamType;
+use App\Services\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
@@ -28,12 +30,19 @@ class ExamTypeController extends Controller
 
     public function store(StoreExamTypeRequest $request): RedirectResponse
     {
-        ExamType::create([
+        $examType = ExamType::create([
             'name' => $request->name,
             'code' => $request->code,
             'sort_order' => $request->integer('sort_order', 0),
             'boleh_dijadwalkan_guru' => $request->boolean('boleh_dijadwalkan_guru'),
         ]);
+
+        ActivityLogger::log(
+            action: ActivityAction::TAMBAH_JENIS_UJIAN,
+            subject: $examType,
+            description: "Menambah jenis ujian: {$examType->name}",
+            properties: ['exam_type_id' => $examType->id, 'nama' => $examType->name, 'kode' => $examType->code],
+        );
 
         return redirect()->route('admin.exam-types.index')->with('success', 'Jenis ujian berhasil ditambahkan.');
     }
@@ -45,12 +54,20 @@ class ExamTypeController extends Controller
 
     public function update(UpdateExamTypeRequest $request, ExamType $examType): RedirectResponse
     {
+        $namaLama = $examType->name;
         $examType->update([
             'name' => $request->name,
             'code' => $request->code,
             'sort_order' => $request->integer('sort_order', $examType->sort_order),
             'boleh_dijadwalkan_guru' => $request->boolean('boleh_dijadwalkan_guru'),
         ]);
+
+        ActivityLogger::log(
+            action: ActivityAction::UBAH_JENIS_UJIAN,
+            subject: $examType,
+            description: "Mengubah jenis ujian: {$namaLama} -> {$examType->name}",
+            properties: ['exam_type_id' => $examType->id, 'nama_lama' => $namaLama, 'nama_baru' => $examType->name],
+        );
 
         return redirect()->route('admin.exam-types.index')->with('success', 'Jenis ujian berhasil diperbarui.');
     }
@@ -64,7 +81,15 @@ class ExamTypeController extends Controller
                 ->with('error', "Jenis ujian \"{$examType->name}\" masih digunakan oleh sesi ujian. Tidak dapat dihapus.");
         }
 
+        $nama = $examType->name;
+        $etId = $examType->id;
         $examType->delete();
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_JENIS_UJIAN,
+            description: "Menghapus jenis ujian: {$nama}",
+            properties: ['exam_type_id' => $etId, 'nama' => $nama],
+        );
 
         return redirect()->route('admin.exam-types.index')->with('success', 'Jenis ujian berhasil dihapus.');
     }

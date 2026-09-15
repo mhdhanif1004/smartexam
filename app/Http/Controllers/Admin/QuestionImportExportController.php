@@ -10,6 +10,8 @@ use App\Imports\Questions\BaseTypeImport;
 use App\Models\Classroom;
 use App\Models\Question;
 use App\Models\Subject;
+use App\Enums\ActivityAction;
+use App\Services\ActivityLogger;
 use App\Services\QuestionWeightService;
 use App\Support\QuestionImportMap;
 use Illuminate\Http\JsonResponse;
@@ -132,6 +134,12 @@ class QuestionImportExportController extends Controller
         }
 
         session()->flash('success', $flash);
+
+        ActivityLogger::log(
+            action: ActivityAction::IMPOR_DATA,
+            description: 'Impor soal (admin): '.$result['created'].' baru',
+            properties: ['jenis' => 'soal_admin', 'created' => $result['created'], 'updated' => $result['updated'], 'failed_count' => count($import->invalidRows)],
+        );
 
         // Warning non-blocking bila total bobot per (subject×classroom) terdampak != 100
         $pairs = [];

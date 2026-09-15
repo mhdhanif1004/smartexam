@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreExamScheduleRequest;
 use App\Http\Requests\Admin\UpdateExamScheduleRequest;
+use App\Enums\ActivityAction;
 use App\Models\ExamPeriod;
 use App\Models\ExamRoomAssignment;
 use App\Models\ExamSchedule;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Services\ActivityLogger;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -248,7 +250,7 @@ class ExamScheduleController extends Controller
     {
         $start = Carbon::createFromFormat('H:i', $request->start_time);
 
-        ExamSchedule::create([
+        $schedule = ExamSchedule::create([
             'subject_id' => $request->subject_id,
             'room_id' => $request->room_id,
             'class_name' => $request->class_name,
@@ -258,6 +260,13 @@ class ExamScheduleController extends Controller
             'duration_minutes' => $request->duration_minutes,
             'status' => $request->status,
         ]);
+
+        ActivityLogger::log(
+            action: ActivityAction::TAMBAH_JADWAL_UJIAN,
+            subject: $schedule,
+            description: "Menambah jadwal ujian mapel #{$schedule->subject_id} tanggal {$schedule->exam_date}",
+            properties: ['exam_schedule_id' => $schedule->id, 'subject_id' => $schedule->subject_id, 'exam_date' => (string) $schedule->exam_date, 'room_id' => $schedule->room_id],
+        );
 
         return redirect()->route('admin.exam-schedules.index')->with('success', 'Jadwal ujian berhasil ditambahkan.');
     }
@@ -274,6 +283,8 @@ class ExamScheduleController extends Controller
 
     public function update(UpdateExamScheduleRequest $request, ExamSchedule $examSchedule): RedirectResponse
     {
+        $examDateLama = (string) $examSchedule->exam_date;
+        $subjectLama = $examSchedule->subject_id;
         $start = Carbon::createFromFormat('H:i', $request->start_time);
 
         $examSchedule->update([
@@ -287,12 +298,29 @@ class ExamScheduleController extends Controller
             'status' => $request->status,
         ]);
 
+        ActivityLogger::log(
+            action: ActivityAction::UBAH_JADWAL_UJIAN,
+            subject: $examSchedule,
+            description: "Mengubah jadwal ujian mapel #{$subjectLama} {$examDateLama} -> mapel #{$examSchedule->subject_id} {$examSchedule->exam_date}",
+            properties: ['exam_schedule_id' => $examSchedule->id, 'subject_id_lama' => $subjectLama, 'exam_date_lama' => $examDateLama, 'subject_id_baru' => $examSchedule->subject_id, 'exam_date_baru' => (string) $examSchedule->exam_date],
+        );
+
         return redirect()->route('admin.exam-schedules.index')->with('success', 'Jadwal ujian berhasil diperbarui.');
     }
 
     public function destroy(ExamSchedule $examSchedule): RedirectResponse
     {
-        $deleted = $this->deleteScheduleGroup($examSchedule->subject_id, $examSchedule->exam_date);
+        $subjectId = $examSchedule->subject_id;
+        $examDate = (string) $examSchedule->exam_date;
+        $deleted = $this->deleteScheduleGroup($subjectId, $examDate);
+
+        if ($deleted > 0) {
+            ActivityLogger::log(
+                action: ActivityAction::HAPUS_JADWAL_UJIAN,
+                description: "Menghapus jadwal ujian mapel #{$subjectId} tanggal {$examDate} ({$deleted} baris)",
+                properties: ['subject_id' => $subjectId, 'exam_date' => $examDate, 'deleted' => $deleted],
+            );
+        }
 
         return redirect()->route('admin.exam-schedules.index')->with('success', "{$deleted} jadwal ujian berhasil dihapus.");
     }
@@ -322,6 +350,14 @@ class ExamScheduleController extends Controller
             }
             $seenGroups[] = $groupKey;
             $totalDeleted += $this->deleteScheduleGroup($schedule->subject_id, $schedule->exam_date);
+        }
+
+        if ($totalDeleted > 0) {
+            ActivityLogger::log(
+                action: ActivityAction::HAPUS_BULK_JADWAL_UJIAN,
+                description: "Hapus bulk {$totalDeleted} jadwal ujian (" . count($seenGroups) . " kelompok)",
+                properties: ['jumlah' => $totalDeleted, 'kelompok' => count($seenGroups), 'ids' => $ids->values()->all()],
+            );
         }
 
         return back()->with('success', "{$totalDeleted} jadwal ujian berhasil dihapus.");

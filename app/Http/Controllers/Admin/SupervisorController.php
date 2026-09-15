@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSupervisorRequest;
 use App\Http\Requests\Admin\UpdateSupervisorRequest;
+use App\Enums\ActivityAction;
 use App\Models\Room;
 use App\Models\Supervisor;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use App\Services\CredentialGenerator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -85,14 +87,17 @@ class SupervisorController extends Controller
 
     public function store(StoreSupervisorRequest $request): RedirectResponse
     {
-        DB::transaction(function () use ($request) {
+        $createdUser = null;
+        $createdSupervisor = null;
+
+        DB::transaction(function () use ($request, &$createdUser, &$createdSupervisor) {
             $generator = app(CredentialGenerator::class);
 
             $password = $request->filled('password')
                 ? $request->password
                 : $generator->password();
 
-            $user = User::create([
+            $createdUser = User::create([
                 'name' => $request->name,
                 'username' => $generator->username(),
                 'password' => $password,
@@ -103,8 +108,15 @@ class SupervisorController extends Controller
 
             // Pengawas baru dibuat tanpa ruangan (room_id null). Penugasan
             // ruangan hanya dilakukan lewat halaman Tambah/Edit Ruangan.
-            $user->supervisor()->create();
+            $createdSupervisor = $createdUser->supervisor()->create();
         });
+
+        ActivityLogger::log(
+            action: ActivityAction::TAMBAH_PENGAWAS,
+            subject: $createdSupervisor ?? $createdUser,
+            description: 'Menambahkan pengawas: '.($createdUser->name ?? $request->name),
+            properties: ['user_id' => $createdUser?->id, 'supervisor_id' => $createdSupervisor?->id, 'nama' => $createdUser?->name ?? $request->name],
+        );
 
         return redirect()->route('admin.supervisors.index')->with('success', 'Data pengawas berhasil ditambahkan.');
     }
@@ -116,6 +128,9 @@ class SupervisorController extends Controller
 
     public function update(UpdateSupervisorRequest $request, Supervisor $supervisor): RedirectResponse
     {
+        $oldName = $supervisor->user?->name;
+        $oldIsActive = (bool) $supervisor->user?->is_active;
+
         $userData = [
             'name' => $request->name,
             'is_active' => $request->boolean('is_active'),
@@ -132,15 +147,32 @@ class SupervisorController extends Controller
         // dikelola lewat halaman Tambah/Edit Ruangan, jadi pengawas yang sudah
         // punya ruangan tetap di ruangannya meskipun akunnya diedit.
 
+        ActivityLogger::log(
+            action: ActivityAction::UBAH_PENGAWAS,
+            subject: $supervisor,
+            description: 'Mengubah pengawas: '.($request->name ?? $oldName ?? 'ID '.$supervisor->id),
+            properties: ['supervisor_id' => $supervisor->id, 'user_id' => $supervisor->user?->id, 'nama_lama' => $oldName, 'nama_baru' => $request->name, 'is_active_lama' => $oldIsActive, 'is_active_baru' => $request->boolean('is_active')],
+        );
+
         return redirect()->route('admin.supervisors.index')->with('success', 'Data pengawas berhasil diperbarui.');
     }
 
     public function destroy(Supervisor $supervisor): RedirectResponse
     {
+        $snapshotName = $supervisor->user?->name ?? 'ID '.$supervisor->id;
+        $snapshotId = $supervisor->id;
+        $snapshotUserId = $supervisor->user?->id;
+
         DB::transaction(function () use ($supervisor) {
             $supervisor->delete();
             $supervisor->user?->delete();
         });
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_PENGAWAS,
+            description: "Menghapus pengawas {$snapshotName}",
+            properties: ['supervisor_id' => $snapshotId, 'user_id' => $snapshotUserId, 'nama' => $snapshotName],
+        );
 
         return redirect()->route('admin.supervisors.index')->with('success', 'Data pengawas berhasil dihapus.');
     }
@@ -168,6 +200,12 @@ class SupervisorController extends Controller
                 $deleted++;
             }
         });
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_BULK_PENGAWAS,
+            description: "Menghapus {$deleted} pengawas sekaligus",
+            properties: ['jumlah' => $deleted, 'ids' => $ids->values()->all()],
+        );
 
         return back()->with('success', "{$deleted} data pengawas berhasil dihapus.");
     }

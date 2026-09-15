@@ -8,8 +8,10 @@ use App\Exports\StudentsTemplateExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ImportStudentsRequest;
 use App\Imports\StudentsImport;
+use App\Enums\ActivityAction;
 use App\Models\Classroom;
 use App\Models\Student;
+use App\Services\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -158,6 +160,12 @@ class StudentImportExportController extends Controller
         }
 
         session()->flash('success', $flash);
+
+        ActivityLogger::log(
+            action: ActivityAction::IMPOR_DATA,
+            description: 'Impor siswa: '.$result['created'].' baru, '.$result['updated'].' diperbarui, '.$result['new_classes_created'].' kelas baru',
+            properties: ['jenis' => 'siswa', 'created' => $result['created'], 'updated' => $result['updated'], 'new_classes_created' => $result['new_classes_created'], 'failed_count' => count($import->invalidRows)],
+        );
 
         return response()->json([
             'ok' => true,

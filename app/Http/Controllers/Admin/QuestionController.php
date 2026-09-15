@@ -10,7 +10,9 @@ use App\Models\ExamAnswer;
 use App\Models\GuruMapel;
 use App\Models\Question;
 use App\Models\Subject;
+use App\Enums\ActivityAction;
 use App\Models\TeacherSubjectClassAssignment;
+use App\Services\ActivityLogger;
 use App\Services\QuestionWeightService;
 use App\Traits\BuildsQuestionPayload;
 use Illuminate\Database\Eloquent\Builder;
@@ -235,6 +237,13 @@ class QuestionController extends Controller
         $classroomIds = $request->validated()['classroom_ids'];
         $question->classrooms()->sync($classroomIds);
 
+        ActivityLogger::log(
+            action: ActivityAction::TAMBAH_SOAL,
+            subject: $question,
+            description: 'Menambahkan soal baru: '.Str::limit((string) $question->question_text, 60),
+            properties: ['question_id' => $question->id, 'subject_id' => $question->subject_id, 'type' => $question->type, 'score_weight' => $question->score_weight, 'classroom_ids' => $classroomIds],
+        );
+
         $warning = $this->weightWarningForPairs((int) $question->subject_id, $classroomIds);
         $redirect = redirect()->route('admin.questions.index')->with('success', 'Soal berhasil ditambahkan.');
         if ($warning !== null) {
@@ -277,6 +286,13 @@ class QuestionController extends Controller
         $question->update($payload);
         $classroomIds = $data['classroom_ids'];
         $question->classrooms()->sync($classroomIds);
+
+        ActivityLogger::log(
+            action: ActivityAction::UBAH_SOAL,
+            subject: $question,
+            description: 'Mengubah soal #'.$question->id.': '.Str::limit((string) $question->question_text, 60),
+            properties: ['question_id' => $question->id, 'subject_id' => $question->subject_id, 'type' => $question->type, 'score_weight' => $question->score_weight, 'classroom_ids' => $classroomIds],
+        );
 
         $warning = $this->weightWarningForPairs((int) $question->subject_id, $classroomIds);
         $redirect = redirect()->route('admin.questions.index')->with('success', 'Soal berhasil diperbarui.');
@@ -335,8 +351,17 @@ class QuestionController extends Controller
             return back()->with('error', 'Soal ini sudah pernah dijawab oleh peserta pada ujian sebelumnya dan tidak bisa dihapus.');
         }
 
+        $snapshotId = $question->id;
+        $snapshotText = Str::limit((string) $question->question_text, 60);
+        $snapshotSubjectId = $question->subject_id;
         $this->deleteImageFile($question->image_path);
         $question->delete();
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_SOAL,
+            description: "Menghapus soal #{$snapshotId}: {$snapshotText}",
+            properties: ['question_id' => $snapshotId, 'subject_id' => $snapshotSubjectId, 'question_text' => $snapshotText],
+        );
 
         return redirect()->route('admin.questions.index')->with('success', 'Soal berhasil dihapus.');
     }
@@ -366,6 +391,12 @@ class QuestionController extends Controller
 
         $this->deleteImageFiles($ids->all());
         $deleted = Question::query()->whereIn('id', $ids)->delete();
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_BULK_SOAL,
+            description: "Hapus bulk {$deleted} soal",
+            properties: ['jumlah_dihapus' => $deleted, 'ids' => $ids->values()->all()],
+        );
 
         return back()->with('success', "{$deleted} soal berhasil dihapus.");
     }
@@ -397,6 +428,13 @@ class QuestionController extends Controller
 
         $copy->classrooms()->sync($question->classrooms->pluck('id'));
 
+        ActivityLogger::log(
+            action: ActivityAction::DUPLIKASI_SOAL,
+            subject: $copy,
+            description: "Duplikasi soal #{$question->id} → #{$copy->id}",
+            properties: ['source_id' => $question->id, 'new_id' => $copy->id, 'subject_id' => $copy->subject_id],
+        );
+
         $warning = $this->weightWarningForPairs((int) $copy->subject_id, $copy->classrooms->pluck('id')->all());
         $redirect = redirect()->route('admin.questions.index')->with('success', 'Soal berhasil diduplikasi.');
         if ($warning !== null) {
@@ -408,7 +446,15 @@ class QuestionController extends Controller
 
     public function toggleActive(Question $question): RedirectResponse
     {
-        $question->update(['is_active' => ! $question->is_active]);
+        $previous = (bool) $question->is_active;
+        $question->update(['is_active' => ! $previous]);
+
+        ActivityLogger::log(
+            action: ActivityAction::TOGGLE_AKTIF_SOAL,
+            subject: $question,
+            description: "Soal #{$question->id} " . ($question->is_active ? 'diaktifkan' : 'dinonaktifkan'),
+            properties: ['question_id' => $question->id, 'is_active' => $question->is_active, 'previous' => $previous],
+        );
 
         $state = $question->is_active ? 'diaktifkan' : 'dinonaktifkan';
         $warning = $this->weightWarningForPairs((int) $question->subject_id, $question->classrooms()->pluck('classes.id')->all());
@@ -450,6 +496,12 @@ class QuestionController extends Controller
 
         $affectedBefore = Question::query()->whereIn('id', $ids)->with('classrooms')->get();
         Question::query()->whereIn('id', $ids)->update($updates);
+
+        ActivityLogger::log(
+            action: ActivityAction::EDIT_BULK_SOAL,
+            description: 'Edit bulk ' . count($ids) . ' soal',
+            properties: ['jumlah_soal' => count($ids), 'ids' => $ids->values()->all(), 'updates' => array_keys($updates)],
+        );
         $affectedAfter = Question::query()->whereIn('id', $ids)->with('classrooms')->get();
         $pairs = $affectedAfter->flatMap(fn (Question $q) => $q->classrooms->map(fn ($c) => [$q->subject_id, $c->id]))->unique(fn ($p) => $p[0].':'.$p[1])->values()->all();
         // Jika subject_id ikut diubah, pairs sudah pakai nilai baru; cek semua kombinasi terdampak.
@@ -483,6 +535,12 @@ class QuestionController extends Controller
         foreach ($questions as $question) {
             $question->classrooms()->sync($data['classroom_ids']);
         }
+
+        ActivityLogger::log(
+            action: ActivityAction::EDIT_BULK_SOAL,
+            description: 'Perbarui kelas target ' . $questions->count() . ' soal',
+            properties: ['jumlah_soal' => $questions->count(), 'question_ids' => $data['question_ids'], 'classroom_ids' => $data['classroom_ids']],
+        );
 
         // Kumpulkan warning per kombinasi subject × classroom baru untuk pesan non-blocking di UI.
         $pairs = [];

@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\ExamTypeController;
 use App\Http\Controllers\Admin\GuruMapelController;
 use App\Http\Controllers\Admin\GuruMapelImportExportController;
 use App\Http\Controllers\Admin\KepalaSekolahController;
+use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\LoginCardController;
 use App\Http\Controllers\Admin\PlainPasswordController;
 use App\Http\Controllers\Admin\QuestionController;
@@ -205,6 +206,8 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::get('/violations', [ViolationController::class, 'index'])->name('violations.index');
         Route::get('/violations/polling', [ViolationController::class, 'polling'])->middleware('throttle:60,1')->name('violations.polling');
         Route::patch('/violations/{examSession}/lock', [ViolationController::class, 'toggleLock'])->name('violations.lock');
+
+        Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs.index');
     });
 
     Route::prefix('pengawas')->middleware(['auth', 'verified', 'role:pengawas'])->name('pengawas.')->group(function () {

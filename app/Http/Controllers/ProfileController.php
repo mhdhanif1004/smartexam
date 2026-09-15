@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ActivityAction;
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Services\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -34,6 +36,13 @@ class ProfileController extends Controller
 
         $request->user()->save();
 
+        ActivityLogger::log(
+            action: ActivityAction::PERBARUI_PROFIL,
+            subject: $request->user(),
+            description: 'Memperbarui profil ('.$request->user()->email.')',
+            properties: ['user_id' => $request->user()->id, 'email' => $request->user()->email],
+        );
+
         return Redirect::route('profile.edit')->with('status', 'profile-updated');
     }
 
@@ -47,6 +56,16 @@ class ProfileController extends Controller
         ]);
 
         $user = $request->user();
+        $deletedId = $user->id;
+        $deletedEmail = $user->email;
+
+        // Log sebelum logout/delete — causer masih tersedia.
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_AKUN,
+            subject: $user,
+            description: 'Menghapus akun ('.$deletedEmail.')',
+            properties: ['user_id' => $deletedId, 'email' => $deletedEmail],
+        );
 
         Auth::logout();
 

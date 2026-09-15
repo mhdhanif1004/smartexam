@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreRoomRequest;
 use App\Http\Requests\Admin\UpdateRoomRequest;
+use App\Enums\ActivityAction;
 use App\Models\ExamRoomAssignment;
 use App\Models\Room;
 use App\Models\Supervisor;
+use App\Services\ActivityLogger;
 use App\Models\SupervisorRoomAssignment;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -147,6 +149,13 @@ class RoomController extends Controller
                 ->update(['room_id' => $room->id]);
         }
 
+        ActivityLogger::log(
+            action: ActivityAction::TAMBAH_RUANGAN,
+            subject: $room,
+            description: "Menambah ruangan {$room->display_name}",
+            properties: ['room_id' => $room->id, 'nama' => $room->display_name, 'capacity' => $room->capacity],
+        );
+
         return redirect()->route('admin.rooms.index')->with('success', "Ruangan {$room->display_name} berhasil ditambahkan.");
     }
 
@@ -161,11 +170,19 @@ class RoomController extends Controller
         $oldSupervisorCount = $room->supervisor_count;
         $newSupervisorCount = (int) $validated['supervisor_count'];
 
+        $namaLama = $room->display_name;
         $room->update([
             'room_number' => (int) $validated['room_number'],
             'capacity' => (int) $validated['capacity'],
             'supervisor_count' => $newSupervisorCount,
         ]);
+
+        ActivityLogger::log(
+            action: ActivityAction::UBAH_RUANGAN,
+            subject: $room,
+            description: "Mengubah ruangan {$namaLama} -> {$room->display_name}",
+            properties: ['room_id' => $room->id, 'nama_lama' => $namaLama, 'nama_baru' => $room->display_name],
+        );
 
         if ($request->has('assign_supervisor_ids')) {
             $assignedIds = $request->input('assign_supervisor_ids');
@@ -202,7 +219,14 @@ class RoomController extends Controller
     public function destroy(Room $room): RedirectResponse
     {
         $name = $room->display_name;
+        $roomId = $room->id;
         $room->delete();
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_RUANGAN,
+            description: "Menghapus ruangan {$name}",
+            properties: ['room_id' => $roomId, 'nama' => $name],
+        );
 
         return redirect()->route('admin.rooms.index')->with('success', "Ruangan {$name} berhasil dihapus.");
     }
@@ -239,6 +263,14 @@ class RoomController extends Controller
                 $deleted++;
             }
         });
+
+        if ($deleted > 0) {
+            ActivityLogger::log(
+                action: ActivityAction::HAPUS_BULK_RUANGAN,
+                description: "Hapus bulk {$deleted} ruangan",
+                properties: ['jumlah' => $deleted, 'ids' => $ids->values()->all()],
+            );
+        }
 
         $flash = [];
 

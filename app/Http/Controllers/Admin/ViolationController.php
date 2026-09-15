@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Enums\ActivityAction;
 use App\Models\ExamSession;
 use App\Models\Room;
 use App\Models\Subject;
 use App\Models\Violation;
+use App\Services\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -124,6 +126,13 @@ class ViolationController extends Controller
             'locked_by_admin_at' => $locked ? now() : null,
             'locked_by_admin_by' => $locked ? auth()->id() : null,
         ]);
+
+        ActivityLogger::log(
+            action: ActivityAction::TOGGLE_KUNCI_PELANGGARAN,
+            subject: $examSession,
+            description: ($locked ? 'Mengunci' : 'Membuka kunci')." pelanggaran sesi #{$examSession->id}",
+            properties: ['exam_session_id' => $examSession->id, 'locked' => $locked],
+        );
 
         return response()->json(['ok' => true, 'locked' => $locked]);
     }

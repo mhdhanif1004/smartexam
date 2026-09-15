@@ -16,8 +16,10 @@ use App\Models\ExamSession;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Enums\ActivityAction;
 use App\Models\Supervisor;
 use App\Models\SupervisorRoomAssignment;
+use App\Services\ActivityLogger;
 use App\Services\QuestionWeightService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -127,6 +129,11 @@ class ExamPeriodController extends Controller
         $examDate = (string) $request->input('exam_date');
         $firstStart = (string) $request->input('start_time');
         $gapMinutes = (int) $request->input('gap_minutes');
+
+        $periodNameForLog = $name;
+        $periodDateForLog = $examDate;
+        $roomCountForLog = count($roomIds);
+        $subjectCountForLog = count($subjectRows);
 
         $result = DB::transaction(function () use ($roomIds, $subjectRows, $classNames, $name, $examDate, $firstStart, $gapMinutes): array {
             $rooms = Room::query()->whereIn('id', $roomIds)->get()->keyBy('id');
@@ -298,6 +305,12 @@ class ExamPeriodController extends Controller
                 'unfilledSlots' => $unfilledSlots,
             ];
         });
+
+        ActivityLogger::log(
+            action: ActivityAction::GENERATE_PERIODE_UJIAN,
+            description: "Generate periode ujian {$periodNameForLog} — {$result['numberOfSessions']} sesi untuk {$result['totalStudents']} siswa",
+            properties: ['nama_prefix' => $periodNameForLog, 'exam_date' => $periodDateForLog, 'jumlah_sesi' => $result['numberOfSessions'], 'total_siswa' => $result['totalStudents'], 'jumlah_ruangan' => $roomCountForLog, 'jumlah_mapel' => $subjectCountForLog],
+        );
 
         $names = collect($result['periods'])
             ->map(fn (ExamPeriod $period) => $period->name)
@@ -505,6 +518,13 @@ class ExamPeriodController extends Controller
             $unfilledSlots = $rotation['total_slots'] - $rotation['filled_slots'];
         });
 
+        ActivityLogger::log(
+            action: ActivityAction::SIMPAN_KELOMPOK_PERIODE,
+            subject: $examPeriod,
+            description: "Simpan kelompok periode {$examPeriod->name} — {$created} jadwal",
+            properties: ['exam_period_id' => $examPeriod->id, 'jumlah_jadwal' => $created, 'jumlah_ruangan' => count($roomIds)],
+        );
+
         $message = "{$created} jadwal ujian berhasil dibuat untuk {$examPeriod->name}.";
 
         if ($unfilledSlots > 0) {
@@ -547,6 +567,13 @@ class ExamPeriodController extends Controller
 
             return back()->with('info', "Pengawas aktif tidak mencukupi: baru {$filledSlots} dari {$totalSlots} slot pengawas yang terisi.");
         }
+
+        ActivityLogger::log(
+            action: ActivityAction::ROTASI_PENGAWAS,
+            subject: $examPeriod,
+            description: "Rotasi pengawas periode {$examPeriod->name} — ".count($created)." slot baru",
+            properties: ['exam_period_id' => $examPeriod->id, 'slot_baru' => count($created), 'total_slot' => $totalSlots, 'slot_terisi' => $filledSlots],
+        );
 
         $message = 'Rotasi pengawas berhasil: '.count($created).' slot pengawas baru terisi.';
 
@@ -624,6 +651,13 @@ class ExamPeriodController extends Controller
             return back()->with('info', 'Tidak ada penugasan pengawas yang perlu dihapus.');
         }
 
+        ActivityLogger::log(
+            action: ActivityAction::RESET_PENUGASAN_PENGAWAS,
+            subject: $examPeriod,
+            description: "Reset penugasan pengawas periode {$examPeriod->name} — {$deleted} slot",
+            properties: ['exam_period_id' => $examPeriod->id, 'jumlah_dihapus' => $deleted],
+        );
+
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => "{$deleted} penugasan pengawas berhasil dihapus. Anda dapat men generate ulang rotasi pengawas.",
@@ -692,20 +726,24 @@ class ExamPeriodController extends Controller
                 ->count()
             : 0;
 
+        $periodeNama = $examPeriod->name;
+        $periodeId = $examPeriod->id;
+        $schedulesCountForLog = $scheduleIds->count();
+
         DB::transaction(function () use ($examPeriod, $startedSessionsCount): void {
             if ($startedSessionsCount > 0) {
-                // Mode A: siswa SUDAH mengerjakan. JANGAN hapus exam_schedules
-                // secara eksplisit — biarkan nullOnDelete menjadikannya orphan
-                // (exam_period_id -> NULL) supaya exam_sessions/exam_answers/
-                // exam_results (histori & nilai siswa) TETAP UTUH untuk laporan.
                 $examPeriod->delete();
             } else {
-                // Mode B/C: belum ada siswa mengerjakan — jadwal konfigurasi
-                // boleh dihapus permanen bersama periode.
                 $examPeriod->schedules()->delete();
                 $examPeriod->delete();
             }
         });
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_PERIODE_UJIAN,
+            description: "Menghapus periode ujian {$periodeNama}",
+            properties: ['exam_period_id' => $periodeId, 'nama' => $periodeNama, 'jumlah_jadwal' => $schedulesCountForLog, 'sesi_dimulai' => $startedSessionsCount],
+        );
 
         return redirect()->route('admin.exam-periods.index')->with('success', 'Sesi ujian berhasil dihapus.');
     }

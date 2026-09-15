@@ -10,6 +10,8 @@ use App\Imports\Questions\BaseTypeImport;
 use App\Models\Classroom;
 use App\Models\Question;
 use App\Models\Subject;
+use App\Enums\ActivityAction;
+use App\Services\ActivityLogger;
 use App\Services\QuestionWeightService;
 use App\Support\QuestionImportMap;
 use App\Traits\ScopesGuruMapel;
@@ -150,6 +152,12 @@ class QuestionImportExportController extends Controller
         }
 
         session()->flash('success', $flash);
+
+        ActivityLogger::log(
+            action: ActivityAction::IMPOR_DATA,
+            description: 'Impor soal (guru mapel): '.$result['created'].' baru',
+            properties: ['jenis' => 'soal_guru_mapel', 'created' => $result['created'], 'updated' => $result['updated'], 'failed_count' => count($import->invalidRows)],
+        );
 
         $pairs = [];
         foreach ($import->validRows as $row) {
