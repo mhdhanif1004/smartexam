@@ -18,6 +18,8 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\SubjectAttendance;
 use App\Models\SubjectGrade;
+use App\Enums\ActivityAction;
+use App\Services\ActivityLogger;
 use App\Services\FinalScoreCalculator;
 use App\Traits\ScopesGuruMapel;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -304,6 +306,12 @@ class GradeController extends Controller
             $students = Student::query()->where('classroom_id', $classroomId)->get();
             $this->syncFinalScores($guru, $subjectId, $classroomId, $semesterId, $students);
         });
+
+        ActivityLogger::log(
+            action: ActivityAction::SIMPAN_NILAI,
+            description: 'Menyimpan nilai mapel #'.$subjectId.' kelas #'.$classroomId.' semester #'.$semesterId,
+            properties: ['subject_id' => $subjectId, 'classroom_id' => $classroomId, 'semester_id' => $semesterId, 'guru_mapel_id' => $guru->id],
+        );
 
         return back()->with('success', 'Nilai berhasil disimpan.');
     }
@@ -654,6 +662,13 @@ class GradeController extends Controller
                 ]
             );
         }
+
+        ActivityLogger::log(
+            action: ActivityAction::SIMPAN_SKOR,
+            subject: $session,
+            description: 'Menyimpan skor koreksi siswa #'.$studentId.' sesi #'.$session->id.' total '.round($total, 2),
+            properties: ['student_id' => $studentId, 'exam_session_id' => $session->id, 'exam_schedule_id' => $session->exam_schedule_id, 'subject_id' => $subjectId, 'classroom_id' => $classroomId, 'total' => round($total, 2)],
+        );
 
         return redirect()
             ->route('guru_mapel.grades.detail', [

@@ -8,8 +8,10 @@ use App\Exports\SupervisorsTemplateExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ImportSupervisorsRequest;
 use App\Imports\SupervisorsImport;
+use App\Enums\ActivityAction;
 use App\Models\Room;
 use App\Models\Supervisor;
+use App\Services\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -155,6 +157,12 @@ class SupervisorImportExportController extends Controller
         }
 
         session()->flash('success', $flash);
+
+        ActivityLogger::log(
+            action: ActivityAction::IMPOR_DATA,
+            description: 'Impor pengawas: '.$result['created'].' baru, '.$result['updated'].' diperbarui',
+            properties: ['jenis' => 'pengawas', 'created' => $result['created'], 'updated' => $result['updated'], 'failed_count' => count($import->invalidRows)],
+        );
 
         return response()->json([
             'ok' => true,

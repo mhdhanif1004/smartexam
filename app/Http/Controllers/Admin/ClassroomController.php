@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreClassroomRequest;
 use App\Http\Requests\Admin\UpdateClassroomRequest;
+use App\Enums\ActivityAction;
 use App\Models\Classroom;
 use App\Models\Question;
 use App\Models\Student;
+use App\Services\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -65,6 +67,13 @@ class ClassroomController extends Controller
     {
         $classroom = Classroom::create($request->validated());
 
+        ActivityLogger::log(
+            action: ActivityAction::TAMBAH_KELAS,
+            subject: $classroom,
+            description: "Menambah kelas: {$classroom->name}",
+            properties: ['classroom_id' => $classroom->id, 'nama' => $classroom->name],
+        );
+
         return redirect()->route('admin.classrooms.index')
             ->with('success', "Kelas {$classroom->name} berhasil ditambahkan.");
     }
@@ -76,9 +85,17 @@ class ClassroomController extends Controller
 
     public function update(UpdateClassroomRequest $request, Classroom $classroom): RedirectResponse
     {
+        $namaLama = $classroom->name;
         $newName = $request->validated()['name'];
 
         $this->renameClass($classroom, $newName);
+
+        ActivityLogger::log(
+            action: ActivityAction::UBAH_KELAS,
+            subject: $classroom,
+            description: "Mengubah kelas: {$namaLama} -> {$newName}",
+            properties: ['classroom_id' => $classroom->id, 'nama_lama' => $namaLama, 'nama_baru' => $newName],
+        );
 
         return redirect()->route('admin.classrooms.index')
             ->with('success', "Kelas {$classroom->name} berhasil diperbarui.");
@@ -94,7 +111,14 @@ class ClassroomController extends Controller
         }
 
         $name = $classroom->name;
+        $classroomId = $classroom->id;
         $classroom->delete();
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_KELAS,
+            description: "Menghapus kelas: {$name}",
+            properties: ['classroom_id' => $classroomId, 'nama' => $name],
+        );
 
         return redirect()->route('admin.classrooms.index')
             ->with('success', "Kelas {$name} berhasil dihapus.");

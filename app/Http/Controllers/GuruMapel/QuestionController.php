@@ -8,14 +8,17 @@ use App\Http\Requests\GuruMapel\UpdateGuruMapelQuestionRequest;
 use App\Models\Classroom;
 use App\Models\ExamAnswer;
 use App\Models\GuruMapel;
+use App\Enums\ActivityAction;
 use App\Models\Question;
 use App\Models\Subject;
+use App\Services\ActivityLogger;
 use App\Services\QuestionWeightService;
 use App\Traits\BuildsQuestionPayload;
 use App\Traits\ScopesGuruMapel;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class QuestionController extends Controller
@@ -89,6 +92,14 @@ class QuestionController extends Controller
         // mapel ini (guru tidak lagi memilih manual saat create).
         $this->syncClassroomsFromAssignment($question, $guru);
         $question->load('classrooms');
+
+        ActivityLogger::log(
+            action: ActivityAction::TAMBAH_SOAL,
+            subject: $question,
+            description: 'Guru menambahkan soal baru: '.Str::limit((string) $question->question_text, 60),
+            properties: ['question_id' => $question->id, 'subject_id' => $question->subject_id, 'type' => $question->type, 'classroom_ids' => $question->classrooms->pluck('id')->all()],
+        );
+
         $warning = $this->weightWarningForPairs((int) $question->subject_id, $question->classrooms->pluck('id')->all());
         $redirect = redirect()->route('guru_mapel.questions.index')->with('success', 'Soal berhasil ditambahkan.');
         if ($warning !== null) {
@@ -138,6 +149,14 @@ class QuestionController extends Controller
         // guru untuk mapel soal ini (keputusan desain).
         $this->syncClassroomsFromAssignment($question, $guru);
         $question->load('classrooms');
+
+        ActivityLogger::log(
+            action: ActivityAction::UBAH_SOAL,
+            subject: $question,
+            description: 'Guru mengubah soal #'.$question->id.': '.Str::limit((string) $question->question_text, 60),
+            properties: ['question_id' => $question->id, 'subject_id' => $question->subject_id, 'type' => $question->type, 'classroom_ids' => $question->classrooms->pluck('id')->all()],
+        );
+
         $warning = $this->weightWarningForPairs((int) $question->subject_id, $question->classrooms->pluck('id')->all());
         $redirect = redirect()->route('guru_mapel.questions.index')->with('success', 'Soal berhasil diperbarui.');
         if ($warning !== null) {
@@ -156,8 +175,17 @@ class QuestionController extends Controller
             return back()->with('error', 'Soal ini sudah pernah dijawab oleh peserta pada ujian sebelumnya dan tidak bisa dihapus.');
         }
 
+        $snapshotId = $question->id;
+        $snapshotText = Str::limit((string) $question->question_text, 60);
+        $snapshotSubjectId = $question->subject_id;
         $this->deleteImageFile($question->image_path);
         $question->delete();
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_SOAL,
+            description: "Guru menghapus soal #{$snapshotId}: {$snapshotText}",
+            properties: ['question_id' => $snapshotId, 'subject_id' => $snapshotSubjectId, 'question_text' => $snapshotText],
+        );
 
         return redirect()->route('guru_mapel.questions.index')
             ->with('success', 'Soal berhasil dihapus.');

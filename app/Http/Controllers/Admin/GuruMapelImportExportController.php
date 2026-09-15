@@ -6,7 +6,9 @@ use App\Exports\GuruMapelsFailedImportExport;
 use App\Exports\GuruMapelsTemplateExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ImportGuruMapelsRequest;
+use App\Enums\ActivityAction;
 use App\Imports\GuruMapelsImport;
+use App\Services\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -91,6 +93,12 @@ class GuruMapelImportExportController extends Controller
         }
 
         session()->flash('success', $flash);
+
+        ActivityLogger::log(
+            action: ActivityAction::IMPOR_DATA,
+            description: 'Impor guru mapel: '.$result['created'].' baru, '.$result['updated'].' diperbarui, '.$result['assignments'].' penugasan',
+            properties: ['jenis' => 'guru_mapel', 'created' => $result['created'], 'updated' => $result['updated'], 'assignments' => $result['assignments'], 'failed_count' => count($import->invalidRows)],
+        );
 
         return response()->json([
             'ok' => true,

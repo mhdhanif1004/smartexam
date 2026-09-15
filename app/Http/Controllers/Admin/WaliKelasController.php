@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreWaliKelasRequest;
 use App\Http\Requests\Admin\UpdateWaliKelasRequest;
+use App\Enums\ActivityAction;
 use App\Models\Classroom;
 use App\Models\User;
 use App\Models\WaliKelas;
+use App\Services\ActivityLogger;
 use App\Services\CredentialGenerator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -48,7 +51,10 @@ class WaliKelasController extends Controller
 
     public function store(StoreWaliKelasRequest $request): RedirectResponse
     {
-        DB::transaction(function () use ($request) {
+        $createdUser = null;
+        $createdWali = null;
+
+        DB::transaction(function () use ($request, &$createdUser, &$createdWali) {
             $credentialGenerator = app(CredentialGenerator::class);
 
             $password = $request->filled('password')
@@ -69,11 +75,23 @@ class WaliKelasController extends Controller
                 'role' => User::ROLE_WALI_KELAS,
                 'is_active' => $request->boolean('is_active'),
             ]);
+            $createdUser = $user;
 
-            $user->waliKelas()->create([
+            $wali = $user->waliKelas()->create([
                 'classroom_id' => (int) $request->integer('classroom_id'),
             ]);
+            $createdWali = $wali;
         });
+
+        if ($createdUser && $createdWali) {
+            ActivityLogger::log(
+                action: ActivityAction::TAMBAH_WALI_KELAS,
+                causer: Auth::user(),
+                subject: $createdUser,
+                description: "Menambah wali kelas: {$createdUser->name}",
+                properties: ['wali_kelas_id' => $createdWali->id, 'user_id' => $createdUser->id, 'nama' => $createdUser->name, 'email' => $createdUser->email, 'classroom_id' => $createdWali->classroom_id],
+            );
+        }
 
         return redirect()->route('admin.wali-kelas.index')->with('success', 'Data wali kelas berhasil ditambahkan.');
     }
@@ -94,6 +112,9 @@ class WaliKelasController extends Controller
 
     public function update(UpdateWaliKelasRequest $request, WaliKelas $waliKelas): RedirectResponse
     {
+        $namaLama = $waliKelas->user?->name ?? "#{$waliKelas->id}";
+        $userId = $waliKelas->user_id;
+
         $userData = [
             'name' => $request->name,
             'email' => $request->email,
@@ -108,15 +129,33 @@ class WaliKelasController extends Controller
         $waliKelas->user->update($userData);
         $waliKelas->update(['classroom_id' => (int) $request->integer('classroom_id')]);
 
+        ActivityLogger::log(
+            action: ActivityAction::UBAH_WALI_KELAS,
+            causer: Auth::user(),
+            subject: $waliKelas->user ?? $waliKelas,
+            description: "Mengubah wali kelas: {$namaLama} -> {$request->name}",
+            properties: ['wali_kelas_id' => $waliKelas->id, 'user_id' => $userId, 'nama_lama' => $namaLama, 'nama_baru' => $request->name],
+        );
+
         return redirect()->route('admin.wali-kelas.index')->with('success', 'Data wali kelas berhasil diperbarui.');
     }
 
     public function destroy(WaliKelas $waliKelas): RedirectResponse
     {
+        $nama = $waliKelas->user?->name ?? "#{$waliKelas->id}";
+        $waliId = $waliKelas->id;
+        $userId = $waliKelas->user_id;
+
         DB::transaction(function () use ($waliKelas) {
             $waliKelas->delete();
             $waliKelas->user?->delete();
         });
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_WALI_KELAS,
+            description: "Menghapus wali kelas: {$nama}",
+            properties: ['wali_kelas_id' => $waliId, 'user_id' => $userId, 'nama' => $nama],
+        );
 
         return redirect()->route('admin.wali-kelas.index')->with('success', 'Data wali kelas berhasil dihapus.');
     }
@@ -144,6 +183,14 @@ class WaliKelasController extends Controller
                 $deleted++;
             }
         });
+
+        if ($deleted > 0) {
+            ActivityLogger::log(
+                action: ActivityAction::HAPUS_BULK_WALI_KELAS,
+                description: "Hapus bulk {$deleted} wali kelas",
+                properties: ['jumlah' => $deleted, 'ids' => $ids->values()->all()],
+            );
+        }
 
         return back()->with('success', "{$deleted} data wali kelas berhasil dihapus.");
     }

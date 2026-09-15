@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreStudentRequest;
 use App\Http\Requests\Admin\UpdateStudentRequest;
+use App\Enums\ActivityAction;
 use App\Models\Classroom;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use App\Services\CredentialGenerator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
@@ -50,14 +52,17 @@ class StudentController extends Controller
 
     public function store(StoreStudentRequest $request): RedirectResponse
     {
-        DB::transaction(function () use ($request) {
+        $createdUser = null;
+        $createdStudent = null;
+
+        DB::transaction(function () use ($request, &$createdUser, &$createdStudent) {
             $generator = app(CredentialGenerator::class);
 
             $password = $request->filled('password')
                 ? $request->password
                 : $generator->password();
 
-            $user = User::create([
+            $createdUser = User::create([
                 'name' => $request->name,
                 'username' => $request->filled('username')
                     ? $request->username
@@ -68,12 +73,19 @@ class StudentController extends Controller
                 'is_active' => $request->boolean('is_active'),
             ]);
 
-            $user->student()->create([
+            $createdStudent = $createdUser->student()->create([
                 'nisn' => $request->nisn,
                 'class_name' => $request->class_name,
                 'classroom_id' => Classroom::idForName($request->class_name),
             ]);
         });
+
+        ActivityLogger::log(
+            action: ActivityAction::TAMBAH_SISWA,
+            subject: $createdStudent ?? $createdUser,
+            description: 'Menambahkan siswa: '.($createdUser->name ?? $request->name).' (NISN '.$request->nisn.')',
+            properties: ['user_id' => $createdUser?->id, 'student_id' => $createdStudent?->id, 'nama' => $createdUser?->name ?? $request->name, 'nisn' => $request->nisn, 'class_name' => $request->class_name],
+        );
 
         return redirect()->route('admin.students.index')->with('success', 'Data siswa berhasil ditambahkan.');
     }
@@ -85,6 +97,10 @@ class StudentController extends Controller
 
     public function update(UpdateStudentRequest $request, Student $student): RedirectResponse
     {
+        $oldIsActive = (bool) $student->user?->is_active;
+        $passwordChanged = $request->filled('password');
+        $newIsActive = $request->boolean('is_active');
+
         DB::transaction(function () use ($request, $student) {
             $userData = [
                 'name' => $request->name,
@@ -105,15 +121,42 @@ class StudentController extends Controller
             ]);
         });
 
+        if ($passwordChanged || $oldIsActive !== $newIsActive) {
+            $changes = [];
+            if ($passwordChanged) {
+                $changes[] = 'password';
+            }
+            if ($oldIsActive !== $newIsActive) {
+                $changes[] = $newIsActive ? 'aktivasi' : 'nonaktivasi';
+            }
+
+            ActivityLogger::log(
+                action: ActivityAction::UBAH_SISWA_SENSITIF,
+                subject: $student,
+                description: 'Mengubah data sensitif siswa '.($student->user?->name ?? 'ID '.$student->id).' ('.implode(', ', $changes).')',
+                properties: ['student_id' => $student->id, 'perubahan' => $changes, 'is_active' => $newIsActive],
+            );
+        }
+
         return redirect()->route('admin.students.index')->with('success', 'Data siswa berhasil diperbarui.');
     }
 
     public function destroy(Student $student): RedirectResponse
     {
+        $studentName = $student->user?->name ?? 'ID '.$student->id;
+        $studentId = $student->id;
+
         DB::transaction(function () use ($student) {
             $student->delete();
             $student->user?->delete();
         });
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_SISWA,
+            subject: $student,
+            description: "Menghapus siswa {$studentName}",
+            properties: ['student_id' => $studentId, 'nama' => $studentName],
+        );
 
         return redirect()->route('admin.students.index')->with('success', 'Data siswa berhasil dihapus.');
     }
@@ -141,6 +184,12 @@ class StudentController extends Controller
                 $deleted++;
             }
         });
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_BULK_SISWA,
+            description: "Menghapus {$deleted} siswa sekaligus",
+            properties: ['jumlah' => $deleted, 'ids' => $ids->values()->all()],
+        );
 
         return back()->with('success', "{$deleted} data siswa berhasil dihapus.");
     }

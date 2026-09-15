@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreKepalaSekolahRequest;
 use App\Http\Requests\Admin\UpdateKepalaSekolahRequest;
+use App\Enums\ActivityAction;
 use App\Models\KepalaSekolah;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use App\Services\CredentialGenerator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,7 +44,10 @@ class KepalaSekolahController extends Controller
 
     public function store(StoreKepalaSekolahRequest $request): RedirectResponse
     {
-        DB::transaction(function () use ($request) {
+        $createdUser = null;
+        $createdKepsek = null;
+
+        DB::transaction(function () use ($request, &$createdUser, &$createdKepsek) {
             $credentialGenerator = app(CredentialGenerator::class);
 
             $password = $request->filled('password')
@@ -60,11 +66,23 @@ class KepalaSekolahController extends Controller
                 'role' => User::ROLE_KEPALA_SEKOLAH,
                 'is_active' => $request->boolean('is_active'),
             ]);
+            $createdUser = $user;
 
-            $user->kepalaSekolah()->create([
+            $kepsek = $user->kepalaSekolah()->create([
                 'nip' => $request->input('nip'),
             ]);
+            $createdKepsek = $kepsek;
         });
+
+        if ($createdUser && $createdKepsek) {
+            ActivityLogger::log(
+                action: ActivityAction::TAMBAH_KEPALA_SEKOLAH,
+                causer: Auth::user(),
+                subject: $createdUser,
+                description: "Menambah kepala sekolah: {$createdUser->name}",
+                properties: ['kepala_sekolah_id' => $createdKepsek->id, 'user_id' => $createdUser->id, 'nama' => $createdUser->name, 'email' => $createdUser->email],
+            );
+        }
 
         return redirect()->route('admin.kepala-sekolahs.index')->with('success', 'Data kepala sekolah berhasil ditambahkan.');
     }
@@ -78,6 +96,9 @@ class KepalaSekolahController extends Controller
 
     public function update(UpdateKepalaSekolahRequest $request, KepalaSekolah $kepalaSekolah): RedirectResponse
     {
+        $namaLama = $kepalaSekolah->user?->name ?? "#{$kepalaSekolah->id}";
+        $userId = $kepalaSekolah->user_id;
+
         $userData = [
             'name' => $request->name,
             'email' => $request->email,
@@ -92,15 +113,33 @@ class KepalaSekolahController extends Controller
         $kepalaSekolah->user->update($userData);
         $kepalaSekolah->update(['nip' => $request->input('nip')]);
 
+        ActivityLogger::log(
+            action: ActivityAction::UBAH_KEPALA_SEKOLAH,
+            causer: Auth::user(),
+            subject: $kepalaSekolah->user ?? $kepalaSekolah,
+            description: "Mengubah kepala sekolah: {$namaLama} -> {$request->name}",
+            properties: ['kepala_sekolah_id' => $kepalaSekolah->id, 'user_id' => $userId, 'nama_lama' => $namaLama, 'nama_baru' => $request->name],
+        );
+
         return redirect()->route('admin.kepala-sekolahs.index')->with('success', 'Data kepala sekolah berhasil diperbarui.');
     }
 
     public function destroy(KepalaSekolah $kepalaSekolah): RedirectResponse
     {
+        $nama = $kepalaSekolah->user?->name ?? "#{$kepalaSekolah->id}";
+        $kepsekId = $kepalaSekolah->id;
+        $userId = $kepalaSekolah->user_id;
+
         DB::transaction(function () use ($kepalaSekolah) {
             $kepalaSekolah->delete();
             $kepalaSekolah->user?->delete();
         });
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_KEPALA_SEKOLAH,
+            description: "Menghapus kepala sekolah: {$nama}",
+            properties: ['kepala_sekolah_id' => $kepsekId, 'user_id' => $userId, 'nama' => $nama],
+        );
 
         return redirect()->route('admin.kepala-sekolahs.index')->with('success', 'Data kepala sekolah berhasil dihapus.');
     }
@@ -128,6 +167,14 @@ class KepalaSekolahController extends Controller
                 $deleted++;
             }
         });
+
+        if ($deleted > 0) {
+            ActivityLogger::log(
+                action: ActivityAction::HAPUS_BULK_KEPALA_SEKOLAH,
+                description: "Hapus bulk {$deleted} kepala sekolah",
+                properties: ['jumlah' => $deleted, 'ids' => $ids->values()->all()],
+            );
+        }
 
         return back()->with('success', "{$deleted} data kepala sekolah berhasil dihapus.");
     }

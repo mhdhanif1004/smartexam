@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Pengawas;
 
 use App\Http\Controllers\Controller;
 use App\Models\Violation;
+use App\Enums\ActivityAction;
+use App\Services\ActivityLogger;
 use App\Traits\ScopesSupervisorRoom;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -99,6 +101,13 @@ class ViolationController extends Controller
             'handled_at' => now(),
             'handled_by' => auth()->id(),
         ]);
+
+        ActivityLogger::log(
+            action: ActivityAction::TANGANI_PELANGGARAN,
+            subject: $violation,
+            description: 'Menandai pelanggaran #'.$violation->id.' sudah ditangani',
+            properties: ['violation_id' => $violation->id, 'exam_session_id' => $violation->exam_session_id],
+        );
 
         return response()->json(['ok' => true, 'handled' => true]);
     }

@@ -5,6 +5,8 @@ namespace App\Http\Controllers\WaliKelas;
 use App\Http\Controllers\Controller;
 use App\Models\Student;
 use App\Models\WaliKelasNote;
+use App\Enums\ActivityAction;
+use App\Services\ActivityLogger;
 use App\Services\WaliKelasDataService;
 use App\Traits\ResolvesSelectedSemester;
 use App\Traits\ScopesWaliKelas;
@@ -59,7 +61,7 @@ class WaliKelasNoteController extends Controller
             'Siswa tidak termasuk dalam kelas yang Anda ampu.'
         );
 
-        WaliKelasNote::create([
+        $note = WaliKelasNote::create([
             'student_id' => $studentId,
             'classroom_id' => $wali->classroom_id,
             'wali_kelas_id' => $wali->id,
@@ -67,6 +69,13 @@ class WaliKelasNoteController extends Controller
             'tipe' => $validated['tipe'] ?? null,
             'catatan' => $validated['catatan'],
         ]);
+
+        ActivityLogger::log(
+            action: ActivityAction::TAMBAH_CATATAN_WALI,
+            subject: $note,
+            description: 'Tambah catatan wali siswa #'.$studentId.' tipe '.($validated['tipe'] ?? '-'),
+            properties: ['student_id' => $studentId, 'classroom_id' => $wali->classroom_id, 'semester_id' => $semesterId, 'tipe' => $validated['tipe'] ?? null],
+        );
 
         // Kembali ke halaman Catatan (halaman sendiri, bukan tab lagi),
         // filter siswa tetap terbawa supaya entri baru langsung terlihat.

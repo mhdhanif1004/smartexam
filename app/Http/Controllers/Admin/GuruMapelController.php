@@ -8,9 +8,12 @@ use App\Http\Requests\Admin\UpdateGuruMapelRequest;
 use App\Models\Classroom;
 use App\Models\GuruMapel;
 use App\Models\Subject;
+use App\Enums\ActivityAction;
 use App\Models\TeacherSubjectClassAssignment;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use App\Services\CredentialGenerator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -58,7 +61,10 @@ class GuruMapelController extends Controller
 
     public function store(StoreGuruMapelRequest $request): RedirectResponse
     {
-        DB::transaction(function () use ($request) {
+        $createdUser = null;
+        $createdGuru = null;
+
+        DB::transaction(function () use ($request, &$createdUser, &$createdGuru) {
             $credentialGenerator = app(CredentialGenerator::class);
 
             $password = $request->filled('password')
@@ -79,10 +85,12 @@ class GuruMapelController extends Controller
                 'role' => User::ROLE_GURU_MAPEL,
                 'is_active' => $request->boolean('is_active'),
             ]);
+            $createdUser = $user;
 
             $guruMapel = $user->guruMapel()->create([
                 'nip' => $request->input('nip'),
             ]);
+            $createdGuru = $guruMapel;
 
             // Penugasan awal OPSIONAL saat create: bila mapel dipilih, buat
             // penugasan mapel berikut kelas (classroom_ids) yang dipilih admin.
@@ -99,6 +107,16 @@ class GuruMapelController extends Controller
                 );
             }
         });
+
+        if ($createdUser && $createdGuru) {
+            ActivityLogger::log(
+                action: ActivityAction::TAMBAH_GURU_MAPEL,
+                causer: Auth::user(),
+                subject: $createdUser,
+                description: "Menambah guru mapel: {$createdUser->name}",
+                properties: ['guru_mapel_id' => $createdGuru->id, 'user_id' => $createdUser->id, 'nama' => $createdUser->name, 'email' => $createdUser->email],
+            );
+        }
 
         return redirect()->route('admin.guru-mapels.index')->with('success', 'Data guru mapel berhasil ditambahkan.');
     }
@@ -134,6 +152,9 @@ class GuruMapelController extends Controller
 
     public function update(UpdateGuruMapelRequest $request, GuruMapel $guruMapel): RedirectResponse
     {
+        $namaLama = $guruMapel->user?->name ?? "#{$guruMapel->id}";
+        $userId = $guruMapel->user_id;
+
         $userData = [
             'name' => $request->name,
             'email' => $request->email,
@@ -148,15 +169,33 @@ class GuruMapelController extends Controller
         $guruMapel->user->update($userData);
         $guruMapel->update(['nip' => $request->input('nip')]);
 
+        ActivityLogger::log(
+            action: ActivityAction::UBAH_GURU_MAPEL,
+            causer: Auth::user(),
+            subject: $guruMapel->user ?? $guruMapel,
+            description: "Mengubah guru mapel: {$namaLama} -> {$request->name}",
+            properties: ['guru_mapel_id' => $guruMapel->id, 'user_id' => $userId, 'nama_lama' => $namaLama, 'nama_baru' => $request->name],
+        );
+
         return redirect()->route('admin.guru-mapels.index')->with('success', 'Data guru mapel berhasil diperbarui.');
     }
 
     public function destroy(GuruMapel $guruMapel): RedirectResponse
     {
+        $nama = $guruMapel->user?->name ?? "#{$guruMapel->id}";
+        $guruId = $guruMapel->id;
+        $userId = $guruMapel->user_id;
+
         DB::transaction(function () use ($guruMapel) {
             $guruMapel->delete();
             $guruMapel->user?->delete();
         });
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_GURU_MAPEL,
+            description: "Menghapus guru mapel: {$nama}",
+            properties: ['guru_mapel_id' => $guruId, 'user_id' => $userId, 'nama' => $nama],
+        );
 
         return redirect()->route('admin.guru-mapels.index')->with('success', 'Data guru mapel berhasil dihapus.');
     }
@@ -184,6 +223,14 @@ class GuruMapelController extends Controller
                 $deleted++;
             }
         });
+
+        if ($deleted > 0) {
+            ActivityLogger::log(
+                action: ActivityAction::HAPUS_BULK_GURU_MAPEL,
+                description: "Hapus bulk {$deleted} guru mapel",
+                properties: ['jumlah' => $deleted, 'ids' => $ids->values()->all()],
+            );
+        }
 
         return back()->with('success', "{$deleted} data guru mapel berhasil dihapus.");
     }
@@ -258,10 +305,17 @@ class GuruMapelController extends Controller
             'subject_id' => ['required', 'exists:subjects,id'],
         ]);
 
-        TeacherSubjectClassAssignment::firstOrCreate([
+        $assignment = TeacherSubjectClassAssignment::firstOrCreate([
             'guru_mapel_id' => $guruMapel->id,
             'subject_id' => (int) $validated['subject_id'],
         ]);
+
+        ActivityLogger::log(
+            action: ActivityAction::TAMBAH_PENUGASAN_GURU,
+            subject: $assignment,
+            description: "Tambah penugasan mapel #{$validated['subject_id']} untuk guru #{$guruMapel->id}",
+            properties: ['guru_mapel_id' => $guruMapel->id, 'subject_id' => (int) $validated['subject_id']],
+        );
 
         return redirect()->route('admin.guru-mapels.assignments.edit', $guruMapel)
             ->with('success', 'Penugasan mapel berhasil disimpan.');
@@ -289,6 +343,13 @@ class GuruMapelController extends Controller
 
         $this->setSubjectClassrooms($guruMapel, (int) $subject->id, $classroomIds);
 
+        ActivityLogger::log(
+            action: ActivityAction::PERBARUI_KELAS_AMPU,
+            subject: $guruMapel,
+            description: "Perbarui kelas ampu guru #{$guruMapel->id} mapel #{$subject->id} — " . count($classroomIds) . " kelas",
+            properties: ['guru_mapel_id' => $guruMapel->id, 'subject_id' => (int) $subject->id, 'classroom_ids' => $classroomIds],
+        );
+
         return redirect()->route('admin.guru-mapels.assignments.edit', $guruMapel)
             ->with('success', 'Cakupan kelas untuk mapel berhasil disimpan.');
     }
@@ -300,7 +361,14 @@ class GuruMapelController extends Controller
      */
     public function destroySubjectAssignment(GuruMapel $guruMapel, Subject $subject): RedirectResponse
     {
-        $guruMapel->assignments()->where('subject_id', (int) $subject->id)->delete();
+        $deleted = $guruMapel->assignments()->where('subject_id', (int) $subject->id)->delete();
+
+        ActivityLogger::log(
+            action: ActivityAction::PERBARUI_KELAS_AMPU,
+            subject: $guruMapel,
+            description: "Hapus penugasan mapel #{$subject->id} dari guru #{$guruMapel->id} — {$deleted} baris",
+            properties: ['guru_mapel_id' => $guruMapel->id, 'subject_id' => (int) $subject->id, 'deleted' => $deleted],
+        );
 
         return redirect()->route('admin.guru-mapels.assignments.edit', $guruMapel)
             ->with('success', 'Penugasan mapel berhasil dihapus.');

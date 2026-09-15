@@ -7,6 +7,8 @@ use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\Room;
 use App\Models\Student;
+use App\Enums\ActivityAction;
+use App\Services\ActivityLogger;
 use App\Traits\ScopesSupervisorRoom;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -146,6 +148,13 @@ class AttendanceController extends Controller
 
         $this->propagateAttendance($student, $schedule, $status);
 
+        ActivityLogger::log(
+            action: ActivityAction::KONFIRMASI_KEHADIRAN,
+            subject: $session,
+            description: 'Konfirmasi kehadiran siswa ID '.$student->id.' menjadi '.($status ?? 'dibatalkan').' pada jadwal #'.$schedule->id,
+            properties: ['student_id' => $student->id, 'exam_schedule_id' => $schedule->id, 'status' => $status, 'room_id' => $room->id],
+        );
+
         return response()->json([
             'ok' => true,
             'message' => 'Kehadiran berhasil diperbarui.',
@@ -233,6 +242,13 @@ class AttendanceController extends Controller
                 $this->propagateAttendance($student, $anchorSchedule, ExamSession::ATTENDANCE_ABSENT);
             }
         }
+
+        ActivityLogger::log(
+            action: ActivityAction::PERBARUI_KEHADIRAN,
+            subject: $anchorSchedule,
+            description: 'Perbarui kehadiran massal pada jadwal #'.$anchorSchedule->id.' — '.count($confirmedStatuses).' hadir, '.count($absentStatuses).' tidak hadir',
+            properties: ['exam_schedule_id' => $anchorSchedule->id, 'hadir' => count($confirmedStatuses), 'tidak_hadir' => count($absentStatuses), 'room_id' => $room->id],
+        );
 
         return back()->with('success', 'Absensi peserta berhasil disimpan.');
     }

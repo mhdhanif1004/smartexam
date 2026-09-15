@@ -42,6 +42,7 @@
             ['label' => 'Absensi', 'route' => 'admin.attendance.index', 'active' => 'admin.attendance.*', 'icon' => 'clipboard-check'],
             ['label' => 'Laporan Hasil Ujian', 'route' => 'admin.reports.index', 'active' => 'admin.reports.*', 'icon' => 'chart-bar'],
             ['label' => 'Pelanggaran', 'route' => 'admin.violations.index', 'active' => 'admin.violations.*', 'icon' => 'eye'],
+            ['label' => 'Log Aktivitas', 'route' => 'admin.activity-logs.index', 'active' => 'admin.activity-logs.*', 'icon' => 'document-text'],
         ],
         'pengawas' => [
             ['label' => 'Dashboard', 'route' => 'pengawas.dashboard', 'active' => 'pengawas.dashboard', 'icon' => 'dashboard'],

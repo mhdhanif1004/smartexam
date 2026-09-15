@@ -7,6 +7,8 @@ use App\Http\Requests\WaliKelas\StoreAttitudeGradeRequest;
 use App\Http\Requests\WaliKelas\StoreAttitudeGradesBulkRequest;
 use App\Http\Requests\WaliKelas\UpdateAttitudeGradeRequest;
 use App\Models\AttitudeGrade;
+use App\Enums\ActivityAction;
+use App\Services\ActivityLogger;
 use App\Services\WaliKelasDataService;
 use App\Traits\ResolvesSelectedSemester;
 use App\Traits\ScopesWaliKelas;
@@ -96,6 +98,12 @@ class AttitudeGradeController extends Controller
             }
         }
 
+        ActivityLogger::log(
+            action: ActivityAction::BULK_NILAI_SIKAP,
+            description: 'Bulk nilai sikap siswa #'.$studentId.' semester #'.$semesterId.' oleh wali kelas #'.$wali->id,
+            properties: ['student_id' => $studentId, 'semester_id' => $semesterId, 'classroom_id' => $wali->classroom_id, 'aspek_count' => count($grades)],
+        );
+
         return back()->with('success', 'Nilai sikap berhasil diperbarui.');
     }
 
@@ -106,7 +114,7 @@ class AttitudeGradeController extends Controller
     {
         $wali = $this->currentWaliKelas();
 
-        AttitudeGrade::updateOrCreate(
+        $grade = AttitudeGrade::updateOrCreate(
             [
                 'student_id' => (int) $request->input('student_id'),
                 'classroom_id' => $wali->classroom_id,
@@ -118,6 +126,13 @@ class AttitudeGradeController extends Controller
                 'score' => $request->input('score'),
                 'note' => $request->input('note'),
             ]
+        );
+
+        ActivityLogger::log(
+            action: ActivityAction::TAMBAH_NILAI_SIKAP,
+            subject: $grade,
+            description: 'Tambah nilai sikap siswa #'.(int) $request->input('student_id').' aspek #'.(int) $request->input('attitude_aspect_id'),
+            properties: ['student_id' => (int) $request->input('student_id'), 'attitude_aspect_id' => (int) $request->input('attitude_aspect_id'), 'semester_id' => (int) $request->input('semester_id'), 'score' => $request->input('score')],
         );
 
         return back()->with('success', 'Nilai sikap berhasil disimpan.');
@@ -141,6 +156,13 @@ class AttitudeGradeController extends Controller
             'note' => $request->input('note'),
         ]);
 
+        ActivityLogger::log(
+            action: ActivityAction::UBAH_NILAI_SIKAP,
+            subject: $attitudeGrade,
+            description: 'Ubah nilai sikap #'.$attitudeGrade->id.' siswa #'.(int) $request->input('student_id'),
+            properties: ['attitude_grade_id' => $attitudeGrade->id, 'student_id' => (int) $request->input('student_id'), 'score' => $request->input('score')],
+        );
+
         return back()->with('success', 'Nilai sikap berhasil diperbarui.');
     }
 
@@ -153,7 +175,16 @@ class AttitudeGradeController extends Controller
 
         abort_unless($attitudeGrade->classroom_id === $wali->classroom_id, 403, 'Anda tidak memiliki akses ke data ini.');
 
+        $deletedId = $attitudeGrade->id;
+        $deletedStudentId = $attitudeGrade->student_id;
+
         $attitudeGrade->delete();
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_NILAI_SIKAP,
+            description: 'Hapus nilai sikap #'.$deletedId.' siswa #'.$deletedStudentId,
+            properties: ['attitude_grade_id' => $deletedId, 'student_id' => $deletedStudentId, 'classroom_id' => $wali->classroom_id],
+        );
 
         return back()->with('success', 'Nilai sikap berhasil dihapus.');
     }

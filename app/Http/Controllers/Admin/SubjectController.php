@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSubjectRequest;
 use App\Http\Requests\Admin\UpdateSubjectRequest;
+use App\Enums\ActivityAction;
 use App\Models\ExamSession;
 use App\Models\Subject;
+use App\Services\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -43,7 +45,14 @@ class SubjectController extends Controller
 
     public function store(StoreSubjectRequest $request): RedirectResponse
     {
-        Subject::create($request->validated());
+        $subject = Subject::create($request->validated());
+
+        ActivityLogger::log(
+            action: ActivityAction::TAMBAH_MAPEL,
+            subject: $subject,
+            description: "Menambah mapel: {$subject->name}",
+            properties: ['subject_id' => $subject->id, 'nama' => $subject->name, 'kode' => $subject->code],
+        );
 
         return redirect()->route('admin.subjects.index')->with('success', 'Mata pelajaran berhasil ditambahkan.');
     }
@@ -55,7 +64,16 @@ class SubjectController extends Controller
 
     public function update(UpdateSubjectRequest $request, Subject $subject): RedirectResponse
     {
+        $namaLama = $subject->name;
+        $kodeLama = $subject->code;
         $subject->update($request->validated());
+
+        ActivityLogger::log(
+            action: ActivityAction::UBAH_MAPEL,
+            subject: $subject,
+            description: "Mengubah mapel: {$namaLama} -> {$subject->name}",
+            properties: ['subject_id' => $subject->id, 'nama_lama' => $namaLama, 'nama_baru' => $subject->name, 'kode_lama' => $kodeLama, 'kode_baru' => $subject->code],
+        );
 
         return redirect()->route('admin.subjects.index')->with('success', 'Mata pelajaran berhasil diperbarui.');
     }
@@ -68,7 +86,16 @@ class SubjectController extends Controller
             return back()->with('error', 'Mata pelajaran tidak dapat dihapus karena sudah memiliki histori ujian siswa.');
         }
 
+        $nama = $subject->name;
+        $subjectId = $subject->id;
+        $kode = $subject->code;
         $subject->delete();
+
+        ActivityLogger::log(
+            action: ActivityAction::HAPUS_MAPEL,
+            description: "Menghapus mapel: {$nama}",
+            properties: ['subject_id' => $subjectId, 'nama' => $nama, 'kode' => $kode],
+        );
 
         return redirect()->route('admin.subjects.index')->with('success', 'Mata pelajaran berhasil dihapus.');
     }
@@ -100,7 +127,15 @@ class SubjectController extends Controller
             'name' => ['required', 'string', 'max:255'],
         ]);
 
+        $namaLama = $subject->name;
         $subject->update($data);
+
+        ActivityLogger::log(
+            action: ActivityAction::UBAH_MAPEL,
+            subject: $subject,
+            description: "Mengubah mapel: {$namaLama} -> {$subject->name}",
+            properties: ['subject_id' => $subject->id, 'nama_lama' => $namaLama, 'nama_baru' => $subject->name, 'via' => 'updateName'],
+        );
 
         return response()->json(['ok' => true, 'name' => $subject->name]);
     }
@@ -160,6 +195,14 @@ class SubjectController extends Controller
 
             $missing = $ids->diff($subjects->pluck('id'))->values()->all();
         });
+
+        if ($deleted > 0) {
+            ActivityLogger::log(
+                action: ActivityAction::HAPUS_BULK_MAPEL,
+                description: "Hapus bulk {$deleted} mapel",
+                properties: ['jumlah' => $deleted, 'ids' => $ids->values()->all()],
+            );
+        }
 
         $message = "{$deleted} mata pelajaran berhasil dihapus.";
 

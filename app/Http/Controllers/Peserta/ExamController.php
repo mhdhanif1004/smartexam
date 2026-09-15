@@ -10,6 +10,8 @@ use App\Models\ExamSession;
 use App\Models\ExamToken;
 use App\Models\Question;
 use App\Models\Student;
+use App\Enums\ActivityAction;
+use App\Services\ActivityLogger;
 use App\Services\ExamGradingService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -123,6 +125,13 @@ class ExamController extends Controller
             'started_at' => $session->started_at ?? now(),
             'deadline_type' => $session->deadline_type ?? $deadlineType,
         ]);
+
+        ActivityLogger::log(
+            action: ActivityAction::VALIDASI_TOKEN_UJIAN,
+            subject: $session,
+            description: 'Validasi token ujian jadwal #'.$this->schedule->id.' periode #'.($periodId ?? '-'),
+            properties: ['exam_schedule_id' => $this->schedule->id, 'exam_period_id' => $periodId, 'exam_session_id' => $session->id],
+        );
 
         return redirect()->route('peserta.exams.work', $this->schedule->id)
             ->with('success', 'Token valid. Selamat mengerjakan!');
@@ -486,6 +495,13 @@ class ExamController extends Controller
         }
 
         $this->grading->finalize($session, $this->schedule);
+
+        ActivityLogger::log(
+            action: ActivityAction::KUMPUL_UJIAN,
+            subject: $session,
+            description: 'Mengumpulkan ujian jadwal #'.$this->schedule->id.($isExpired ? ' (otomatis — waktu habis)' : ''),
+            properties: ['exam_schedule_id' => $this->schedule->id, 'exam_session_id' => $session->id, 'is_expired' => $isExpired],
+        );
 
         return redirect()->route('peserta.exams.finished', $this->schedule->id)
             ->with($isExpired ? 'warning' : 'success',
