@@ -71,6 +71,12 @@ class DashboardController extends Controller
         $average = $summary['average'];
         $hasData = $summary['total'] > 0 && $summary['scored'] > 0;
 
+        // d2) Chart donut Distribusi Nilai Peserta — memakai service yang
+        // sama dengan Dashboard Admin agar angka selalu konsisten.
+        $distribution = (new ExamSummaryService)->scoreDistribution($query);
+        $distributionLabels = $distribution['labels'];
+        $distributionData = $distribution['data'];
+
         // e) Pelanggaran terbaru — pasif, tanpa polling, tanpa badge mencolok
         $recentViolations = Violation::with(['examSession.student.user', 'examSession.examSchedule.subject', 'examSession.examSchedule.room'])
             ->latest('occurred_at')
@@ -107,6 +113,8 @@ class DashboardController extends Controller
             'donutData',
             'average',
             'hasData',
+            'distributionLabels',
+            'distributionData',
             'recentViolations',
             'subjectsToday'
         ));

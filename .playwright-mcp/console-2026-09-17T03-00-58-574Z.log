@@ -1,0 +1,14 @@
+[     382ms] [LOG] 🔍 Browser logger active (MCP server detected). Posting to: http://127.0.0.1:8000/_boost/browser-logs @ http://127.0.0.1:8000/login:48
+[   66115ms] [LOG] 🔍 Browser logger active (MCP server detected). Posting to: http://127.0.0.1:8000/_boost/browser-logs @ http://127.0.0.1:8000/admin/dashboard:30
+[  201034ms] [INFO] Autofocus processing was blocked because a document already has a focused element. @ http://127.0.0.1:8000/login:0
+[  221061ms] SyntaxError: Failed to execute 'replaceWith' on 'Element': Identifier 'isDarkMode' has already been declared
+    at vt.renderElement (http://127.0.0.1:8000/build/assets/turbo.es2017-esm-R4-zRr0V.js:20:27402)
+    at vt.assignNewBody (http://127.0.0.1:8000/build/assets/turbo.es2017-esm-R4-zRr0V.js:20:30026)
+    at http://127.0.0.1:8000/build/assets/turbo.es2017-esm-R4-zRr0V.js:20:28435
+    at Qt.preservingPermanentElements (http://127.0.0.1:8000/build/assets/turbo.es2017-esm-R4-zRr0V.js:6:21882)
+    at vt.preservingPermanentElements (http://127.0.0.1:8000/build/assets/turbo.es2017-esm-R4-zRr0V.js:6:23480)
+    at vt.replaceBody (http://127.0.0.1:8000/build/assets/turbo.es2017-esm-R4-zRr0V.js:20:28363)
+    at vt.render (http://127.0.0.1:8000/build/assets/turbo.es2017-esm-R4-zRr0V.js:20:27839)
+    at Jr.renderSnapshot (http://127.0.0.1:8000/build/assets/turbo.es2017-esm-R4-zRr0V.js:6:18258)
+    at Jr.render (http://127.0.0.1:8000/build/assets/turbo.es2017-esm-R4-zRr0V.js:6:17510)
+    at async http://127.0.0.1:8000/build/assets/turbo.es2017-esm-R4-zRr0V.js:20:11793

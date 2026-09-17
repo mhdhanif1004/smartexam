@@ -13,6 +13,7 @@ use App\Models\Subject;
 use App\Models\Supervisor;
 use App\Models\SupervisorAttendance;
 use App\Models\Violation;
+use App\Services\ExamSummaryService;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
@@ -35,32 +36,17 @@ class DashboardController extends Controller
             ->map(fn (Carbon $day) => $schedulesByDate->get($day->format('Y-m-d'), 0))
             ->all();
 
-        $distributionBuckets = [
-            '0 - 39' => 0,
-            '40 - 59' => 0,
-            '60 - 74' => 0,
-            '75 - 89' => 0,
-            '90 - 100' => 0,
-        ];
+        $distributionBuckets = (new ExamSummaryService)
+            ->scoreDistribution(ExamResult::query()->whereNotNull('total_score'));
+        $distributionLabels = $distributionBuckets['labels'];
+        $distributionData = $distributionBuckets['data'];
 
-        // Distribusi nilai dihitung 1 query agregat (bucket CASE WHEN),
-        // bukan memuat seluruh total_score ke PHP.
-        $bucketTotals = ExamResult::query()
-            ->whereNotNull('total_score')
-            ->selectRaw("CASE
-                WHEN total_score < 40 THEN '0 - 39'
-                WHEN total_score < 60 THEN '40 - 59'
-                WHEN total_score < 75 THEN '60 - 74'
-                WHEN total_score < 90 THEN '75 - 89'
-                ELSE '90 - 100'
-            END as bucket")
-            ->selectRaw('COUNT(*) as cnt')
-            ->groupBy('bucket')
-            ->pluck('cnt', 'bucket');
-
-        foreach ($distributionBuckets as $key => $value) {
-            $distributionBuckets[$key] = (int) ($bucketTotals[$key] ?? 0);
-        }
+        $passFailSummary = (new ExamSummaryService)
+            ->summary(ExamResult::query()->whereNotNull('total_score'));
+        $donutLabels = ['Lulus', 'Tidak Lulus'];
+        $donutData = [$passFailSummary['passed'], $passFailSummary['failed']];
+        $average = $passFailSummary['average'];
+        $hasData = $passFailSummary['total'] > 0 && $passFailSummary['scored'] > 0;
 
         $today = Carbon::today();
         $tomorrow = $today->copy()->addDay();
@@ -96,8 +82,12 @@ class DashboardController extends Controller
             'totalRooms' => Room::count(),
             'chartTrendLabels' => $chartTrendLabels,
             'chartTrendData' => $chartTrendData,
-            'distributionLabels' => array_keys($distributionBuckets),
-            'distributionData' => array_values($distributionBuckets),
+            'distributionLabels' => $distributionLabels,
+            'distributionData' => $distributionData,
+            'donutLabels' => $donutLabels,
+            'donutData' => $donutData,
+            'average' => $average,
+            'hasData' => $hasData,
             'upcomingSchedules' => ExamSchedule::query()
                 ->with(['subject', 'room'])
                 ->whereDate('exam_date', $today)

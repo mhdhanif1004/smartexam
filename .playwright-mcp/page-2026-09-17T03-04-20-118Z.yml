@@ -1,0 +1,39 @@
+- generic [ref=f1e212]:
+  - main [ref=f1e213]:
+    - generic [ref=f1e215]:
+      - generic [ref=f1e216]:
+        - img "SmartExam Logo" [ref=f1e217]
+        - heading "SmartExam" [level=1] [ref=f1e218]
+        - paragraph [ref=f1e219]: Sistem Computer Based Test Berbasis Website
+      - generic [ref=f1e221]:
+        - generic [ref=f1e222]:
+          - generic [ref=f1e223]: Username/ID Pengguna
+          - generic [ref=f1e224]:
+            - generic: person
+            - textbox "Username/ID Pengguna" [active] [ref=f1e225]:
+              - /placeholder: Masukkan ID anda
+        - generic [ref=f1e226]:
+          - generic [ref=f1e227]: Password
+          - generic [ref=f1e228]:
+            - generic: lock
+            - textbox "Password" [ref=f1e229]:
+              - /placeholder: ••••••••
+            - button "Tampilkan password" [ref=f1e230] [cursor=pointer]
+        - generic [ref=f1e234] [cursor=pointer]:
+          - checkbox "Ingat Saya" [checked] [ref=f1e235]
+          - generic [ref=f1e236]: Ingat Saya
+        - button "Masuk login" [ref=f1e238] [cursor=pointer]:
+          - text: Masuk
+          - generic [ref=f1e239]: login
+  - contentinfo [ref=f1e240]:
+    - generic [ref=f1e242]:
+      - generic [ref=f1e243]: SmartExam Development Team
+      - navigation "Navigasi footer" [ref=f1e244]:
+        - link "Privacy Policy" [ref=f1e245] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/privacy-policy
+        - link "Terms of Service" [ref=f1e246] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/terms-of-service
+        - link "CBT Guidelines" [ref=f1e247] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/cbt-guidelines
+      - paragraph [ref=f1e248]: © 2026 Erwa & Hanif Development. All rights reserved.
+  - button "Aktifkan mode gelap" [ref=f1e250] [cursor=pointer]
