@@ -86,7 +86,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
     Route::get('/terms-of-service', fn () => view('legal.terms-of-service'))->name('terms-of-service');
     Route::get('/cbt-guidelines', fn () => view('legal.cbt-guidelines'))->name('cbt-guidelines');
 
-    Route::prefix('admin')->middleware(['auth', 'verified', 'role:admin'])->name('admin.')->group(function () {
+    Route::prefix('admin')->middleware(['auth', 'role:admin'])->name('admin.')->group(function () {
         Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
         Route::controller(StudentImportExportController::class)->prefix('students')->name('students.')->group(function () {
@@ -210,7 +210,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs.index');
     });
 
-    Route::prefix('pengawas')->middleware(['auth', 'verified', 'role:pengawas'])->name('pengawas.')->group(function () {
+    Route::prefix('pengawas')->middleware(['auth', 'role:pengawas'])->name('pengawas.')->group(function () {
         Route::get('/dashboard', PengawasDashboardController::class)->name('dashboard');
 
         Route::controller(PengawasViolationController::class)->prefix('violations')->name('violations.')->group(function () {
@@ -232,7 +232,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         });
     });
 
-    Route::prefix('guru_mapel')->middleware(['auth', 'verified', 'role:guru_mapel'])->name('guru_mapel.')->group(function () {
+    Route::prefix('guru_mapel')->middleware(['auth', 'role:guru_mapel'])->name('guru_mapel.')->group(function () {
         Route::get('/dashboard', GuruMapelDashboardController::class)->name('dashboard');
 
         Route::resource('questions', GuruMapelQuestionController::class)->except(['show']);
@@ -285,7 +285,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         });
     });
 
-    Route::prefix('wali_kelas')->middleware(['auth', 'verified', 'role:wali_kelas'])->name('wali_kelas.')->group(function () {
+    Route::prefix('wali_kelas')->middleware(['auth', 'role:wali_kelas'])->name('wali_kelas.')->group(function () {
         Route::get('/dashboard', WaliKelasDashboardController::class)->name('dashboard');
 
         // Export rekap 4 sheet (semester terpilih dari session).
@@ -311,7 +311,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::post('/catatan', [WaliKelasNoteController::class, 'store'])->name('catatan.store');
     });
 
-    Route::prefix('kepala_sekolah')->middleware(['auth', 'verified', 'role:kepala_sekolah'])->name('kepala_sekolah.')->group(function () {
+    Route::prefix('kepala_sekolah')->middleware(['auth', 'role:kepala_sekolah'])->name('kepala_sekolah.')->group(function () {
         Route::get('/dashboard', [KepalaSekolahDashboardController::class, 'index'])->name('dashboard');
         Route::get('/students', [KepalaSekolahStudentController::class, 'index'])->name('students.index');
         Route::get('/supervisors', [KepalaSekolahSupervisorController::class, 'index'])->name('supervisors.index');
@@ -324,7 +324,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
         Route::get('/attendance/supervisors/absent', [KepalaSekolahAttendanceDetailController::class, 'supervisorsAbsent'])->name('attendance.supervisors.absent');
     });
 
-    Route::prefix('peserta')->middleware(['auth', 'verified', 'role:peserta'])->name('peserta.')->group(function () {
+    Route::prefix('peserta')->middleware(['auth', 'role:peserta'])->name('peserta.')->group(function () {
         Route::get('/dashboard', PesertaDashboardController::class)->name('dashboard');
 
         Route::controller(PesertaExamController::class)->prefix('exams')->name('exams.')->group(function () {

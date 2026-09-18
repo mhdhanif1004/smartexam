@@ -20,6 +20,14 @@ class FcmTokenController extends Controller
             'device_type' => ['nullable', 'string', 'in:web,android,ios'],
         ]);
 
+        $existing = UserFcmToken::where('token', $validated['token'])->first();
+
+        if ($existing !== null && (int) $existing->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Token sudah terdaftar untuk pengguna lain.',
+            ], 409);
+        }
+
         UserFcmToken::updateOrCreate(
             ['token' => $validated['token']],
             [
