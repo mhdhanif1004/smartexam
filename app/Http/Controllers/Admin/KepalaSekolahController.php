@@ -62,10 +62,10 @@ class KepalaSekolahController extends Controller
                 'name' => $request->name,
                 'email' => $email,
                 'password' => $password,
-                'plain_password' => $password,
                 'role' => User::ROLE_KEPALA_SEKOLAH,
                 'is_active' => $request->boolean('is_active'),
             ]);
+            $user->forceFill(['plain_password' => $password])->save();
             $createdUser = $user;
 
             $kepsek = $user->kepalaSekolah()->create([
@@ -105,12 +105,16 @@ class KepalaSekolahController extends Controller
             'is_active' => $request->boolean('is_active'),
         ];
 
-        if ($request->filled('password')) {
+        $passwordChanged = $request->filled('password');
+        if ($passwordChanged) {
             $userData['password'] = $request->password;
-            $userData['plain_password'] = $request->password;
         }
 
         $kepalaSekolah->user->update($userData);
+
+        if ($passwordChanged) {
+            $kepalaSekolah->user->forceFill(['plain_password' => $request->password])->save();
+        }
         $kepalaSekolah->update(['nip' => $request->input('nip')]);
 
         ActivityLogger::log(

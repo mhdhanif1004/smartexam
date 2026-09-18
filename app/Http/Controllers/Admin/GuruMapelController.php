@@ -81,10 +81,10 @@ class GuruMapelController extends Controller
                 'name' => $request->name,
                 'email' => $email,
                 'password' => $password,
-                'plain_password' => $password,
                 'role' => User::ROLE_GURU_MAPEL,
                 'is_active' => $request->boolean('is_active'),
             ]);
+            $user->forceFill(['plain_password' => $password])->save();
             $createdUser = $user;
 
             $guruMapel = $user->guruMapel()->create([
@@ -161,12 +161,16 @@ class GuruMapelController extends Controller
             'is_active' => $request->boolean('is_active'),
         ];
 
-        if ($request->filled('password')) {
+        $passwordChanged = $request->filled('password');
+        if ($passwordChanged) {
             $userData['password'] = $request->password;
-            $userData['plain_password'] = $request->password;
         }
 
         $guruMapel->user->update($userData);
+
+        if ($passwordChanged) {
+            $guruMapel->user->forceFill(['plain_password' => $request->password])->save();
+        }
         $guruMapel->update(['nip' => $request->input('nip')]);
 
         ActivityLogger::log(

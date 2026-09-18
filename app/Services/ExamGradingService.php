@@ -11,6 +11,8 @@ use App\Models\Question;
 use App\Models\Semester;
 use App\Models\Student;
 use App\Models\SubjectGrade;
+use App\Models\TeacherSubjectClassAssignment;
+use Illuminate\Support\Facades\DB;
 
 class ExamGradingService
 {
@@ -55,70 +57,86 @@ class ExamGradingService
      * Asumsi: essay tidak ikut dihitung otomatis (score null) sampai
      * dilakukan koreksi manual; is_passed dihitung dari soal objektif.
      */
-    public function finalize(ExamSession $session, ?ExamSchedule $schedule = null): ExamResult
+    public function finalize(ExamSession $session, ?ExamSchedule $schedule = null, string $finalStatus = ExamSession::STATUS_COMPLETED): ExamResult
     {
-        $schedule ??= $session->examSchedule;
+        return DB::transaction(function () use ($session, $schedule, $finalStatus) {
+            $locked = ExamSession::query()->lockForUpdate()->findOrFail($session->id);
 
-        $classroomId = Student::query()
-            ->whereKey($session->student_id)
-            ->value('classroom_id');
-
-        $questions = $schedule->subject->questions()
-            ->where('is_active', true)
-            ->when($classroomId !== null, fn ($query) => $query->targetingClassroom($classroomId))
-            ->get()
-            ->keyBy('id');
-        $answers = $session->examAnswers()->get();
-
-        $totalScore = 0.0;
-        $scoredAnswers = [];
-
-        foreach ($answers as $answer) {
-            $question = $questions->get($answer->question_id);
-            if (! $question instanceof Question) {
-                continue;
+            if ($locked->isTerminal()) {
+                return $locked->examResult
+                    ?? ExamResult::query()->where('exam_session_id', $locked->id)->firstOrFail();
             }
 
-            ['score' => $score, 'is_correct' => $isCorrect] = $this->grade($question, $answer->student_answer);
-            $scoredAnswers[] = [
-                'id' => $answer->id,
-                'exam_session_id' => $answer->exam_session_id,
-                'question_id' => $answer->question_id,
-                'score' => $score,
-                'is_correct' => $isCorrect,
+            $schedule ??= $locked->examSchedule;
+
+            $classroomId = $locked->student?->classroom_id
+                ?? Student::query()->whereKey($locked->student_id)->value('classroom_id');
+
+            if ($classroomId === null) {
+                throw new \LogicException('classroom_id siswa tidak ditemukan — finalize diblokir agar tidak menghitung semua soal mapel tanpa filter kelas.');
+            }
+
+            $questions = $schedule->subject->questions()
+                ->where('is_active', true)
+                ->targetingClassroom((int) $classroomId)
+                ->get()
+                ->keyBy('id');
+            $answers = $locked->examAnswers()->get();
+
+            $totalScore = 0.0;
+            $scoredAnswers = [];
+
+            foreach ($answers as $answer) {
+                $question = $questions->get($answer->question_id);
+                if (! $question instanceof Question) {
+                    continue;
+                }
+
+                ['score' => $score, 'is_correct' => $isCorrect] = $this->grade($question, $answer->student_answer);
+                $scoredAnswers[] = [
+                    'id' => $answer->id,
+                    'exam_session_id' => $answer->exam_session_id,
+                    'question_id' => $answer->question_id,
+                    'score' => $score,
+                    'is_correct' => $isCorrect,
+                ];
+
+                if ($score !== null) {
+                    $totalScore += (float) $score;
+                }
+            }
+
+            if ($scoredAnswers !== []) {
+                ExamAnswer::query()->upsert($scoredAnswers, ['id'], ['score', 'is_correct']);
+            }
+
+            $maxScore = $questions
+                ->where('type', '!=', Question::TYPE_ESSAY)
+                ->sum(fn (Question $question) => (float) $question->score_weight);
+
+            $isPassed = $maxScore > 0 && $totalScore >= $maxScore * self::PASSING_RATIO;
+
+            $statusUpdate = [
+                'status' => $finalStatus,
+                'finished_at' => $locked->finished_at ?? now(),
             ];
-
-            if ($score !== null) {
-                $totalScore += (float) $score;
+            if ($finalStatus === ExamSession::STATUS_TIMED_OUT) {
+                $statusUpdate['timed_out_at'] = $locked->timed_out_at ?? now();
             }
-        }
+            $locked->update($statusUpdate);
 
-        if ($scoredAnswers !== []) {
-            ExamAnswer::query()->upsert($scoredAnswers, ['id'], ['score', 'is_correct']);
-        }
+            $examResult = ExamResult::updateOrCreate(
+                ['exam_session_id' => $locked->id],
+                ['total_score' => round($totalScore, 2), 'is_passed' => $isPassed],
+            );
 
-        $maxScore = $questions
-            ->where('type', '!=', Question::TYPE_ESSAY)
-            ->sum(fn (Question $question) => (float) $question->score_weight);
+            // Sync ke subject_grades (nilai per jenis ujian) — terpisah dari
+            // exam_results yang tetap dipertahankan utuh. exam_type diambil dari
+            // ExamPeriod; fallback UAS untuk periode lama yang belum ke-tag.
+            $this->syncSubjectGrade($locked, $schedule, round($totalScore, 2));
 
-        $isPassed = $maxScore > 0 && $totalScore >= $maxScore * self::PASSING_RATIO;
-
-        $session->update([
-            'status' => ExamSession::STATUS_COMPLETED,
-            'finished_at' => $session->finished_at ?? now(),
-        ]);
-
-        $examResult = ExamResult::updateOrCreate(
-            ['exam_session_id' => $session->id],
-            ['total_score' => round($totalScore, 2), 'is_passed' => $isPassed],
-        );
-
-        // Sync ke subject_grades (nilai per jenis ujian) — terpisah dari
-        // exam_results yang tetap dipertahankan utuh. exam_type diambil dari
-        // ExamPeriod; fallback UAS untuk periode lama yang belum ke-tag.
-        $this->syncSubjectGrade($session, $schedule, round($totalScore, 2));
-
-        return $examResult;
+            return $examResult;
+        });
     }
 
     /**
@@ -131,9 +149,19 @@ class ExamGradingService
      */
     private function syncSubjectGrade(ExamSession $session, ExamSchedule $schedule, float $totalScore): void
     {
-        $guruMapelId = $schedule->subject?->guruMapels()?->first()?->id;
         $classroomId = $session->student?->classroom_id
             ?? Student::query()->whereKey($session->student_id)->value('classroom_id');
+
+        // Guru pengampu yang benar = penugasan untuk pasangan mapel+kelas ini,
+        // bukan guru pertama untuk mapel tersebut (cross-kelas mismatch).
+        $guruMapelId = null;
+        if ($classroomId !== null) {
+            $guruMapelId = TeacherSubjectClassAssignment::query()
+                ->where('subject_id', $schedule->subject_id)
+                ->where('classroom_id', $classroomId)
+                ->value('guru_mapel_id');
+        }
+        $guruMapelId ??= $schedule->subject?->guruMapels()?->first()?->id;
 
         if ($classroomId === null) {
             return;

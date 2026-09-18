@@ -457,10 +457,10 @@ class StudentsImport implements ToCollection, WithBatchInserts, WithChunkReading
                 'name' => $validRow['name'],
                 'username' => $generator->username(),
                 'password' => $password,
-                'plain_password' => $password,
                 'role' => User::ROLE_PESERTA,
                 'is_active' => true,
             ]);
+            $user->forceFill(['plain_password' => $password])->save();
 
             Student::create([
                 'user_id' => $user->id,

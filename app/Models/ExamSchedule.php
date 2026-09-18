@@ -358,9 +358,20 @@ class ExamSchedule extends Model
         $classroomSchedules = $schedules->filter(fn (self $s) => $s->room_id === null && $s->classroom_id !== null);
 
         if ($periodRoomSchedules->isNotEmpty()) {
+            $pairs = $periodRoomSchedules
+                ->map(fn (self $s) => $s->exam_period_id.'|'.$s->room_id)
+                ->unique()
+                ->map(fn (string $key) => explode('|', $key))
+                ->values();
+
             $assignments = ExamRoomAssignment::query()
-                ->whereIn('exam_period_id', $periodRoomSchedules->pluck('exam_period_id')->unique()->values())
-                ->whereIn('room_id', $periodRoomSchedules->pluck('room_id')->unique()->values())
+                ->where(function (Builder $query) use ($pairs): void {
+                    foreach ($pairs as [$periodId, $roomId]) {
+                        $query->orWhere(function (Builder $q) use ($periodId, $roomId): void {
+                            $q->where('exam_period_id', $periodId)->where('room_id', $roomId);
+                        });
+                    }
+                })
                 ->get(['exam_period_id', 'room_id', 'student_id'])
                 ->groupBy(fn ($assignment) => $assignment->exam_period_id.'|'.$assignment->room_id);
 
@@ -534,22 +545,26 @@ class ExamSchedule extends Model
         return $query
             ->when($excludeId !== null, fn ($query) => $query->where('id', '!=', $excludeId))
             ->when(in_array('cancelled', array_keys(self::STATUSES), true), fn ($query) => $query->where('status', '!=', 'cancelled'))
-            ->when($excludeId !== null, fn ($query) => $query->where('id', '!=', $excludeId))
-            ->when(in_array('cancelled', array_keys(self::STATUSES), true), fn ($query) => $query->where('status', '!=', 'cancelled'))
             ->get()
             ->first(function (ExamSchedule $existing) use ($startMinutes, $endMinutes) {
                 [$existingStart, $existingEnd] = $existing->timeWindowMinutes();
 
-                if ($startMinutes < $existingEnd && $endMinutes > $existingStart) {
-                    return true;
-                }
+                // Pecah interval yang melewati tengah malam menjadi dua segmen
+                // [start,1440) + [0,end-1440) agar pengecekan overlap mencakup
+                // ekor yang terbungkus — kedua arah (existing maupun jadwal baru).
+                $existingSegments = $existingEnd > 1440
+                    ? [[$existingStart, 1440], [0, $existingEnd - 1440]]
+                    : [[$existingStart, $existingEnd]];
+                $newSegments = $endMinutes > 1440
+                    ? [[$startMinutes, 1440], [0, $endMinutes - 1440]]
+                    : [[$startMinutes, $endMinutes]];
 
-                // Bila jadwal lama melewati tengah malam, bagian 00:00–waktu
-                // selesai jatuh pada hari berikutnya; cek bagian terbungkus itu.
-                if ($existingEnd > 1440) {
-                    $wrappedEnd = $existingEnd - 1440;
-
-                    return $startMinutes < $wrappedEnd;
+                foreach ($existingSegments as [$es, $ee]) {
+                    foreach ($newSegments as [$ns, $ne]) {
+                        if ($ns < $ee && $es < $ne) {
+                            return true;
+                        }
+                    }
                 }
 
                 return false;

@@ -400,10 +400,10 @@ class SupervisorsImport implements ToCollection, WithBatchInserts, WithChunkRead
                 'name' => $validRow['name'],
                 'username' => $generator->username(),
                 'password' => $password,
-                'plain_password' => $password,
                 'role' => User::ROLE_PENGAWAS,
                 'is_active' => true,
             ]);
+            $user->forceFill(['plain_password' => $password])->save();
 
             $user->supervisor()->create();
 

@@ -71,10 +71,10 @@ class WaliKelasController extends Controller
                 'name' => $request->name,
                 'email' => $email,
                 'password' => $password,
-                'plain_password' => $password,
                 'role' => User::ROLE_WALI_KELAS,
                 'is_active' => $request->boolean('is_active'),
             ]);
+            $user->forceFill(['plain_password' => $password])->save();
             $createdUser = $user;
 
             $wali = $user->waliKelas()->create([
@@ -121,12 +121,16 @@ class WaliKelasController extends Controller
             'is_active' => $request->boolean('is_active'),
         ];
 
-        if ($request->filled('password')) {
+        $passwordChanged = $request->filled('password');
+        if ($passwordChanged) {
             $userData['password'] = $request->password;
-            $userData['plain_password'] = $request->password;
         }
 
         $waliKelas->user->update($userData);
+
+        if ($passwordChanged) {
+            $waliKelas->user->forceFill(['plain_password' => $request->password])->save();
+        }
         $waliKelas->update(['classroom_id' => (int) $request->integer('classroom_id')]);
 
         ActivityLogger::log(

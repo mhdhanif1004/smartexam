@@ -49,12 +49,7 @@ class CleanupStuckSessions extends Command
                         continue;
                     }
 
-                    $result = $grading->finalize($session, $schedule);
-
-                    $session->update([
-                        'status' => ExamSession::STATUS_TIMED_OUT,
-                        'timed_out_at' => now(),
-                    ]);
+                    $result = $grading->finalize($session, $schedule, ExamSession::STATUS_TIMED_OUT);
 
                     Log::warning('Sesi ujian macet di-cleanup', [
                         'exam_session_id' => $session->id,

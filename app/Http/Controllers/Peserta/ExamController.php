@@ -780,7 +780,14 @@ class ExamController extends Controller
                 ['status' => ExamSession::STATUS_NOT_STARTED],
             );
         } catch (QueryException $e) {
-            if (! str_contains($e->getMessage(), 'Duplicate entry')) {
+            $isDuplicate = $e->getCode() === '23000'
+                || $e->getCode() === 23000
+                || ($e->getPrevious()?->getCode() === '23000')
+                || ($e->getPrevious()?->getCode() === 23000)
+                || str_contains($e->getMessage(), 'Duplicate entry')
+                || str_contains($e->getMessage(), '23000');
+
+            if (! $isDuplicate) {
                 throw $e;
             }
 

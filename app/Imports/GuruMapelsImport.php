@@ -221,10 +221,10 @@ class GuruMapelsImport implements ToCollection, WithHeadingRow
                         'email' => $validRow['email'],
                         'username' => null,
                         'password' => $password,
-                        'plain_password' => $password,
                         'role' => User::ROLE_GURU_MAPEL,
                         'is_active' => true,
                     ]);
+                    $user->forceFill(['plain_password' => $password])->save();
 
                     $result['created']++;
                 }

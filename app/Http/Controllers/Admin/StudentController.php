@@ -68,10 +68,10 @@ class StudentController extends Controller
                     ? $request->username
                     : $generator->username(),
                 'password' => $password,
-                'plain_password' => $password,
                 'role' => User::ROLE_PESERTA,
                 'is_active' => $request->boolean('is_active'),
             ]);
+            $createdUser->forceFill(['plain_password' => $password])->save();
 
             $createdStudent = $createdUser->student()->create([
                 'nisn' => $request->nisn,
@@ -107,12 +107,16 @@ class StudentController extends Controller
                 'is_active' => $request->boolean('is_active'),
             ];
 
-            if ($request->filled('password')) {
+            $passwordChanged = $request->filled('password');
+            if ($passwordChanged) {
                 $userData['password'] = $request->password;
-                $userData['plain_password'] = $request->password;
             }
 
             $student->user->update($userData);
+
+            if ($passwordChanged) {
+                $student->user->forceFill(['plain_password' => $request->password])->save();
+            }
 
             $student->update([
                 'nisn' => $request->nisn,

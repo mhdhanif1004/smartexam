@@ -181,7 +181,7 @@ Route::middleware(RedirectLocalhost::class)->group(function () {
             Route::get('/import-failed/{file}', 'importFailed')->name('import-failed');
         });
 
-        Route::get('/users/{user}/plain-password', [PlainPasswordController::class, 'show'])->name('users.plain-password');
+        Route::get('/users/{user}/plain-password', [PlainPasswordController::class, 'show'])->middleware('throttle:30,1')->name('users.plain-password');
 
         Route::controller(LoginCardController::class)->prefix('student-cards')->name('student-cards.')->group(function () {
             Route::get('/', 'index')->name('index');

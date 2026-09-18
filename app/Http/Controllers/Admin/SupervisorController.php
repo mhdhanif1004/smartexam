@@ -101,10 +101,10 @@ class SupervisorController extends Controller
                 'name' => $request->name,
                 'username' => $generator->username(),
                 'password' => $password,
-                'plain_password' => $password,
                 'role' => User::ROLE_PENGAWAS,
                 'is_active' => $request->boolean('is_active'),
             ]);
+            $createdUser->forceFill(['plain_password' => $password])->save();
 
             // Pengawas baru dibuat tanpa ruangan (room_id null). Penugasan
             // ruangan hanya dilakukan lewat halaman Tambah/Edit Ruangan.
@@ -136,12 +136,16 @@ class SupervisorController extends Controller
             'is_active' => $request->boolean('is_active'),
         ];
 
-        if ($request->filled('password')) {
+        $passwordChanged = $request->filled('password');
+        if ($passwordChanged) {
             $userData['password'] = $request->password;
-            $userData['plain_password'] = $request->password;
         }
 
         $supervisor->user->update($userData);
+
+        if ($passwordChanged) {
+            $supervisor->user->forceFill(['plain_password' => $request->password])->save();
+        }
 
         // room_id sengaja TIDAK diubah di sini. Penugasan ruangan hanya
         // dikelola lewat halaman Tambah/Edit Ruangan, jadi pengawas yang sudah

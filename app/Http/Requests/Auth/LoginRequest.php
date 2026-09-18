@@ -65,7 +65,7 @@ class LoginRequest extends FormRequest
 
         RateLimiter::clear($this->throttleKey());
 
-        Auth::login($user, true);
+        Auth::login($user, $this->boolean('remember'));
     }
 
     /**
