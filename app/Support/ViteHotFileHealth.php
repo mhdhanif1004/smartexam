@@ -112,7 +112,9 @@ class ViteHotFileHealth
 
     private function isPortOpen(string $host, int $port): bool
     {
-        $fp = @fsockopen($host, $port, $errno, $errstr, 0.5);
+        // Timeout 0.2s cukup untuk localhost (konek <5ms bila hidup) tapi
+        // tidak blokir request 2 detik bila Vite mati (4 kandidat × 0.5s).
+        $fp = @fsockopen($host, $port, $errno, $errstr, 0.2);
 
         if ($fp !== false) {
             fclose($fp);
@@ -124,7 +126,7 @@ class ViteHotFileHealth
         // (10049), '[::1]' berhasil. Coba pasangan bracket bila host
         // terlihat seperti IPv6 tanpa bracket.
         if (str_contains($host, ':') && $host[0] !== '[') {
-            $fp2 = @fsockopen('['.$host.']', $port, $errno, $errstr, 0.5);
+            $fp2 = @fsockopen('['.$host.']', $port, $errno, $errstr, 0.2);
             if ($fp2 !== false) {
                 fclose($fp2);
 
