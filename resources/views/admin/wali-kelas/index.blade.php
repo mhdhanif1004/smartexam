@@ -113,7 +113,7 @@
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Email</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Kelas</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Status</th>
-                                <th class="sticky right-0 z-10 bg-gray-50 px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:bg-gray-800/60 dark:text-gray-400">Aksi</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Aksi</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 dark:divide-gray-800">
@@ -141,8 +141,8 @@
                                             <span class="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">Nonaktif</span>
                                         @endif
                                     </td>
-                                    <td class="sticky right-0 z-10 bg-white px-4 py-3 text-right group-hover:bg-gray-50 dark:bg-gray-900 dark:group-hover:bg-gray-800/40">
-                                        <div class="flex items-center justify-end gap-2">
+                                    <td class="px-4 py-3 text-sm">
+                                        <div class="flex items-center gap-2">
                                             <a href="{{ route('admin.wali-kelas.edit', $wali) }}" class="rounded-md bg-indigo-50 px-3 py-2.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20 sm:py-1.5">Edit</a>
                                             <button
                                                 type="button"

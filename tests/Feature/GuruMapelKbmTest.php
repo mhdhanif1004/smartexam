@@ -493,6 +493,7 @@ class GuruMapelKbmTest extends TestCase
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $otherAmpuSubject->id,
+            'classroom_id' => $classroomA->id,
         ]);
 
         $question = Question::query()->create([

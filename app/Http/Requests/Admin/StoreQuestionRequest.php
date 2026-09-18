@@ -28,9 +28,8 @@ class StoreQuestionRequest extends FormRequest
 
         return [
             'subject_id' => ['required', 'integer', Rule::exists('subjects', 'id')],
-            'teacher_guru_mapel_id' => ['nullable', 'integer', Rule::exists('guru_mapels', 'id')],
+            'guru_mapel_id' => ['nullable', 'integer', Rule::exists('guru_mapels', 'id')],
             'exam_type_id' => ['nullable', 'integer', Rule::exists('exam_types', 'id')],
-            'creator_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
             'type' => ['required', Rule::in(array_keys(Question::TYPES))],
             'question_text' => ['required', 'string'],
             'classroom_ids' => ['required', 'array', 'min:1'],
@@ -85,25 +84,25 @@ class StoreQuestionRequest extends FormRequest
     }
 
     /**
-     * Ketika admin mengupload soal "atas nama guru" (creator_user_id diisi),
+     * Ketika admin memilih guru pemilik soal (guru_mapel_id diisi),
      * kelas target wajib berada dalam cakupan penugasan guru tersebut
-     * (classroom_id pada teacher_subject_class_assignments yang sudah
-     * di-restore), dan mapel soal wajib diampu guru tsb. Ini penjaga backend
-     * yang tidak bisa dilewati hanya dengan manipulasi request.
+     * (classroom_id pada teacher_subject_class_assignments), dan mapel
+     * soal wajib diampu guru tsb. Ini penjaga backend yang tidak bisa
+     * dilewati hanya dengan manipulasi request.
      */
     private function validateGuruAssignmentScope(): \Closure
     {
         return function (Validator $validator) {
-            $creatorUserId = (int) $this->input('creator_user_id');
+            $guruMapelId = (int) $this->input('guru_mapel_id');
 
-            if ($creatorUserId === 0) {
+            if ($guruMapelId === 0) {
                 return;
             }
 
-            $guru = User::query()->find($creatorUserId)?->guruMapel;
+            $guru = GuruMapel::query()->find($guruMapelId);
 
             if (! $guru instanceof GuruMapel) {
-                $validator->errors()->add('creator_user_id', 'Guru yang dipilih tidak valid atau belum memiliki profil guru mapel.');
+                $validator->errors()->add('guru_mapel_id', 'Guru yang dipilih tidak valid atau belum memiliki profil guru mapel.');
 
                 return;
             }
@@ -133,7 +132,7 @@ class StoreQuestionRequest extends FormRequest
 
             foreach ($submittedClassroomIds as $classroomId) {
                 if (! $allowedClassroomIds->contains($classroomId)) {
-                    $validator->errors()->add('classroom_ids', 'Soal atas nama guru hanya dapat ditargetkan ke kelas yang menjadi penugasan guru tersebut.');
+                    $validator->errors()->add('classroom_ids', 'Soal milik guru hanya dapat ditargetkan ke kelas yang menjadi penugasan guru tersebut.');
 
                     return;
                 }

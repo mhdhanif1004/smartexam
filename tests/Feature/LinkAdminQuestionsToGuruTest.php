@@ -93,31 +93,6 @@ class LinkAdminQuestionsToGuruTest extends TestCase
         $this->assertSame(1, Question::where('created_by_user_id', $firstOwner)->count());
     }
 
-    public function test_assignment_with_null_classroom_acts_as_wildcard_for_subject(): void
-    {
-        $guru = GuruMapel::factory()->create();
-        $subject = Subject::factory()->create();
-        $classA = Classroom::create(['name' => 'X MIPA A']);
-        $classB = Classroom::create(['name' => 'X MIPA B']);
-
-        // Assignment mapel saja, tanpa kelas (classroom_id null) = wildcard
-        // untuk SEMUA soal mapel tsb, apa pun kelas targetnya.
-        TeacherSubjectClassAssignment::create([
-            'guru_mapel_id' => $guru->id,
-            'subject_id' => $subject->id,
-            'classroom_id' => null,
-        ]);
-
-        $qA = $this->adminQuestion($subject, [$classA->id]);
-        $qB = $this->adminQuestion($subject, [$classB->id]);
-
-        $this->artisan('exam:link-admin-questions')->assertSuccessful();
-
-        $this->assertSame($guru->id, $qA->fresh()->teacher_guru_mapel_id);
-        $this->assertSame($guru->id, $qB->fresh()->teacher_guru_mapel_id);
-        $this->assertSame($guru->user_id, $qA->fresh()->created_by_user_id);
-    }
-
     public function test_command_backfills_teacher_guru_mapel_id_from_legacy_creator(): void
     {
         $guru = GuruMapel::factory()->create();

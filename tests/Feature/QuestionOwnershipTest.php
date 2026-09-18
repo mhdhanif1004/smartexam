@@ -47,7 +47,7 @@ class QuestionOwnershipTest extends TestCase
 
         $this->actingAs($this->admin())->post('/admin/questions', [
             'subject_id' => $subject->id,
-            'teacher_guru_mapel_id' => $guru->id,
+            'guru_mapel_id' => $guru->id,
             'exam_type_id' => $examType->id,
             'type' => 'single_choice',
             'question_text' => 'Soal dengan pemilik dan jenis ujian?',

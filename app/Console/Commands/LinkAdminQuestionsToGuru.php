@@ -14,10 +14,6 @@ use Illuminate\Support\Collection;
  * Aturan pencocokan:
  * - Assignment dgn classroom_id eksplisit hanya mencocokkan soal yang
  *   menargetkan kelas itu.
- * - Assignment yg hanya berisi mapel (classroom_id null) diperlakukan
- *   sebagai WILDCARD: mencocokkan SEMUA soal mapel tsb, apa pun kelas
- *   targetnya. Semantik ini khusus untuk fitur kepemilikan soal — query
- *   lain (ampuClassroomIds, eksklusivitas kelas) tetap mengabaikan NULL.
  * - Soal HANYA di-link bila seluruh kelas targetnya dipegang oleh SATU
  *   guru yang sama (klaim guru berbeda pada kelas mana pun → ditinjau
  *   manual). Soal tanpa match dibiarkan null (bucket "Belum Ada Guru").
@@ -86,11 +82,11 @@ class LinkAdminQuestionsToGuru extends Command
                 continue;
             }
 
-            // Guru pemilik tiap kelas target pada mapel soal. Assignment dgn
-            // classroom_id null (wildcard) berlaku untuk semua kelas.
+            // Guru pemilik tiap kelas target pada mapel soal. Hanya assignment
+            // eksplisit (classroom_id terisi) yang mencocokkan soal.
             $gurusByClass = $classroomIds->mapWithKeys(function (int $classroomId) use ($assignments, $question) {
                 $guruIds = ($assignments[$question->subject_id] ?? collect())
-                    ->filter(fn (TeacherSubjectClassAssignment $assignment) => $assignment->classroom_id === null || $assignment->classroom_id === $classroomId)
+                    ->filter(fn (TeacherSubjectClassAssignment $assignment) => $assignment->classroom_id === $classroomId)
                     ->pluck('guru_mapel_id')
                     ->unique()
                     ->values();

@@ -226,7 +226,7 @@
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Status</th>
                             <th scope="col"
-                                class="sticky right-0 z-10 bg-gray-50 px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Aksi</th>
                         </tr>
                     </thead>
@@ -318,8 +318,8 @@
                             @php
                                 $deleteConfirmText = 'Yakin ingin menghapus soal: "' . Str::limit(strip_tags($question->question_text), 60) . '"?';
                             @endphp
-                            <td class="sticky right-0 z-10 bg-white px-6 py-4 text-right group-hover:bg-gray-50 dark:bg-gray-900 dark:group-hover:bg-gray-800/40">
-                                    <div class="flex items-center justify-end gap-2">
+                            <td class="px-6 py-4 text-sm">
+                                    <div class="flex items-center gap-2">
                                         <a href="{{ route('guru_mapel.questions.edit', $question) }}"
                                             class="rounded-md bg-indigo-50 px-3 py-2.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20 sm:py-1.5">Edit</a>
                                         <button type="button"

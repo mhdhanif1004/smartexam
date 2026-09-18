@@ -26,6 +26,7 @@ class AdminClassroomShowTest extends TestCase
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $classroom->id,
         ]);
 
         // Guru "mengampu" kelas ini lewat soal yang dibuatnya dan menargetkan

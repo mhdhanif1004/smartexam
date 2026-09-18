@@ -299,26 +299,36 @@ class GuruMapelController extends Controller
     }
 
     /**
-     * Tambah penugasan mapel untuk seorang guru. Unik per kombinasi
-     * guru+mapel dijaga lewat firstOrCreate sehingga submit ulang tidak
-     * menimbulkan duplikat.
+     * Tambah penugasan mapel + kelas untuk seorang guru. classroom_ids
+     * WAJIB diisi minimal 1 — tidak ada lagi baris wildcard (classroom_id null).
+     * Jika sudah ada assignment untuk subject tsb, baris lama dihapus dan
+     * ditulis ulang dengan classroom_ids yang baru dikirim (konsisten
+     * dengan updateAssignmentClassrooms).
      */
     public function storeAssignment(Request $request, GuruMapel $guruMapel): RedirectResponse
     {
         $validated = $request->validate([
             'subject_id' => ['required', 'exists:subjects,id'],
+            'classroom_ids' => ['required', 'array', 'min:1'],
+            'classroom_ids.*' => ['integer', 'exists:classes,id'],
+        ], [
+            'classroom_ids.required' => 'Pilih minimal satu kelas untuk mapel ini.',
+            'classroom_ids.min' => 'Pilih minimal satu kelas untuk mapel ini.',
         ]);
 
-        $assignment = TeacherSubjectClassAssignment::firstOrCreate([
-            'guru_mapel_id' => $guruMapel->id,
-            'subject_id' => (int) $validated['subject_id'],
-        ]);
+        $subjectId = (int) $validated['subject_id'];
+        $classroomIds = collect($validated['classroom_ids'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $this->setSubjectClassrooms($guruMapel, $subjectId, $classroomIds);
 
         ActivityLogger::log(
             action: ActivityAction::TAMBAH_PENUGASAN_GURU,
-            subject: $assignment,
-            description: "Tambah penugasan mapel #{$validated['subject_id']} untuk guru #{$guruMapel->id}",
-            properties: ['guru_mapel_id' => $guruMapel->id, 'subject_id' => (int) $validated['subject_id']],
+            description: "Tambah penugasan mapel #{$subjectId} untuk guru #{$guruMapel->id} — ".count($classroomIds).' kelas',
+            properties: ['guru_mapel_id' => $guruMapel->id, 'subject_id' => $subjectId, 'classroom_ids' => $classroomIds],
         );
 
         return redirect()->route('admin.guru-mapels.assignments.edit', $guruMapel)
@@ -328,15 +338,18 @@ class GuruMapelController extends Controller
     /**
      * Simpan daftar kelas untuk satu mapel tertentu milik guru. Mengganti
      * baris kelas mapel tersebut secara utuh (delete + re-insert) agar
-     * konsisten dengan indeks unik (guru, mapel, kelas). Bila tidak ada kelas
-     * dipilih, penugasan mapel tetap dipertahankan sebagai baris mapel saja
-     * (classroom_id null).
+     * konsisten dengan indeks unik (guru, mapel, kelas). classroom_ids
+     * WAJIB diisi minimal 1 — guru tidak boleh memiliki assignment mapel
+     * tanpa kelas.
      */
     public function updateAssignmentClassrooms(Request $request, GuruMapel $guruMapel, Subject $subject): RedirectResponse
     {
         $validated = $request->validate([
-            'classroom_ids' => ['array'],
+            'classroom_ids' => ['required', 'array', 'min:1'],
             'classroom_ids.*' => ['integer', 'exists:classes,id'],
+        ], [
+            'classroom_ids.required' => 'Pilih minimal satu kelas untuk mapel ini.',
+            'classroom_ids.min' => 'Pilih minimal satu kelas untuk mapel ini.',
         ]);
 
         $classroomIds = collect($validated['classroom_ids'] ?? [])
@@ -389,9 +402,9 @@ class GuruMapelController extends Controller
 
     /**
      * Atur kelas untuk satu mapel milik guru: hapus semua baris mapel tsb,
-     * lalu tulis ulang satu baris per kelas. Dengan daftar kelas kosong,
-     * pertahankan satu baris mapel-saja (classroom_id null) agar penugasan
-     * mapel tidak hilang.
+     * lalu tulis ulang satu baris per kelas. Jika daftar kelas kosong,
+     * TIDAK membuat baris apa pun — guru tidak memiliki assignment untuk
+     * mapel ini sampai admin memilih minimal 1 kelas.
      *
      * Menegakkan eksklusivitas per kombinasi (mapel, kelas): kelas yang sudah
      * diampu guru LAIN untuk mapel yang sama tidak boleh diambil lagi.
@@ -416,13 +429,10 @@ class GuruMapelController extends Controller
         DB::transaction(function () use ($guruMapel, $subjectId, $classroomIds) {
             $guruMapel->assignments()->where('subject_id', $subjectId)->delete();
 
+            // classroom_ids WAJIB diisi (divalidasi di request). Jika kosong,
+            // tidak buat baris sama sekali — biarkan guru tanpa assignment
+            // untuk mapel ini sampai minimal 1 kelas dipilih.
             if (empty($classroomIds)) {
-                TeacherSubjectClassAssignment::create([
-                    'guru_mapel_id' => $guruMapel->id,
-                    'subject_id' => $subjectId,
-                    'classroom_id' => null,
-                ]);
-
                 return;
             }
 

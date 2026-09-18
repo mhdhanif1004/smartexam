@@ -56,8 +56,11 @@ class GuruMapel extends Model
      * SUMBER KEBENARAN: kolom classroom_id pada pivot penugasan
      * teacher_subject_class_assignments. Kelas di-assign secara eksplisit,
      * baik lewat admin maupun impor Guru Mapel (termasuk perluasan "SEMUA
-     * kelas" pada suatu tingkat saat impor). Baris penugasan yang hanya
-     * berisi mapel (classroom_id null) ikut dianggap "seluruh kelas".
+     * kelas" pada suatu tingkat saat impor). classroom_id WAJIB terisi —
+     * baris dengan classroom_id null adalah data tidak valid peninggalan lama
+     * yang harus dibersihkan (lihat migration cleanup_null_classroom_assignments).
+     * Method ini menggunakan whereNotNull('classroom_id') sehingga baris null
+     * tidak pernah ikut dihitung.
      *
      * Bila $subjectId null, seluruh kelas lintas mapel yang diampu guru
      * dikembalikan.

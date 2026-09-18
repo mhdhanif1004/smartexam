@@ -30,9 +30,11 @@ class QuestionTargetBadgesTest extends TestCase
     {
         $guru = GuruMapel::factory()->create();
         $subject = Subject::factory()->create(['name' => 'Matematika']);
+        $classroom = Classroom::factory()->create(['name' => 'Kelas Khusus Guru']);
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $classroom->id,
         ]);
 
         return [$guru, $subject];

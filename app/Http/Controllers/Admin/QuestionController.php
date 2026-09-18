@@ -448,28 +448,23 @@ class QuestionController extends Controller
      * Bangun nilai kepemilikan + jenis ujian dari request admin:
      *  - teacher_guru_mapel_id: pemilik Bank Soal (nullable).
      *  - exam_type_id: kategori jenis ujian (nullable).
-     *  - created_by_user_id: disinkronkan dari guru pemilik bila pemilik
-     *    dipilih dan field legacy "atas nama guru" tidak diisi, agar soal
-     *    tetap muncul di halaman "Soal" guru tersebut (scopeOwnedBy).
+     *  - created_by_user_id & teacher_guru_mapel_id: disederhanakan menjadi
+     *    satu input tunggal `guru_mapel_id`.
      *
      * @return array{0: ?int, 1: ?int, 2: ?int}
      */
     private function ownerPayload(Request $request): array
     {
-        $teacherGuruMapelId = $request->filled('teacher_guru_mapel_id')
-            ? (int) $request->input('teacher_guru_mapel_id')
+        $guruMapelId = $request->filled('guru_mapel_id')
+            ? (int) $request->input('guru_mapel_id')
             : null;
 
-        $createdByUserId = $request->filled('creator_user_id')
-            ? (int) $request->input('creator_user_id')
+        $createdByUserId = $guruMapelId !== null
+            ? GuruMapel::query()->find($guruMapelId)?->user_id
             : null;
-
-        if ($teacherGuruMapelId !== null && $createdByUserId === null) {
-            $createdByUserId = GuruMapel::query()->find($teacherGuruMapelId)?->user_id;
-        }
 
         return [
-            $teacherGuruMapelId,
+            $guruMapelId,
             $request->filled('exam_type_id') ? (int) $request->input('exam_type_id') : null,
             $createdByUserId,
         ];

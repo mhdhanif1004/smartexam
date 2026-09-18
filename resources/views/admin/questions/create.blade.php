@@ -16,7 +16,7 @@
             action="{{ route('admin.questions.store') }}"
             enctype="multipart/form-data"
             class="max-w-3xl space-y-6"
-            x-data="{ type: @js(old('type', \App\Models\Question::TYPE_SINGLE_CHOICE)), guru: @js((string) old('creator_user_id', '')), subject: @js((string) old('subject_id', '')), selected: @js(old('classroom_ids', [])), pairs: @js($pairs), img: { preview: '' }, opt: {}, optImg(e, key) { this.opt[key] = e.target.files[0] ? URL.createObjectURL(e.target.files[0]) : ''; }, weight: @js((string) old('score_weight', 10)) }"
+            x-data="{ type: @js(old('type', \App\Models\Question::TYPE_SINGLE_CHOICE)), guru: @js((string) old('guru_mapel_id', '')), subject: @js((string) old('subject_id', '')), selected: @js(old('classroom_ids', [])), pairs: @js($pairs), img: { preview: '' }, opt: {}, optImg(e, key) { this.opt[key] = e.target.files[0] ? URL.createObjectURL(e.target.files[0]) : ''; }, weight: @js((string) old('score_weight', 10)) }"
         >
             @csrf
 
@@ -42,15 +42,15 @@
                         <x-input-error :messages="$errors->get('type')" class="mt-2" />
                     </div>
                     <div>
-                        <x-input-label for="teacher_guru_mapel_id" :value="__('Pemilik Guru Mapel (opsional)')" />
-                        <select id="teacher_guru_mapel_id" name="teacher_guru_mapel_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
-                            <option value="">-- Belum Ada Guru --</option>
+                        <x-input-label for="guru_mapel_id" :value="__('Guru Pemilik Soal (opsional)')" />
+                        <select id="guru_mapel_id" name="guru_mapel_id" x-model="guru" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                            <option value="">-- Milik Admin (bukan guru) --</option>
                             @foreach ($gurus as $guruItem)
-                                <option value="{{ $guruItem->id }}" @selected(old('teacher_guru_mapel_id') == $guruItem->id)>{{ $guruItem->user?->name }}</option>
+                                <option value="{{ $guruItem->id }}" @selected(old('guru_mapel_id', $question->teacher_guru_mapel_id ?? null) == $guruItem->id)>{{ $guruItem->user?->name }}</option>
                             @endforeach
                         </select>
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Menentukan cabang "Guru" pada hierarki Bank Soal. Kosongkan untuk menyimpan di bucket "Belum Ada Guru".</p>
-                        <x-input-error :messages="$errors->get('teacher_guru_mapel_id')" class="mt-2" />
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Pilih guru pemilik soal. Jika dipilih, soal akan muncul di halaman "Soal" guru tersebut dan kelas target dibatasi ke penugasan guru tersebut.</p>
+                        <x-input-error :messages="$errors->get('guru_mapel_id')" class="mt-2" />
                     </div>
                     <div>
                         <x-input-label for="exam_type_id" :value="__('Jenis Ujian (opsional)')" />
@@ -62,17 +62,6 @@
                         </select>
                         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Label kategori soal (Harian/UTS/UAS). Tidak memengaruhi bobot atau penjadwalan ujian.</p>
                         <x-input-error :messages="$errors->get('exam_type_id')" class="mt-2" />
-                    </div>
-                    <div class="sm:col-span-2">
-                        <x-input-label for="creator_user_id" :value="__('Atas Nama Guru (opsional)')" />
-                        <select id="creator_user_id" name="creator_user_id" x-model="guru" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
-                            <option value="">-- Milik Admin (bukan guru) --</option>
-                            @foreach ($gurus as $guruItem)
-                                <option value="{{ $guruItem->user_id }}" @selected(old('creator_user_id') == $guruItem->user_id)>{{ $guruItem->user?->name }}</option>
-                            @endforeach
-                        </select>
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Jika dipilih, soal akan muncul di halaman "Soal" guru tersebut dan kelas target dibatasi ke penugasan guru.</p>
-                        <x-input-error :messages="$errors->get('creator_user_id')" class="mt-2" />
                     </div>
                     <div class="sm:col-span-2">
                         <x-input-label for="question_text" :value="__('Pertanyaan')" />

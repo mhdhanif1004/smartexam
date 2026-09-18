@@ -66,19 +66,20 @@ class AdminUploadAtasNamaGuruTest extends TestCase
             ->post(route('admin.questions.store'), $this->singleChoicePayload(
                 $subject->id,
                 [$classroom->id],
-                ['creator_user_id' => $guru->user->id]
+                ['guru_mapel_id' => $guru->id]
             ))
             ->assertRedirect(route('admin.questions.index'))
             ->assertSessionHas('success');
 
         $this->assertDatabaseHas('questions', [
+            'teacher_guru_mapel_id' => $guru->id,
             'created_by_user_id' => $guru->user->id,
             'subject_id' => $subject->id,
             'type' => Question::TYPE_SINGLE_CHOICE,
         ]);
 
         $question = Question::query()
-            ->where('created_by_user_id', $guru->user->id)
+            ->where('teacher_guru_mapel_id', $guru->id)
             ->firstOrFail();
 
         $this->assertDatabaseHas('question_classroom', [
@@ -103,7 +104,7 @@ class AdminUploadAtasNamaGuruTest extends TestCase
             ->post(route('admin.questions.store'), $this->singleChoicePayload(
                 $subject->id,
                 [$outsideClassroom->id],
-                ['creator_user_id' => $guru->user->id]
+                ['guru_mapel_id' => $guru->id]
             ))
             ->assertSessionHasErrors('classroom_ids')
             ->assertRedirect(route('admin.questions.create'));

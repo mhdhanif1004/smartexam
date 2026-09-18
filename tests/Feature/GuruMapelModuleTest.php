@@ -126,12 +126,14 @@ class GuruMapelModuleTest extends TestCase
     public function test_guru_mapel_created_with_selected_subject_gets_assignment(): void
     {
         $subject = Subject::create(['code' => 'MTK', 'name' => 'Matematika', 'default_duration_minutes' => 90]);
+        $classroom = Classroom::create(['name' => 'X RPL 1']);
 
         $this->actingAs($this->admin)
             ->post(route('admin.guru-mapels.store'), [
                 'name' => 'Budi Santoso',
                 'is_active' => 1,
                 'subject_id' => $subject->id,
+                'classroom_ids' => [$classroom->id],
             ])
             ->assertRedirect(route('admin.guru-mapels.index'));
 
@@ -140,6 +142,7 @@ class GuruMapelModuleTest extends TestCase
         $this->assertDatabaseHas('teacher_subject_class_assignments', [
             'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $classroom->id,
         ]);
         $this->assertSame(1, TeacherSubjectClassAssignment::count());
     }
@@ -194,10 +197,12 @@ class GuruMapelModuleTest extends TestCase
     {
         $guru = GuruMapel::factory()->create();
         $subject = Subject::create(['code' => 'MTK', 'name' => 'Matematika', 'default_duration_minutes' => 90]);
+        $classroom = Classroom::create(['name' => 'X RPL 1']);
 
         $this->actingAs($this->admin)
             ->post(route('admin.guru-mapels.assignments.store', $guru), [
                 'subject_id' => $subject->id,
+                'classroom_ids' => [$classroom->id],
             ])
             ->assertRedirect(route('admin.guru-mapels.assignments.edit', $guru))
             ->assertSessionHas('success');
@@ -205,6 +210,7 @@ class GuruMapelModuleTest extends TestCase
         $this->assertDatabaseHas('teacher_subject_class_assignments', [
             'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $classroom->id,
         ]);
         $this->assertSame(1, TeacherSubjectClassAssignment::count());
     }
@@ -213,15 +219,18 @@ class GuruMapelModuleTest extends TestCase
     {
         $guru = GuruMapel::factory()->create();
         $subject = Subject::create(['code' => 'MTK', 'name' => 'Matematika', 'default_duration_minutes' => 90]);
+        $classroom = Classroom::create(['name' => 'X RPL 1']);
 
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $classroom->id,
         ]);
 
         $this->actingAs($this->admin)
             ->post(route('admin.guru-mapels.assignments.store', $guru), [
                 'subject_id' => $subject->id,
+                'classroom_ids' => [$classroom->id],
             ])
             ->assertRedirect(route('admin.guru-mapels.assignments.edit', $guru));
 
@@ -232,15 +241,18 @@ class GuruMapelModuleTest extends TestCase
     {
         $guru = GuruMapel::factory()->create();
         $subject = Subject::create(['code' => 'MTK', 'name' => 'Matematika', 'default_duration_minutes' => 90]);
+        $classroom = Classroom::create(['name' => 'X RPL 1']);
 
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $classroom->id,
         ]);
 
         $this->actingAs($this->admin)
             ->post(route('admin.guru-mapels.assignments.store', $guru), [
                 'subject_id' => $subject->id,
+                'classroom_ids' => [$classroom->id],
             ])
             ->assertRedirect(route('admin.guru-mapels.assignments.edit', $guru));
 
@@ -252,14 +264,18 @@ class GuruMapelModuleTest extends TestCase
         $guru = GuruMapel::factory()->create();
         $mtk = Subject::create(['code' => 'MTK', 'name' => 'Matematika', 'default_duration_minutes' => 90]);
         $bindo = Subject::create(['code' => 'BIN', 'name' => 'Bahasa Indonesia', 'default_duration_minutes' => 90]);
+        $c1 = Classroom::create(['name' => 'X RPL 1']);
+        $c2 = Classroom::create(['name' => 'X RPL 2']);
 
         $mtkAssignment = TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $mtk->id,
+            'classroom_id' => $c1->id,
         ]);
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $bindo->id,
+            'classroom_id' => $c2->id,
         ]);
 
         $this->actingAs($this->admin)
@@ -276,15 +292,19 @@ class GuruMapelModuleTest extends TestCase
         $guru = GuruMapel::factory()->create();
         $mtk = Subject::create(['code' => 'MTK', 'name' => 'Matematika', 'default_duration_minutes' => 90]);
         $bindo = Subject::create(['code' => 'BIN', 'name' => 'Bahasa Indonesia', 'default_duration_minutes' => 90]);
+        $c1 = Classroom::create(['name' => 'X RPL 1']);
+        $c2 = Classroom::create(['name' => 'X RPL 2']);
 
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $bindo->id,
+            'classroom_id' => $c2->id,
         ]);
 
         $this->actingAs($this->admin)
             ->post(route('admin.guru-mapels.assignments.store', $guru), [
                 'subject_id' => $mtk->id,
+                'classroom_ids' => [$c1->id],
             ])
             ->assertRedirect(route('admin.guru-mapels.assignments.edit', $guru));
 
@@ -293,6 +313,7 @@ class GuruMapelModuleTest extends TestCase
         $this->assertDatabaseHas('teacher_subject_class_assignments', [
             'guru_mapel_id' => $guru->id,
             'subject_id' => $bindo->id,
+            'classroom_id' => $c2->id,
         ]);
     }
 
@@ -332,9 +353,12 @@ class GuruMapelModuleTest extends TestCase
     public function test_admin_can_delete_assignment(): void
     {
         $guru = GuruMapel::factory()->create();
+        $subject = Subject::create(['code' => 'MTK', 'name' => 'Matematika', 'default_duration_minutes' => 90]);
+        $classroom = Classroom::create(['name' => 'X RPL 1']);
         $assignment = TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
-            'subject_id' => Subject::create(['code' => 'MTK', 'name' => 'Matematika', 'default_duration_minutes' => 90])->id,
+            'subject_id' => $subject->id,
+            'classroom_id' => $classroom->id,
         ]);
 
         $this->actingAs($this->admin)
@@ -363,6 +387,7 @@ class GuruMapelModuleTest extends TestCase
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $c1->id,
         ]);
 
         $this->actingAs($this->admin)
@@ -382,7 +407,7 @@ class GuruMapelModuleTest extends TestCase
         ]);
     }
 
-    public function test_clearing_classrooms_keeps_subject_assigned_as_mapel_only(): void
+    public function test_clearing_classrooms_removes_subject_assignment_entirely(): void
     {
         $guru = GuruMapel::factory()->create();
         $subject = Subject::create(['code' => 'MTK', 'name' => 'Matematika', 'default_duration_minutes' => 90]);
@@ -398,13 +423,15 @@ class GuruMapelModuleTest extends TestCase
             ->post(route('admin.guru-mapels.assignments.classrooms', [$guru, $subject]), [
                 'classroom_ids' => [],
             ])
-            ->assertRedirect(route('admin.guru-mapels.assignments.edit', $guru));
+            ->assertSessionHasErrors('classroom_ids');
 
+        // classroom_ids WAJIB diisi (validasi min:1). Request dengan array kosong
+        // ditolak — assignment TIDAK dihapus, error validasi dikembalikan.
         $this->assertSame(1, $guru->assignments()->count());
         $this->assertDatabaseHas('teacher_subject_class_assignments', [
             'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
-            'classroom_id' => null,
+            'classroom_id' => $c1->id,
         ]);
     }
 
@@ -504,6 +531,7 @@ class GuruMapelModuleTest extends TestCase
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guruA->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $classX->id,
         ]);
 
         $this->actingAs($this->admin)
@@ -522,6 +550,7 @@ class GuruMapelModuleTest extends TestCase
         $guruB = GuruMapel::factory()->create();
         $subject = Subject::create(['code' => 'BIN', 'name' => 'Bahasa Indonesia', 'default_duration_minutes' => 90]);
         $classX = Classroom::create(['name' => 'X AKL 1']);
+        $classY = Classroom::create(['name' => 'X AKL 2']);
 
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guruA->id,
@@ -531,6 +560,7 @@ class GuruMapelModuleTest extends TestCase
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guruB->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $classY->id,
         ]);
 
         $this->actingAs($this->admin)
@@ -542,7 +572,7 @@ class GuruMapelModuleTest extends TestCase
 
         // Kelas X tetap milik Guru A untuk mapel tersebut, tidak diduplikasi.
         $this->assertSame([$classX->id], $guruA->ampuClassroomIds($subject->id)->sort()->values()->all());
-        $this->assertSame([], $guruB->ampuClassroomIds($subject->id)->values()->all());
+        $this->assertSame([$classY->id], $guruB->ampuClassroomIds($subject->id)->sort()->values()->all());
     }
 
     public function test_class_can_be_taken_for_different_subject_by_another_guru(): void
@@ -552,6 +582,7 @@ class GuruMapelModuleTest extends TestCase
         $bindo = Subject::create(['code' => 'BIN', 'name' => 'Bahasa Indonesia', 'default_duration_minutes' => 90]);
         $matematika = Subject::create(['code' => 'MTK', 'name' => 'Matematika', 'default_duration_minutes' => 90]);
         $classX = Classroom::create(['name' => 'X AKL 1']);
+        $classY = Classroom::create(['name' => 'X AKL 2']);
 
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guruA->id,
@@ -561,6 +592,7 @@ class GuruMapelModuleTest extends TestCase
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guruC->id,
             'subject_id' => $matematika->id,
+            'classroom_id' => $classY->id,
         ]);
 
         // Kelas X pada mapel BERBEDA tetap boleh diambil guru lain.
@@ -571,6 +603,7 @@ class GuruMapelModuleTest extends TestCase
             ->assertRedirect(route('admin.guru-mapels.assignments.edit', $guruC))
             ->assertSessionHas('success');
 
+        // Hanya classX yang dikirim, jadi cuma classX yang tersimpan (replace semua).
         $this->assertSame([$classX->id], $guruC->ampuClassroomIds($matematika->id)->sort()->values()->all());
     }
 
@@ -606,6 +639,7 @@ class GuruMapelModuleTest extends TestCase
         $subject = Subject::create(['code' => 'BIN', 'name' => 'Bahasa Indonesia', 'default_duration_minutes' => 90]);
         $taken = Classroom::create(['name' => 'X AKL 1']);
         Classroom::create(['name' => 'X AKL 2']);
+        $bClass = Classroom::create(['name' => 'X AKL 3']);
 
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guruA->id,
@@ -615,6 +649,7 @@ class GuruMapelModuleTest extends TestCase
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guruB->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $bClass->id,
         ]);
 
         $html = $this->actingAs($this->admin)
@@ -697,6 +732,7 @@ class GuruMapelModuleTest extends TestCase
         $subject = Subject::create(['code' => 'BIN', 'name' => 'Bahasa Indonesia', 'default_duration_minutes' => 90]);
         $taken = Classroom::create(['name' => 'X AKL 1']);
         $taken2 = Classroom::create(['name' => 'X AKL 2']);
+        $bClass = Classroom::create(['name' => 'X AKL 3']);
 
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guruA->id,
@@ -711,6 +747,7 @@ class GuruMapelModuleTest extends TestCase
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guruB->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $bClass->id,
         ]);
 
         $resp = $this->actingAs($this->admin)
@@ -734,6 +771,7 @@ class GuruMapelModuleTest extends TestCase
         $subject = Subject::create(['code' => 'MTK', 'name' => 'Matematika', 'default_duration_minutes' => 90]);
         $taken = Classroom::create(['name' => 'X MIPA "A"']);
         $otherGuru = GuruMapel::factory()->create();
+        $ownClass = Classroom::create(['name' => 'X MIPA "B"']);
 
         // Kelas yang sudah diambil guru lain → memicu path "Sudah diampu"
         // (exclusive-notes). Nama pemilik sengaja dibuat adversarial (apostrof,
@@ -749,6 +787,7 @@ class GuruMapelModuleTest extends TestCase
         TeacherSubjectClassAssignment::create([
             'guru_mapel_id' => $guru->id,
             'subject_id' => $subject->id,
+            'classroom_id' => $ownClass->id,
         ]);
 
         $html = $this->actingAs($this->admin)
@@ -776,7 +815,7 @@ class GuruMapelModuleTest extends TestCase
         $this->assertStringContainsString('takenMapFor()', $html);
     }
 
-    public function test_create_guru_mapel_page_renders_without_leaked_code(): void
+public function test_create_guru_mapel_page_renders_without_leaked_code(): void
     {
         $guruA = GuruMapel::factory()->create();
         $subject = Subject::create(['code' => 'MTK', 'name' => 'Matematika', 'default_duration_minutes' => 90]);
