@@ -41,7 +41,7 @@
             <x-card-stat label="Total Ruangan" :value="number_format($totalRooms)" color="indigo" icon="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
         </div>
 
-        {{-- Section chart: 2 kolom — kiri donut --}}
+        {{-- Section chart: 2 kolom — donut kelulusan + distribusi nilai, ringkasan di bawah --}}
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Distribusi Kelulusan</h3>
@@ -56,16 +56,16 @@
                         @if ($totalDonut === 0)
                             <div class="rounded-xl border bg-white p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">Belum ada data lulus/tidak lulus</div>
                         @else
-                        <div class="flex flex-col items-center gap-6 sm:flex-row">
+                        <div class="flex flex-col items-center gap-6 lg:flex-row lg:justify-center">
                             <div class="relative h-56 w-56 shrink-0" style="min-height:14rem;min-width:14rem;">
                                 <canvas id="chart-donut" class="h-full w-full"></canvas>
                             </div>
-                            <div class="space-y-3">
-                                <div class="flex items-center gap-2">
+                            <div class="min-w-0 space-y-3 text-center lg:text-left">
+                                <div class="flex items-center justify-center gap-2 lg:justify-start">
                                     <span class="h-3 w-3 shrink-0 rounded-full" style="background:#34d399"></span>
                                     <span class="text-sm text-gray-700 dark:text-gray-300">Lulus {{ $donutData[0] ?? 0 }} ({{ $pctLulus }}%)</span>
                                 </div>
-                                <div class="flex items-center gap-2">
+                                <div class="flex items-center justify-center gap-2 lg:justify-start">
                                     <span class="h-3 w-3 shrink-0 rounded-full" style="background:#f87171"></span>
                                     <span class="text-sm text-gray-700 dark:text-gray-300">Tidak Lulus {{ $donutData[1] ?? 0 }} ({{ $pctTidak }}%)</span>
                                 </div>
@@ -79,8 +79,16 @@
                 </div>
             </div>
 
-            {{-- Kolom kanan: ringkasan tambahan (read-only) --}}
             <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Distribusi Nilai Peserta</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Sebaran nilai hasil ujian.</p>
+                <div class="mt-4 h-64">
+                    <canvas id="chart-distribution"></canvas>
+                </div>
+            </div>
+
+            {{-- Kolom bawah: ringkasan tambahan (read-only) --}}
+            <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2 dark:border-gray-800 dark:bg-gray-900">
                 <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Ringkasan Soal & Ruangan</h3>
                 <p class="text-xs text-gray-500 dark:text-gray-400">Informasi tambahan pelaksanaan ujian.</p>
                 <div class="mt-4 grid grid-cols-2 gap-4">
@@ -242,6 +250,38 @@
         window.addEventListener('themechange', scheduleKsDonut);
         window.addEventListener('load', scheduleKsDonut);
         setTimeout(scheduleKsDonut, 320);
+    let ksDistributionChart = null;
+        let ksDistributionRetry = 0;
+        async function renderDistribution() {
+            const canvas = document.getElementById('chart-distribution');
+            if (!canvas) return;
+            if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
+                if (ksDistributionRetry < 12) { ksDistributionRetry++; requestAnimationFrame(() => { renderDistribution(); }); }
+                return;
+            }
+            ksDistributionRetry = 0;
+            const ChartLib = getKsChart();
+            if (!ChartLib) {
+                if (ksDistributionRetry < 6) { ksDistributionRetry++; setTimeout(() => renderDistribution(), 180); }
+                return;
+            }
+            if (canvas._chart) { try { canvas._chart.destroy(); } catch(e) {} canvas._chart = null; }
+            if (ksDistributionChart) { try { ksDistributionChart.destroy(); } catch(e) {} ksDistributionChart = null; }
+            const ctx = canvas.getContext('2d');
+            const inst = new ChartLib(ctx, {
+                type: 'doughnut',
+                data: { labels: @json($distributionLabels), datasets: [{ data: @json($distributionData), backgroundColor: ['#f87171', '#fbbf24', '#facc15', '#34d399', '#6366f1'], borderColor: chartBorder() }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: isDarkMode() ? '#d1d5db' : '#374151' } } } },
+            });
+            canvas._chart = inst; ksDistributionChart = inst;
+        }
+        function scheduleKsDistribution(){ requestAnimationFrame(() => { renderDistribution(); }); }
+        document.addEventListener('DOMContentLoaded', scheduleKsDistribution);
+        document.addEventListener('turbo:load', scheduleKsDistribution);
+        document.addEventListener('turbo:render', scheduleKsDistribution);
+        window.addEventListener('themechange', scheduleKsDistribution);
+        window.addEventListener('load', scheduleKsDistribution);
+        setTimeout(scheduleKsDistribution, 320);
     </script>
     @endpush
 </x-layouts.kepala_sekolah>

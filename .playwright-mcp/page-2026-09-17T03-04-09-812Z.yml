@@ -1,0 +1,138 @@
+- generic [ref=f1e2]:
+  - complementary [ref=f1e3]:
+    - generic [ref=f1e4]:
+      - generic [ref=f1e5]:
+        - link "SE SmartExam" [ref=f1e6] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000
+          - generic [ref=f1e7]: SE
+          - generic [ref=f1e8]: SmartExam
+        - button [ref=f1e195] [cursor=pointer]
+      - generic [ref=f1e9]: Administrator
+      - navigation [ref=f1e11]:
+        - link "Dashboard" [ref=f1e12] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/dashboard
+        - link "Siswa" [ref=f1e15] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/students
+        - link "Kelas" [ref=f1e18] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/classrooms
+        - link "Pengawas" [ref=f1e21] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/supervisors
+        - link "Guru Mapel" [ref=f1e24] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/guru-mapels
+        - link "Wali Kelas" [ref=f1e27] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/wali-kelas
+        - link "Kepala Sekolah" [ref=f1e30] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/kepala-sekolahs
+        - link "Mata Pelajaran" [ref=f1e33] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/subjects
+        - link "Tahun Ajaran" [ref=f1e36] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/academic-years
+        - link "Semester" [ref=f1e39] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/semesters
+        - link "Ruangan" [ref=f1e42] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/rooms
+        - link "Soal" [ref=f1e45] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/questions
+        - link "Jadwal Ujian" [ref=f1e48] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/exam-schedules
+        - link "Sesi Ujian" [ref=f1e51] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/exam-periods
+        - link "Jenis Ujian" [ref=f1e54] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/exam-types
+        - link "Kartu Login" [ref=f1e57] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/student-cards
+        - link "Pengaturan Kartu" [ref=f1e60] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/card-settings
+        - link "Absensi" [ref=f1e63] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/attendance
+        - link "Laporan Hasil Ujian" [ref=f1e66] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/reports/results
+        - link "Pelanggaran" [ref=f1e69] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/violations
+        - link "Log Aktivitas" [ref=f1e72] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/admin/activity-logs
+  - generic [ref=f1e75]:
+    - banner [ref=f1e76]:
+      - generic [ref=f1e77]:
+        - button [ref=f1e198] [cursor=pointer]
+        - heading "Dashboard Admin" [level=1] [ref=f1e78]
+      - generic [ref=f1e79]:
+        - button "Aktifkan mode gelap" [ref=f1e81] [cursor=pointer]
+        - generic [ref=f1e84]:
+          - button "A" [active] [ref=f1e85] [cursor=pointer]
+          - generic [ref=f1e201]:
+            - generic [ref=f1e202]:
+              - paragraph [ref=f1e203]: Administrator
+              - paragraph [ref=f1e204]: admin@smartexam.test
+            - link "Profil" [ref=f1e205] [cursor=pointer]:
+              - /url: http://127.0.0.1:8000/profile
+            - button "Keluar" [ref=f1e209] [cursor=pointer]
+    - main [ref=f1e89]:
+      - generic [ref=f1e90]:
+        - generic [ref=f1e91]:
+          - heading "Selamat datang, Administrator!" [level=2] [ref=f1e92]
+          - paragraph [ref=f1e93]: Ringkasan aktivitas Sistem CBT SmartExam hari ini.
+        - generic [ref=f1e94]:
+          - generic [ref=f1e99]:
+            - paragraph [ref=f1e100]: Siswa
+            - paragraph [ref=f1e101]: 1,032
+          - generic [ref=f1e106]:
+            - paragraph [ref=f1e107]: Pengawas
+            - paragraph [ref=f1e108]: "4"
+          - generic [ref=f1e113]:
+            - paragraph [ref=f1e114]: Mata Pelajaran
+            - paragraph [ref=f1e115]: "6"
+          - generic [ref=f1e120]:
+            - paragraph [ref=f1e121]: Ujian Hari Ini
+            - paragraph [ref=f1e122]: "0"
+          - generic [ref=f1e127]:
+            - paragraph [ref=f1e128]: Hadir
+            - paragraph [ref=f1e129]: "0"
+          - generic [ref=f1e134]:
+            - paragraph [ref=f1e135]: Tidak Hadir
+            - paragraph [ref=f1e136]: "0"
+        - generic [ref=f1e137]:
+          - generic [ref=f1e138]:
+            - heading "Distribusi Nilai Peserta" [level=3] [ref=f1e139]
+            - paragraph [ref=f1e140]: Sebaran nilai hasil ujian.
+          - generic [ref=f1e143]:
+            - heading "Distribusi Kelulusan" [level=3] [ref=f1e144]
+            - paragraph [ref=f1e145]: Perbandingan peserta lulus dan tidak lulus.
+            - generic [ref=f1e150]:
+              - generic [ref=f1e151]: Lulus 0 (0%)
+              - generic [ref=f1e154]: Tidak Lulus 5 (100%)
+              - paragraph [ref=f1e157]: "Rata-rata: 10"
+          - generic [ref=f1e158]:
+            - heading "Tren Jumlah Ujian (7 Hari Terakhir)" [level=3] [ref=f1e159]
+            - paragraph [ref=f1e160]: Banyaknya jadwal ujian per hari.
+        - generic [ref=f1e163]:
+          - generic [ref=f1e164]:
+            - generic [ref=f1e165]:
+              - generic [ref=f1e166]:
+                - heading "Jadwal Ujian Hari Ini" [level=3] [ref=f1e167]
+                - paragraph [ref=f1e168]: Jadwal ujian yang berlangsung hari ini.
+              - link "Lihat semua" [ref=f1e169] [cursor=pointer]:
+                - /url: http://127.0.0.1:8000/admin/exam-schedules
+            - list [ref=f1e170]:
+              - listitem [ref=f1e171]: Belum ada jadwal ujian hari ini.
+          - generic [ref=f1e172]:
+            - generic [ref=f1e173]:
+              - heading "Pelanggaran Hari Ini" [level=3] [ref=f1e175]
+              - generic [ref=f1e176]:
+                - link "Lihat semua" [ref=f1e177] [cursor=pointer]:
+                  - /url: http://127.0.0.1:8000/admin/violations
+                - button [ref=f1e178] [cursor=pointer]
+            - generic [ref=f1e182]:
+              - paragraph [ref=f1e183]: Aktifkan notifikasi browser untuk peringatan pelanggaran real-time.
+              - button "Aktifkan" [ref=f1e184] [cursor=pointer]
+            - list [ref=f1e185]:
+              - listitem [ref=f1e186]: Belum ada pelanggaran hari ini.
+          - generic [ref=f1e187]:
+            - generic [ref=f1e188]:
+              - generic [ref=f1e189]:
+                - heading "Absensi Pengawas Hari Ini" [level=3] [ref=f1e190]
+                - paragraph [ref=f1e191]: Absensi pengawas untuk jadwal hari ini.
+              - link "Lihat semua" [ref=f1e192] [cursor=pointer]:
+                - /url: http://127.0.0.1:8000/admin/attendance
+            - list [ref=f1e193]:
+              - listitem [ref=f1e194]: Belum ada data absensi pengawas hari ini.

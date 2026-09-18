@@ -14,20 +14,56 @@
             <x-card-stat label="Tidak Hadir" :value="number_format($attendanceAbsentCount)" color="rose" icon="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
         </div>
 
-        <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
-            <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Tren Jumlah Ujian (7 Hari Terakhir)</h3>
-                <p class="text-xs text-gray-500 dark:text-gray-400">Banyaknya jadwal ujian per hari.</p>
-                <div class="mt-4 h-64">
-                    <canvas id="chart-trend"></canvas>
-                </div>
-            </div>
-
+        <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Distribusi Nilai Peserta</h3>
                 <p class="text-xs text-gray-500 dark:text-gray-400">Sebaran nilai hasil ujian.</p>
                 <div class="mt-4 h-64">
                     <canvas id="chart-distribution"></canvas>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Distribusi Kelulusan</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Perbandingan peserta lulus dan tidak lulus.</p>
+                <div class="mt-4">
+                    @if ($hasData)
+                        @php
+                            $totalDonut = ($donutData[0] ?? 0) + ($donutData[1] ?? 0);
+                            $pctLulus = $totalDonut > 0 ? round((($donutData[0] ?? 0) / $totalDonut) * 100, 1) : 0;
+                            $pctTidak = $totalDonut > 0 ? round((($donutData[1] ?? 0) / $totalDonut) * 100, 1) : 0;
+                        @endphp
+                        @if ($totalDonut === 0)
+                            <div class="rounded-xl border bg-white p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">Belum ada data lulus/tidak lulus</div>
+                        @else
+                        <div class="flex flex-col items-center gap-6 lg:flex-row lg:justify-center">
+                            <div class="relative h-56 w-56 shrink-0" style="min-height:14rem;min-width:14rem;">
+                                <canvas id="chart-passfail" class="h-full w-full"></canvas>
+                            </div>
+                            <div class="min-w-0 space-y-3 text-center lg:text-left">
+                                <div class="flex items-center justify-center gap-2 lg:justify-start">
+                                    <span class="h-3 w-3 shrink-0 rounded-full" style="background:#34d399"></span>
+                                    <span class="text-sm text-gray-700 dark:text-gray-300">Lulus {{ $donutData[0] ?? 0 }} ({{ $pctLulus }}%)</span>
+                                </div>
+                                <div class="flex items-center justify-center gap-2 lg:justify-start">
+                                    <span class="h-3 w-3 shrink-0 rounded-full" style="background:#f87171"></span>
+                                    <span class="text-sm text-gray-700 dark:text-gray-300">Tidak Lulus {{ $donutData[1] ?? 0 }} ({{ $pctTidak }}%)</span>
+                                </div>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Rata-rata: <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $average }}</span></p>
+                            </div>
+                        </div>
+                        @endif
+                    @else
+                        <div class="rounded-xl border bg-white p-8 text-center text-gray-500">Belum ada data nilai</div>
+                    @endif
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm md:col-span-2 dark:border-gray-800 dark:bg-gray-900">
+                <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Tren Jumlah Ujian (7 Hari Terakhir)</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Banyaknya jadwal ujian per hari.</p>
+                <div class="mt-4 h-64">
+                    <canvas id="chart-trend"></canvas>
                 </div>
             </div>
         </div>
@@ -206,5 +242,58 @@
         window.addEventListener('themechange', scheduleAdminCharts);
         window.addEventListener('load', scheduleAdminCharts);
         setTimeout(scheduleAdminCharts, 320);
+    const centerTextPlugin = {
+            id: 'centerText',
+            beforeDraw(chart) {
+                const opts = chart.options.plugins.centerText;
+                if (!opts || !opts.display) return;
+                const ctx = chart.ctx;
+                const {width, height} = chart;
+                ctx.save();
+                const fontSize = (height / 114).toFixed(2);
+                ctx.font = `bold ${fontSize}em sans-serif`;
+                ctx.textBaseline = 'middle';
+                ctx.textAlign = 'center';
+                const text = String(opts.text ?? '');
+                const centerX = width / 2;
+                const centerY = height / 2;
+                ctx.fillStyle = opts.color || (isDarkMode() ? '#d1d5db' : '#374151');
+                ctx.fillText(text, centerX, centerY);
+                ctx.restore();
+            }
+        };
+
+        let passFailChart = null;
+        let passFailRetry = 0;
+        async function renderPassFail() {
+            const canvas = document.getElementById('chart-passfail');
+            if (!canvas) return;
+            const hasData = @js($hasData);
+            if (!hasData) return;
+            if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
+                if (passFailRetry < 12) { passFailRetry++; requestAnimationFrame(() => { renderPassFail(); }); }
+                return;
+            }
+            passFailRetry = 0;
+            const ChartLib = getAdminChart();
+            if (!ChartLib) { if (passFailRetry < 6) { passFailRetry++; setTimeout(() => renderPassFail(), 180); } return; }
+            if (canvas._chart) { try { canvas._chart.destroy(); } catch(e) {} canvas._chart = null; }
+            if (passFailChart) { try { passFailChart.destroy(); } catch(e) {} passFailChart = null; }
+            const ctx = canvas.getContext('2d');
+            const inst = new ChartLib(ctx, {
+                type: 'doughnut',
+                data: { labels: @json($donutLabels), datasets: [{ data: @json($donutData), backgroundColor: ['#34d399', '#f87171'], borderColor: chartBorder(), borderWidth: 2 }] },
+                plugins: [centerTextPlugin],
+                options: { responsive: true, maintainAspectRatio: false, cutout: '68%', plugins: { legend: { display: false }, centerText: { display: true, text: @json((float) $average), color: isDarkMode() ? '#d1d5db' : '#374151' }, tooltip: { enabled: true } } },
+            });
+            canvas._chart = inst; passFailChart = inst;
+        }
+        function schedulePassFail(){ requestAnimationFrame(() => { renderPassFail(); }); }
+        document.addEventListener('DOMContentLoaded', schedulePassFail);
+        document.addEventListener('turbo:load', schedulePassFail);
+        document.addEventListener('turbo:render', schedulePassFail);
+        window.addEventListener('themechange', schedulePassFail);
+        window.addEventListener('load', schedulePassFail);
+        setTimeout(schedulePassFail, 320);
     </script>
 </x-layouts.admin>
