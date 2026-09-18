@@ -21,7 +21,7 @@ echo ============================================
 echo.
 pause
 
-npx concurrently -c "#93c5fd,#c4b5fd,#fb7185,#34d399" ^
+call npx concurrently -c "#93c5fd,#c4b5fd,#fb7185,#34d399,#a78bfa" ^
  "php artisan serve --host=0.0.0.0 --port=8000" ^
  "php artisan queue:listen --tries=1" ^
  "php artisan schedule:work" ^
@@ -29,4 +29,6 @@ npx concurrently -c "#93c5fd,#c4b5fd,#fb7185,#34d399" ^
  "php artisan reverb:start --host=0.0.0.0 --port=8080 --hostname=127.0.0.1" ^
  --names=server,queue,scheduler,logs,reverb
 
+echo.
+echo Semua proses berhenti. Tekan tombol untuk tutup.
 pause
