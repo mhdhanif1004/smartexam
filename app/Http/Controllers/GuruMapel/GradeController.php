@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\GuruMapel;
 
+use App\Enums\ActivityAction;
 use App\Exports\GradesExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GuruMapel\StoreGuruMapelEntriesRequest;
@@ -18,7 +19,6 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\SubjectAttendance;
 use App\Models\SubjectGrade;
-use App\Enums\ActivityAction;
 use App\Services\ActivityLogger;
 use App\Services\FinalScoreCalculator;
 use App\Traits\ScopesGuruMapel;
@@ -176,7 +176,7 @@ class GradeController extends Controller
         Collection $subjectGradesByStudent,
         Collection $attendanceByStudent,
         Collection $existingGrades,
-        int $harianTypeId,
+        ?int $harianTypeId,
         bool $filteredMode = false,
     ): Collection {
         $calculator = app(FinalScoreCalculator::class);

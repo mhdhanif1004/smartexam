@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSemesterRequest;
 use App\Http\Requests\Admin\UpdateSemesterRequest;
-use App\Enums\ActivityAction;
 use App\Models\AcademicYear;
 use App\Models\Semester;
 use App\Services\ActivityLogger;

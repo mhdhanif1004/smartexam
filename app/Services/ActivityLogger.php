@@ -138,11 +138,13 @@ class ActivityLogger
 
             if ($isRedacted) {
                 $result[$key] = self::REDACTED_PLACEHOLDER;
+
                 continue;
             }
 
             if (is_array($value)) {
                 $result[$key] = self::redact($value);
+
                 continue;
             }
 

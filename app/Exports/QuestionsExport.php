@@ -44,7 +44,7 @@ class QuestionsExport implements FromCollection, WithColumnWidths, WithEvents, W
         $cells = [];
 
         foreach ($letters as $letter) {
-            $cells[] = (string) $options->get($letter, '');
+            $cells[] = $question->optionText($options->get($letter, ''));
         }
 
         $answer = match ($question->type) {
@@ -57,7 +57,10 @@ class QuestionsExport implements FromCollection, WithColumnWidths, WithEvents, W
         };
 
         [$left, $right] = $question->type === Question::TYPE_MATCHING
-            ? [implode("\n", $question->options['left'] ?? []), implode("\n", $question->options['right'] ?? [])]
+            ? [
+                implode("\n", array_map(fn ($option) => $question->optionText($option), $question->options['left'] ?? [])),
+                implode("\n", array_map(fn ($option) => $question->optionText($option), $question->options['right'] ?? [])),
+            ]
             : ['', ''];
 
         return [

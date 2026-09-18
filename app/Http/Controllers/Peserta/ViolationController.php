@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers\Peserta;
 
+use App\Enums\ActivityAction;
 use App\Events\ViolationCreated;
 use App\Http\Controllers\Controller;
 use App\Jobs\SendViolationFcmNotification;
 use App\Models\ExamSchedule;
 use App\Models\ExamSession;
 use App\Models\Student;
-use App\Enums\ActivityAction;
 use App\Models\Violation;
 use App\Services\ActivityLogger;
 use Illuminate\Http\JsonResponse;
@@ -108,7 +108,10 @@ class ViolationController extends Controller
         $flagCountBefore = (int) $session->activeViolationFlags();
 
         $session->activateNextViolationFlag();
-        $session->update(['attendance_confirmed' => false]);
+        $session->update([
+            'attendance_confirmed' => false,
+            'attendance_status' => ExamSession::ATTENDANCE_ABSENT,
+        ]);
 
         // Hentikan paksa otomatis pada pelanggaran ke-4: ketiga slot checklist
         // sudah penuh dan masih ada satu pelanggaran lagi yang masuk.

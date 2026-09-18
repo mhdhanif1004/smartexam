@@ -34,6 +34,7 @@ class UpdateExamScheduleRequest extends FormRequest
             'start_time' => ['required', 'date_format:H:i'],
             'duration_minutes' => ['required', 'integer', 'min:5', 'max:600'],
             'status' => ['required', Rule::in(array_keys(ExamSchedule::STATUSES))],
+            'is_random_question_order' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -194,10 +195,11 @@ class UpdateExamScheduleRequest extends FormRequest
 
         $structuralChanged = (int) $this->input('subject_id') !== (int) $current->subject_id
             || (int) $this->input('room_id') !== (int) $current->room_id
-            || trim((string) $this->input('class_name')) !== trim((string) $current->class_name);
+            || trim((string) $this->input('class_name')) !== trim((string) $current->class_name)
+            || $this->boolean('is_random_question_order') !== (bool) $current->is_random_question_order;
 
         if ($structuralChanged) {
-            $validator->errors()->add('subject_id', 'Sesi ujian sudah berjalan — mata pelajaran, ruangan, dan kelas tidak dapat diubah.');
+            $validator->errors()->add('subject_id', 'Sesi ujian sudah berjalan — mata pelajaran, ruangan, kelas, dan pengaturan urutan soal tidak dapat diubah.');
         }
     }
 

@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Pengawas;
 
+use App\Enums\ActivityAction;
 use App\Http\Controllers\Controller;
 use App\Models\Violation;
-use App\Enums\ActivityAction;
 use App\Services\ActivityLogger;
 use App\Traits\ScopesSupervisorRoom;
 use Illuminate\Http\JsonResponse;

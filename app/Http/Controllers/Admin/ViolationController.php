@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
 use App\Enums\ActivityAction;
+use App\Http\Controllers\Controller;
 use App\Models\ExamSession;
 use App\Models\Room;
 use App\Models\Subject;

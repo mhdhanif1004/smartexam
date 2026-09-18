@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreExamPeriodAutoGenerateRequest;
 use App\Http\Requests\Admin\StoreExamPeriodGroupsRequest;
@@ -16,7 +17,6 @@ use App\Models\ExamSession;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\Subject;
-use App\Enums\ActivityAction;
 use App\Models\Supervisor;
 use App\Models\SupervisorRoomAssignment;
 use App\Services\ActivityLogger;
@@ -571,7 +571,7 @@ class ExamPeriodController extends Controller
         ActivityLogger::log(
             action: ActivityAction::ROTASI_PENGAWAS,
             subject: $examPeriod,
-            description: "Rotasi pengawas periode {$examPeriod->name} — ".count($created)." slot baru",
+            description: "Rotasi pengawas periode {$examPeriod->name} — ".count($created).' slot baru',
             properties: ['exam_period_id' => $examPeriod->id, 'slot_baru' => count($created), 'total_slot' => $totalSlots, 'slot_terisi' => $filledSlots],
         );
 

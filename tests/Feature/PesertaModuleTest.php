@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Classroom;
 use App\Models\ExamAnswer;
 use App\Models\ExamPeriod;
 use App\Models\ExamResult;
@@ -977,5 +978,57 @@ class PesertaModuleTest extends TestCase
 
         $result = $session->examResult;
         $this->assertSame(10.00, (float) $result->total_score);
+    }
+
+    // ── Regression: violation -> attendance_status harus berubah jadi 'tidak_hadir' ───────────────────────
+
+    public function test_violation_sets_attendance_status_to_absent(): void
+    {
+        // Setup: soal aktif + sesi in_progress + absensi sudah dikonfirmasi 'hadir'
+        $question = Question::factory()->create([
+            'subject_id' => $this->subject->id,
+            'type' => Question::TYPE_SINGLE_CHOICE,
+            'question_text' => 'Soal uji?',
+            'options' => ['A' => 'A', 'B' => 'B'],
+            'answer_key' => 'A',
+            'score_weight' => 10,
+            'is_active' => true,
+        ]);
+        $question->classrooms()->attach(
+            Classroom::factory()->create(['name' => $this->student->class_name])->id
+        );
+
+        $session = ExamSession::factory()->create([
+            'student_id' => $this->student->id,
+            'exam_schedule_id' => $this->schedule->id,
+            'status' => ExamSession::STATUS_IN_PROGRESS,
+            'started_at' => now()->subMinutes(10),
+            'attendance_status' => ExamSession::ATTENDANCE_PRESENT,
+            'attendance_confirmed' => true,
+            'attendance_confirmed_at' => now()->subMinutes(20),
+            'attendance_confirmed_by' => $this->user->id,
+        ]);
+
+        // Simulasikan pelanggaran via ViolationController (mirip peserta lapor pelanggaran)
+        $response = $this->actingAs($this->user)
+            ->postJson(route('peserta.exams.violation', $this->schedule->id), [
+                'violation_type' => Violation::TYPE_TAB_SWITCH,
+            ]);
+
+        $response->assertJson(['redirect' => true]); // redirect ke dashboard
+
+        // Assert: attendance_status harus berubah jadi 'tidak_hadir'
+        $this->assertDatabaseHas('exam_sessions', [
+            'student_id' => $this->student->id,
+            'exam_schedule_id' => $this->schedule->id,
+            'attendance_status' => ExamSession::ATTENDANCE_ABSENT, // 'tidak_hadir'
+            'attendance_confirmed' => false,
+        ]);
+
+        // violation_flag harus bertambah
+        $session = ExamSession::where('student_id', $this->student->id)
+            ->where('exam_schedule_id', $this->schedule->id)
+            ->first();
+        $this->assertSame(1, $session->activeViolationFlags());
     }
 }

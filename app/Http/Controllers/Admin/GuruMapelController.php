@@ -2,21 +2,21 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreGuruMapelRequest;
 use App\Http\Requests\Admin\UpdateGuruMapelRequest;
 use App\Models\Classroom;
 use App\Models\GuruMapel;
 use App\Models\Subject;
-use App\Enums\ActivityAction;
 use App\Models\TeacherSubjectClassAssignment;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\CredentialGenerator;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -350,7 +350,7 @@ class GuruMapelController extends Controller
         ActivityLogger::log(
             action: ActivityAction::PERBARUI_KELAS_AMPU,
             subject: $guruMapel,
-            description: "Perbarui kelas ampu guru #{$guruMapel->id} mapel #{$subject->id} — " . count($classroomIds) . " kelas",
+            description: "Perbarui kelas ampu guru #{$guruMapel->id} mapel #{$subject->id} — ".count($classroomIds).' kelas',
             properties: ['guru_mapel_id' => $guruMapel->id, 'subject_id' => (int) $subject->id, 'classroom_ids' => $classroomIds],
         );
 

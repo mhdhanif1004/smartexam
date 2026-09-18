@@ -134,7 +134,7 @@
                                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ $violation->occurred_at?->format('d/m/Y H:i') }}</td>
                                 <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $violation->examSession?->student?->user?->name ?? '-' }}</td>
                                 <td class="px-4 py-3 text-sm">
-                                    <span class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-300">{{ $violation->typeLabel() }}</span>
+                                    <span class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-300">{{ $violation->typeLabel }}</span>
                                 </td>
                             </tr>
                         @empty

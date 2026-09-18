@@ -11,6 +11,9 @@
     if (empty($matchingPairs)) {
         $matchingPairs = [['left' => '', 'right' => '']];
     }
+    $existingOptionImages = collect($question?->options ?? [])
+        ->map(fn ($option) => is_array($option) && filled($option['image'] ?? null) ? ['has' => true, 'url' => asset('storage/'.$option['image']), 'path' => $option['image']] : ['has' => false, 'url' => '', 'path' => ''])
+        ->all();
 @endphp
 
 <form
@@ -29,6 +32,8 @@
             existingUrl: @js(isset($question) && $question->image_path ? asset('storage/'.$question->image_path) : ''),
             remove() { this.hasExisting = false; this.preview = ''; },
         },
+        opt: {},
+        optImg(e, key) { this.opt[key] = e.target.files[0] ? URL.createObjectURL(e.target.files[0]) : ''; },
     }"
 >
     @csrf
@@ -111,7 +116,20 @@
                     <div class="flex items-center gap-3">
                         <input type="radio" name="single_answer" value="{{ $letter }}" @checked(old('single_answer', isset($question) ? $question->answer_key : null) === $letter) class="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
                         <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-sm font-bold text-gray-700 dark:bg-gray-700/60 dark:text-gray-300">{{ $letter }}</span>
-                        <x-text-input type="text" name="single_options[{{ $letter }}]" class="block w-full" value="{{ old('single_options.'.$letter, isset($question) && isset($question->options[$letter]) ? $question->options[$letter] : '') }}" placeholder="Teks opsi {{ $letter }}" />
+                        <x-text-input type="text" name="single_options[{{ $letter }}]" class="block w-full" value="{{ old('single_options.'.$letter, isset($question) ? $question->optionText($question->options[$letter] ?? '') : '') }}" placeholder="Teks opsi {{ $letter }}" />
+                    </div>
+                    <div class="ml-11 flex items-center gap-3">
+                        <input type="file" name="single_options_image[{{ $letter }}]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'single_{{ $letter }}')" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20">
+                        <input type="hidden" name="existing_single_options_image[{{ $letter }}]" value="{{ $existingOptionImages[$letter]['path'] ?? '' }}">
+                        <span class="text-xs text-gray-400 dark:text-gray-500">Gambar opsi</span>
+                        @if (($existingOptionImages[$letter]['has'] ?? false))
+                            <img src="{{ $existingOptionImages[$letter]['url'] }}" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Opsi {{ $letter }} saat ini">
+                            <label class="flex items-center gap-1 text-xs font-medium text-rose-700 dark:text-rose-300">
+                                <input type="checkbox" name="remove_single_options_image[{{ $letter }}]" value="1" class="h-3.5 w-3.5 rounded border-gray-300 text-rose-600 focus:ring-rose-500 dark:border-gray-600 dark:bg-gray-800">
+                                Hapus
+                            </label>
+                        @endif
+                        <img x-show="opt['single_{{ $letter }}']" :src="opt['single_{{ $letter }}']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau opsi {{ $letter }}" />
                     </div>
                 @endforeach
             </div>
@@ -130,7 +148,20 @@
                     <div class="flex items-center gap-3">
                         <input type="checkbox" name="multiple_answer[]" value="{{ $letter }}" @checked(in_array($letter, old('multiple_answer', isset($question) && is_array($question->answer_key) ? $question->answer_key : []))) class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
                         <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-sm font-bold text-gray-700 dark:bg-gray-700/60 dark:text-gray-300">{{ $letter }}</span>
-                        <x-text-input type="text" name="multiple_options[{{ $letter }}]" class="block w-full" value="{{ old('multiple_options.'.$letter, isset($question) && isset($question->options[$letter]) ? $question->options[$letter] : '') }}" placeholder="Teks opsi {{ $letter }}" />
+                        <x-text-input type="text" name="multiple_options[{{ $letter }}]" class="block w-full" value="{{ old('multiple_options.'.$letter, isset($question) ? $question->optionText($question->options[$letter] ?? '') : '') }}" placeholder="Teks opsi {{ $letter }}" />
+                    </div>
+                    <div class="ml-11 flex items-center gap-3">
+                        <input type="file" name="multiple_options_image[{{ $letter }}]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'multi_{{ $letter }}')" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20">
+                        <input type="hidden" name="existing_multiple_options_image[{{ $letter }}]" value="{{ $existingOptionImages[$letter]['path'] ?? '' }}">
+                        <span class="text-xs text-gray-400 dark:text-gray-500">Gambar opsi</span>
+                        @if (($existingOptionImages[$letter]['has'] ?? false))
+                            <img src="{{ $existingOptionImages[$letter]['url'] }}" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Opsi {{ $letter }} saat ini">
+                            <label class="flex items-center gap-1 text-xs font-medium text-rose-700 dark:text-rose-300">
+                                <input type="checkbox" name="remove_multiple_options_image[{{ $letter }}]" value="1" class="h-3.5 w-3.5 rounded border-gray-300 text-rose-600 focus:ring-rose-500 dark:border-gray-600 dark:bg-gray-800">
+                                Hapus
+                            </label>
+                        @endif
+                        <img x-show="opt['multi_{{ $letter }}']" :src="opt['multi_{{ $letter }}']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau opsi {{ $letter }}" />
                     </div>
                 @endforeach
             </div>
@@ -154,6 +185,36 @@
                     <span class="text-sm font-medium text-gray-800 dark:text-gray-200">Salah</span>
                 </label>
             </div>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                @php($tfTrue = $existingOptionImages['true'] ?? ['has' => false, 'url' => '', 'path' => ''])
+                @php($tfFalse = $existingOptionImages['false'] ?? ['has' => false, 'url' => '', 'path' => ''])
+                <div class="flex items-center gap-3">
+                    <input type="file" name="true_false_image[true]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'tf_true')" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20">
+                    <input type="hidden" name="existing_true_false_image[true]" value="{{ $tfTrue['path'] }}">
+                    <span class="text-xs text-gray-400 dark:text-gray-500">Gambar "Benar"</span>
+                    @if ($tfTrue['has'])
+                        <img src="{{ $tfTrue['url'] }}" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Gambar Benar saat ini">
+                        <label class="flex items-center gap-1 text-xs font-medium text-rose-700 dark:text-rose-300">
+                            <input type="checkbox" name="remove_true_false_image[true]" value="1" class="h-3.5 w-3.5 rounded border-gray-300 text-rose-600 focus:ring-rose-500 dark:border-gray-600 dark:bg-gray-800">
+                            Hapus
+                        </label>
+                    @endif
+                    <img x-show="opt['tf_true']" :src="opt['tf_true']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau Benar" />
+                </div>
+                <div class="flex items-center gap-3">
+                    <input type="file" name="true_false_image[false]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'tf_false')" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20">
+                    <input type="hidden" name="existing_true_false_image[false]" value="{{ $tfFalse['path'] }}">
+                    <span class="text-xs text-gray-400 dark:text-gray-500">Gambar "Salah"</span>
+                    @if ($tfFalse['has'])
+                        <img src="{{ $tfFalse['url'] }}" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Gambar Salah saat ini">
+                        <label class="flex items-center gap-1 text-xs font-medium text-rose-700 dark:text-rose-300">
+                            <input type="checkbox" name="remove_true_false_image[false]" value="1" class="h-3.5 w-3.5 rounded border-gray-300 text-rose-600 focus:ring-rose-500 dark:border-gray-600 dark:bg-gray-800">
+                            Hapus
+                        </label>
+                    @endif
+                    <img x-show="opt['tf_false']" :src="opt['tf_false']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau Salah" />
+                </div>
+            </div>
             <x-input-error :messages="$errors->get('true_false_answer')" class="mt-2" />
         </div>
     </template>
@@ -168,20 +229,29 @@
                     <div class="flex items-center gap-2">
                         <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-sm font-bold text-gray-700 dark:bg-gray-700/60 dark:text-gray-300" x-text="String.fromCharCode(65 + index)"></span>
                         <x-text-input type="text" name="matching_left[]" x-model="pair.left" class="block w-full" placeholder="Kolom kiri" />
+                        <input type="file" name="matching_left_image[]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'ml_'+index)" class="w-32 text-xs text-gray-500 file:mr-2 file:rounded-md file:border-0 file:bg-indigo-50 file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10" />
+                        <input type="hidden" :name="'existing_matching_left_image['+index+']'" :value="pair.left_image || ''" />
                         <span class="text-gray-400 dark:text-gray-500">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                             </svg>
                         </span>
                         <x-text-input type="text" name="matching_right[]" x-model="pair.right" class="block w-full" placeholder="Kolom kanan" />
+                        <input type="file" name="matching_right_image[]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'mr_'+index)" class="w-32 text-xs text-gray-500 file:mr-2 file:rounded-md file:border-0 file:bg-indigo-50 file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10" />
+                        <input type="hidden" :name="'existing_matching_right_image['+index+']'" :value="pair.right_image || ''" />
+                        <img x-show="pair.left_image && !opt['ml_'+index]" :src="'/storage/'+pair.left_image" class="h-8 w-8 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Kiri">
+                        <img x-show="pair.right_image && !opt['mr_'+index]" :src="'/storage/'+pair.right_image" class="h-8 w-8 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Kanan">
                         <button type="button" @click="pairs.splice(index, 1)" class="rounded-md p-2 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600 dark:text-gray-500 dark:hover:bg-rose-500/20 dark:hover:text-rose-400">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
+                        <button type="button" @click="pair.left_image = ''; pair.right_image = ''" class="rounded-md p-1 text-xs text-rose-500 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10" title="Hapus gambar pasangan ini">
+                            Hapus gambar
+                        </button>
                     </div>
                 </template>
-                <button type="button" @click="pairs.push({ left: '', right: '' })" class="inline-flex items-center gap-2 rounded-lg border border-dashed border-indigo-300 px-4 py-2 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 dark:border-indigo-500/50 dark:text-indigo-400 dark:hover:bg-indigo-500/10">
+                <button type="button" @click="pairs.push({ left: '', right: '', left_image: '', right_image: '' })" class="inline-flex items-center gap-2 rounded-lg border border-dashed border-indigo-300 px-4 py-2 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 dark:border-indigo-500/50 dark:text-indigo-400 dark:hover:bg-indigo-500/10">
                     + Tambah Pasangan
                 </button>
             </div>

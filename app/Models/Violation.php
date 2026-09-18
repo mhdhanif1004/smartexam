@@ -81,6 +81,15 @@ class Violation extends Model
         return self::TYPE_LABELS[$type] ?? ucwords(str_replace('_', ' ', $type));
     }
 
+    /**
+     * Accessor untuk memudahkan pemanggilan di Blade: $violation->typeLabel
+     * Delegasi ke static method dengan violation_type instance ini.
+     */
+    public function getTypeLabelAttribute(): string
+    {
+        return self::typeLabel($this->violation_type);
+    }
+
     public function examSession(): BelongsTo
     {
         return $this->belongsTo(ExamSession::class);

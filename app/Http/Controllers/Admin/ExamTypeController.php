@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreExamTypeRequest;
 use App\Http\Requests\Admin\UpdateExamTypeRequest;
-use App\Enums\ActivityAction;
 use App\Models\ExamType;
 use App\Services\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
