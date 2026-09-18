@@ -30,3 +30,7 @@ catatan
 # Firebase credentials (jangan commit service account JSON)
 /storage/app/firebase/
 /firebase-credentials.json
+
+# Tooling cache (bukan bagian project)
+.omo/
+.playwright-mcp/
