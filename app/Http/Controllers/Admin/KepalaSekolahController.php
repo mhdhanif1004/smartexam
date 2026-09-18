@@ -2,17 +2,17 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreKepalaSekolahRequest;
 use App\Http\Requests\Admin\UpdateKepalaSekolahRequest;
-use App\Enums\ActivityAction;
 use App\Models\KepalaSekolah;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\CredentialGenerator;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 

@@ -146,20 +146,26 @@
 
                             <div class="mt-6 space-y-3">
                                 <div x-show="q.type === 'single_choice'" class="space-y-2">
-                                    <template x-for="(text, letter) in q.options" :key="letter">
+                                    <template x-for="(option, letter) in q.options" :key="letter">
                                         <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-gray-700 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10">
                                             <input type="radio" :name="'q' + q.id" :value="letter" @change="selectValue(q, letter)" :checked="answerFor(q) === letter" class="mt-0.5 h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
-                                            <span class="text-sm text-gray-800 dark:text-gray-200" x-text="letter + '. ' + text"></span>
+                                            <span class="flex flex-col gap-1">
+                                                <span class="text-sm text-gray-800 dark:text-gray-200" x-text="letter + '. ' + optionText(option)"></span>
+                                                <img x-show="optionImage(option)" :src="'/storage/' + optionImage(option)" class="mt-1 max-h-48 w-48 rounded-lg border border-gray-200 object-contain" loading="lazy" alt="Gambar opsi">
+                                            </span>
                                         </label>
                                     </template>
                                 </div>
 
                                 <div x-show="q.type === 'multiple_choice'" class="space-y-2">
                                     <p class="text-xs text-gray-400">Pilih lebih dari satu jawaban yang benar.</p>
-                                    <template x-for="(text, letter) in q.options" :key="letter">
+                                    <template x-for="(option, letter) in q.options" :key="letter">
                                         <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-gray-700 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10">
                                             <input type="checkbox" :value="letter" @change="toggleOption(q, letter)" :checked="(answerFor(q) || []).includes(letter)" class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
-                                            <span class="text-sm text-gray-800 dark:text-gray-200" x-text="letter + '. ' + text"></span>
+                                            <span class="flex flex-col gap-1">
+                                                <span class="text-sm text-gray-800 dark:text-gray-200" x-text="letter + '. ' + optionText(option)"></span>
+                                                <img x-show="optionImage(option)" :src="'/storage/' + optionImage(option)" class="mt-1 max-h-48 w-48 rounded-lg border border-gray-200 object-contain" loading="lazy" alt="Gambar opsi">
+                                            </span>
                                         </label>
                                     </template>
                                 </div>
@@ -168,23 +174,31 @@
                                     <template x-for="option in ['true', 'false']" :key="option">
                                         <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-gray-700 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10">
                                             <input type="radio" :name="'q' + q.id" :value="option" @change="selectValue(q, option)" :checked="answerFor(q) === (option === 'true')" class="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
-                                            <span class="text-sm font-medium text-gray-800 dark:text-gray-200" x-text="option === 'true' ? 'Benar' : 'Salah'"></span>
+                                            <span class="flex flex-col gap-1">
+                                                <span class="text-sm font-medium text-gray-800 dark:text-gray-200" x-text="option === 'true' ? optionText(q.options?.['true'] ?? 'Benar') : optionText(q.options?.['false'] ?? 'Salah')"></span>
+                                                <img x-show="option === 'true' ? optionImage(q.options?.['true']) : optionImage(q.options?.['false'])" :src="'/storage/' + (option === 'true' ? optionImage(q.options?.['true']) : optionImage(q.options?.['false']))" class="mt-1 max-h-48 w-48 rounded-lg border border-gray-200 object-contain" loading="lazy" alt="Gambar opsi">
+                                            </span>
                                         </label>
                                     </template>
                                 </div>
 
                                 <div x-show="q.type === 'matching'" class="space-y-3">
                                     <p class="text-xs text-gray-400 dark:text-gray-500">Jodohkan pernyataan kiri dengan pasangan yang tepat di kanan.</p>
-                                    <template x-for="(text, index) in (q.options?.left ?? [])" :key="index">
+                                    <template x-for="(option, index) in (q.options?.left ?? [])" :key="index">
                                         <div class="flex flex-col gap-2 rounded-lg border border-gray-200 p-3 sm:flex-row sm:items-center dark:border-gray-700">
                                             <div class="flex flex-1 items-start gap-2">
                                                 <span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-700 dark:bg-gray-700/60 dark:text-gray-300" x-text="letter(index)"></span>
-                                                <span class="text-sm text-gray-800 dark:text-gray-200" x-text="text"></span>
+                                                <span class="flex flex-col gap-1">
+                                                    <span class="text-sm text-gray-800 dark:text-gray-200" x-text="optionText(option)"></span>
+                                                    <img x-show="optionImage(option)" :src="'/storage/' + optionImage(option)" class="mt-1 max-h-48 w-48 rounded-lg border border-gray-200 object-contain" loading="lazy" alt="Gambar opsi kiri">
+                                                </span>
                                             </div>
                                             <select @change="setMatching(q, letter(index), $event.target.value)" :value="(answerFor(q) || {})[letter(index)] || ''" class="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
                                                 <option value="">Pilih pasangan</option>
-                                                <template x-for="(rightText, rightIndex) in (q.options?.right ?? [])" :key="rightIndex">
-                                                    <option :value="String(rightIndex + 1)" x-text="(rightIndex + 1) + '. ' + rightText"></option>
+                                                <template x-for="(rightOption, rightIndex) in (q.options?.right ?? [])" :key="rightIndex">
+                                                    <option :value="String(rightIndex + 1)">
+                                                        <span x-text="String(rightIndex + 1) + '. ' + optionText(rightOption)"></span>
+                                                    </option>
                                                 </template>
                                             </select>
                                         </div>

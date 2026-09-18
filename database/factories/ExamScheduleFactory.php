@@ -35,6 +35,7 @@ class ExamScheduleFactory extends Factory
             'end_time' => '09:30:00',
             'duration_minutes' => 90,
             'status' => ExamSchedule::STATUS_SCHEDULED,
+            'is_random_question_order' => false,
         ];
     }
 

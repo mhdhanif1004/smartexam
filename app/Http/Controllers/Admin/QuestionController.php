@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreQuestionRequest;
 use App\Http\Requests\Admin\UpdateQuestionRequest;
@@ -10,9 +11,9 @@ use App\Models\ExamAnswer;
 use App\Models\GuruMapel;
 use App\Models\Question;
 use App\Models\Subject;
-use App\Enums\ActivityAction;
 use App\Models\TeacherSubjectClassAssignment;
 use App\Services\ActivityLogger;
+use App\Services\QuestionImageOptimizer;
 use App\Services\QuestionWeightService;
 use App\Traits\BuildsQuestionPayload;
 use Illuminate\Database\Eloquent\Builder;
@@ -29,6 +30,10 @@ use Illuminate\View\View;
 class QuestionController extends Controller
 {
     use BuildsQuestionPayload;
+
+    public function __construct(
+        private readonly QuestionImageOptimizer $imageOptimizer,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -230,7 +235,7 @@ class QuestionController extends Controller
         }
 
         if ($request->hasFile('image')) {
-            $payload['image_path'] = $request->file('image')->store('question-images', 'public');
+            $payload['image_path'] = $this->imageOptimizer->optimize($request->file('image'));
         }
 
         $question = Question::create($payload);
@@ -269,6 +274,11 @@ class QuestionController extends Controller
     public function update(UpdateQuestionRequest $request, Question $question): RedirectResponse
     {
         $data = $request->validated();
+
+        // Capture path gambar opsi yang LAMA sebelum payload baru dibangun —
+        // dipakai untuk menentukan file yang tidak lagi direferensikan.
+        $oldOptionImages = $question->optionImages();
+
         $payload = $this->questionPayload($data);
 
         $payload['created_by_user_id'] = $request->filled('creator_user_id')
@@ -277,7 +287,7 @@ class QuestionController extends Controller
 
         if ($request->hasFile('image')) {
             $this->deleteImageFile($question->image_path);
-            $payload['image_path'] = $request->file('image')->store('question-images', 'public');
+            $payload['image_path'] = $this->imageOptimizer->optimize($request->file('image'));
         } elseif (! empty($data['remove_image'])) {
             $this->deleteImageFile($question->image_path);
             $payload['image_path'] = null;
@@ -286,6 +296,14 @@ class QuestionController extends Controller
         $question->update($payload);
         $classroomIds = $data['classroom_ids'];
         $question->classrooms()->sync($classroomIds);
+
+        // Cleanup orphan: hapus gambar opsi lama yang tidak lagi direferensikan
+        // di options baru (termasuk saat type-change / opsi dihapus / gambar diganti).
+        $newOptionImages = Question::optionImagesFromOptions($payload['options'], $payload['type']);
+        $toDelete = array_values(array_diff($oldOptionImages, $newOptionImages));
+        if ($toDelete !== []) {
+            Storage::disk('public')->delete($toDelete);
+        }
 
         ActivityLogger::log(
             action: ActivityAction::UBAH_SOAL,
@@ -354,7 +372,7 @@ class QuestionController extends Controller
         $snapshotId = $question->id;
         $snapshotText = Str::limit((string) $question->question_text, 60);
         $snapshotSubjectId = $question->subject_id;
-        $this->deleteImageFile($question->image_path);
+        $this->deleteQuestionMedia($question);
         $question->delete();
 
         ActivityLogger::log(
@@ -409,7 +427,7 @@ class QuestionController extends Controller
             'subject_id' => $question->subject_id,
             'type' => $question->type,
             'question_text' => $question->question_text,
-            'options' => $question->options,
+            'options' => $this->duplicateOptionImages($question),
             'answer_key' => $question->answer_key,
             'score_weight' => $question->score_weight,
             'is_active' => true,
@@ -444,6 +462,39 @@ class QuestionController extends Controller
         return $redirect;
     }
 
+    /**
+     * Duplikasi gambar di dalam options ke path baru secara fisik. Mengembalikan
+     * options baru dengan path berbeda agar dua soal tidak share file fisik.
+     */
+    private function duplicateOptionImages(Question $question): ?array
+    {
+        $options = $question->options;
+
+        if (! is_array($options)) {
+            return $options;
+        }
+
+        $copyImage = function (mixed $option): mixed {
+            if (is_array($option) && isset($option['image']) && filled($option['image'])) {
+                $newPath = $this->duplicateImageFile($option['image']);
+
+                return $newPath !== null ? [...$option, 'image' => $newPath] : $option;
+            }
+
+            return $option;
+        };
+
+        if ($question->type === Question::TYPE_MATCHING) {
+            return [
+                'left' => array_map($copyImage, $options['left'] ?? []),
+                'right' => array_map($copyImage, $options['right'] ?? []),
+            ];
+        }
+
+        // single_choice, multiple_choice, true_false (atau null)
+        return array_map($copyImage, $options);
+    }
+
     public function toggleActive(Question $question): RedirectResponse
     {
         $previous = (bool) $question->is_active;
@@ -452,7 +503,7 @@ class QuestionController extends Controller
         ActivityLogger::log(
             action: ActivityAction::TOGGLE_AKTIF_SOAL,
             subject: $question,
-            description: "Soal #{$question->id} " . ($question->is_active ? 'diaktifkan' : 'dinonaktifkan'),
+            description: "Soal #{$question->id} ".($question->is_active ? 'diaktifkan' : 'dinonaktifkan'),
             properties: ['question_id' => $question->id, 'is_active' => $question->is_active, 'previous' => $previous],
         );
 
@@ -499,7 +550,7 @@ class QuestionController extends Controller
 
         ActivityLogger::log(
             action: ActivityAction::EDIT_BULK_SOAL,
-            description: 'Edit bulk ' . count($ids) . ' soal',
+            description: 'Edit bulk '.count($ids).' soal',
             properties: ['jumlah_soal' => count($ids), 'ids' => $ids->values()->all(), 'updates' => array_keys($updates)],
         );
         $affectedAfter = Question::query()->whereIn('id', $ids)->with('classrooms')->get();
@@ -538,7 +589,7 @@ class QuestionController extends Controller
 
         ActivityLogger::log(
             action: ActivityAction::EDIT_BULK_SOAL,
-            description: 'Perbarui kelas target ' . $questions->count() . ' soal',
+            description: 'Perbarui kelas target '.$questions->count().' soal',
             properties: ['jumlah_soal' => $questions->count(), 'question_ids' => $data['question_ids'], 'classroom_ids' => $data['classroom_ids']],
         );
 
@@ -658,6 +709,23 @@ class QuestionController extends Controller
     }
 
     /**
+     * Hapus semua media milik satu soal: gambar utama (image_path) + seluruh
+     * gambar per-opsi di options. Dipanggil saat soal dihapus.
+     */
+    private function deleteQuestionMedia(Question $question): void
+    {
+        $paths = $question->optionImages();
+
+        if (filled($question->image_path)) {
+            $paths[] = $question->image_path;
+        }
+
+        if ($paths !== []) {
+            Storage::disk('public')->delete(array_values(array_unique($paths)));
+        }
+    }
+
+    /**
      * Salin file gambar ke nama unik baru di folder yang sama.
      * Mengembalikan path baru, atau null bila file asli tidak ada/memakai disk tak dikenal.
      */
@@ -679,20 +747,17 @@ class QuestionController extends Controller
 
     /**
      * Hapus file gambar dari banyak soal (dipanggil sebelum delete massal).
+     * Termasuk gambar per-opsi di options.
      *
      * @param  array<int, int>  $ids
      */
     private function deleteImageFiles(array $ids): void
     {
-        $paths = Question::query()
+        Question::query()
             ->whereIn('id', $ids)
-            ->whereNotNull('image_path')
-            ->pluck('image_path')
-            ->filter()
-            ->all();
-
-        if (! empty($paths)) {
-            Storage::disk('public')->delete($paths);
-        }
+            ->get(['id', 'type', 'image_path', 'options'])
+            ->each(function (Question $question) {
+                $this->deleteQuestionMedia($question);
+            });
     }
 }

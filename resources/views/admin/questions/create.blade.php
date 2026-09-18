@@ -16,7 +16,7 @@
             action="{{ route('admin.questions.store') }}"
             enctype="multipart/form-data"
             class="max-w-3xl space-y-6"
-            x-data="{ type: @js(old('type', \App\Models\Question::TYPE_SINGLE_CHOICE)), guru: @js((string) old('creator_user_id', '')), subject: @js((string) old('subject_id', '')), selected: @js(old('classroom_ids', [])), pairs: @js($pairs), img: { preview: '' }, weight: @js((string) old('score_weight', 10)) }"
+            x-data="{ type: @js(old('type', \App\Models\Question::TYPE_SINGLE_CHOICE)), guru: @js((string) old('creator_user_id', '')), subject: @js((string) old('subject_id', '')), selected: @js(old('classroom_ids', [])), pairs: @js($pairs), img: { preview: '' }, opt: {}, optImg(e, key) { this.opt[key] = e.target.files[0] ? URL.createObjectURL(e.target.files[0]) : ''; }, weight: @js((string) old('score_weight', 10)) }"
         >
             @csrf
 
@@ -115,6 +115,11 @@
                                 <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-sm font-bold text-gray-700 dark:bg-gray-700/60 dark:text-gray-300">{{ $letter }}</span>
                                 <x-text-input type="text" name="single_options[{{ $letter }}]" class="block w-full" value="{{ old('single_options.'.$letter) }}" placeholder="Teks opsi {{ $letter }}" />
                             </div>
+                            <div class="ml-11 flex items-center gap-3">
+                                <input type="file" name="single_options_image[{{ $letter }}]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'single_{{ $letter }}')" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20">
+                                <span class="text-xs text-gray-400 dark:text-gray-500">Gambar opsi (opsional)</span>
+                                <img x-show="opt['single_{{ $letter }}']" :src="opt['single_{{ $letter }}']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau opsi {{ $letter }}" />
+                            </div>
                         @endforeach
                     </div>
                     <x-input-error :messages="$errors->get('single_answer')" class="mt-2" />
@@ -133,6 +138,11 @@
                                 <input type="checkbox" name="multiple_answer[]" value="{{ $letter }}" @checked(in_array($letter, old('multiple_answer', []))) class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
                                 <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-sm font-bold text-gray-700 dark:bg-gray-700/60 dark:text-gray-300">{{ $letter }}</span>
                                 <x-text-input type="text" name="multiple_options[{{ $letter }}]" class="block w-full" value="{{ old('multiple_options.'.$letter) }}" placeholder="Teks opsi {{ $letter }}" />
+                            </div>
+                            <div class="ml-11 flex items-center gap-3">
+                                <input type="file" name="multiple_options_image[{{ $letter }}]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'multi_{{ $letter }}')" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20">
+                                <span class="text-xs text-gray-400 dark:text-gray-500">Gambar opsi (opsional)</span>
+                                <img x-show="opt['multi_{{ $letter }}']" :src="opt['multi_{{ $letter }}']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau opsi {{ $letter }}" />
                             </div>
                         @endforeach
                     </div>
@@ -156,6 +166,18 @@
                             <span class="text-sm font-medium text-gray-800 dark:text-gray-200">Salah</span>
                         </label>
                     </div>
+                    <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div class="flex items-center gap-3">
+                            <input type="file" name="true_false_image[true]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'tf_true')" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20">
+                            <span class="text-xs text-gray-400 dark:text-gray-500">Gambar "Benar"</span>
+                            <img x-show="opt['tf_true']" :src="opt['tf_true']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau Benar" />
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <input type="file" name="true_false_image[false]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'tf_false')" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20">
+                            <span class="text-xs text-gray-400 dark:text-gray-500">Gambar "Salah"</span>
+                            <img x-show="opt['tf_false']" :src="opt['tf_false']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau Salah" />
+                        </div>
+                    </div>
                     <x-input-error :messages="$errors->get('true_false_answer')" class="mt-2" />
                 </div>
             </template>
@@ -170,12 +192,14 @@
                             <div class="flex items-center gap-2">
                                 <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-sm font-bold text-gray-700 dark:bg-gray-700/60 dark:text-gray-300" x-text="String.fromCharCode(65 + index)"></span>
                                 <x-text-input type="text" name="matching_left[]" x-model="pair.left" class="block w-full" placeholder="Kolom kiri" />
+                                <input type="file" name="matching_left_image[]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'ml_'+index)" class="w-32 text-xs text-gray-500 file:mr-2 file:rounded-md file:border-0 file:bg-indigo-50 file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10" />
                                 <span class="text-gray-400 dark:text-gray-500">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                                     </svg>
                                 </span>
                                 <x-text-input type="text" name="matching_right[]" x-model="pair.right" class="block w-full" placeholder="Kolom kanan" />
+                                <input type="file" name="matching_right_image[]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'mr_'+index)" class="w-32 text-xs text-gray-500 file:mr-2 file:rounded-md file:border-0 file:bg-indigo-50 file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10" />
                                 <button type="button" @click="pairs.splice(index, 1)" class="rounded-md p-2 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600 dark:text-gray-500 dark:hover:bg-rose-500/20 dark:hover:text-rose-400">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />

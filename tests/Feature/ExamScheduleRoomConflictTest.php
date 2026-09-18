@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Classroom;
 use App\Models\ExamSchedule;
+use App\Models\ExamSession;
 use App\Models\Question;
 use App\Models\Room;
 use App\Models\Subject;
@@ -110,6 +111,38 @@ class ExamScheduleRoomConflictTest extends TestCase
             'id' => $scheduleA->id,
             'start_time' => '08:00:00',
         ]);
+    }
+
+    public function test_admin_create_saves_random_question_order_toggle(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('admin.exam-schedules.store'), $this->payload([
+                'is_random_question_order' => '1',
+            ]))
+            ->assertRedirect(route('admin.exam-schedules.index'));
+
+        $this->assertDatabaseHas('exam_schedules', [
+            'subject_id' => $this->subject->id,
+            'room_id' => $this->room->id,
+            'is_random_question_order' => true,
+        ]);
+    }
+
+    public function test_admin_cannot_change_random_question_order_after_session_started(): void
+    {
+        $schedule = $this->makeSchedule(['is_random_question_order' => false]);
+        ExamSession::factory()->create([
+            'exam_schedule_id' => $schedule->id,
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.exam-schedules.update', $schedule), $this->payload([
+                'is_random_question_order' => '1',
+            ]))
+            ->assertSessionHasErrors('subject_id');
+
+        $this->assertFalse((bool) $schedule->fresh()->is_random_question_order);
     }
 
     public function test_creating_schedule_with_real_room_overlap_is_rejected(): void

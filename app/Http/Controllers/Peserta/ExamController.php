@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Peserta;
 
+use App\Enums\ActivityAction;
 use App\Http\Controllers\Controller;
 use App\Models\ExamAnswer;
 use App\Models\ExamPeriod;
@@ -10,9 +11,9 @@ use App\Models\ExamSession;
 use App\Models\ExamToken;
 use App\Models\Question;
 use App\Models\Student;
-use App\Enums\ActivityAction;
 use App\Services\ActivityLogger;
 use App\Services\ExamGradingService;
+use App\Services\QuestionOrderService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -36,6 +37,7 @@ class ExamController extends Controller
 
     public function __construct(
         private readonly ExamGradingService $grading,
+        private readonly QuestionOrderService $questionOrder,
     ) {}
 
     public function token(Request $request, int $schedule): View|RedirectResponse
@@ -157,11 +159,11 @@ class ExamController extends Controller
             return $this->deny('Sesi ujian belum dimulai. Masukkan token terlebih dahulu.');
         }
 
-        $questions = $this->schedule->subject->questions()
-            ->where('is_active', true)
-            ->targetingClassroom($this->student->classroom_id)
-            ->orderBy('id')
-            ->get();
+        $questions = $this->questionOrder->orderedQuestionsFor(
+            $session,
+            $this->schedule,
+            $this->student->classroom_id,
+        );
 
         $questionsData = $questions
             ->map(fn (Question $question) => [
@@ -521,11 +523,11 @@ class ExamController extends Controller
      */
     private function unansweredQuestionNumbers(ExamSession $session): array
     {
-        $questions = $this->schedule->subject->questions()
-            ->where('is_active', true)
-            ->targetingClassroom($this->student->classroom_id)
-            ->orderBy('id')
-            ->get();
+        $questions = $this->questionOrder->orderedQuestionsFor(
+            $session,
+            $this->schedule,
+            $this->student->classroom_id,
+        );
 
         $answers = $session->examAnswers()->get()->keyBy('question_id');
 

@@ -345,6 +345,17 @@ export function examApp(config) {
             return String.fromCharCode(65 + index);
         },
 
+        // Opsi mixed: string murni atau objek {text, image} (opsi bergambar).
+        optionText(option) {
+            if (typeof option === 'string') return option;
+            return option?.text ?? '';
+        },
+
+        optionImage(option) {
+            if (typeof option === 'string') return null;
+            return option?.image ?? null;
+        },
+
         formatTime(seconds) {
             const s = Math.max(0, seconds);
             const h = Math.floor(s / 3600);

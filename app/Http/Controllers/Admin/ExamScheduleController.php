@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreExamScheduleRequest;
 use App\Http\Requests\Admin\UpdateExamScheduleRequest;
-use App\Enums\ActivityAction;
 use App\Models\ExamPeriod;
 use App\Models\ExamRoomAssignment;
 use App\Models\ExamSchedule;
@@ -260,6 +260,7 @@ class ExamScheduleController extends Controller
             'end_time' => $start->copy()->addMinutes((int) $request->duration_minutes)->format('H:i:s'),
             'duration_minutes' => $request->duration_minutes,
             'status' => $request->status,
+            'is_random_question_order' => $request->boolean('is_random_question_order'),
         ]);
 
         ActivityLogger::log(
@@ -307,6 +308,7 @@ class ExamScheduleController extends Controller
             'end_time' => $start->copy()->addMinutes((int) $request->duration_minutes)->format('H:i:s'),
             'duration_minutes' => $request->duration_minutes,
             'status' => $request->status,
+            'is_random_question_order' => $request->boolean('is_random_question_order'),
         ]);
 
         ActivityLogger::log(
@@ -366,7 +368,7 @@ class ExamScheduleController extends Controller
         if ($totalDeleted > 0) {
             ActivityLogger::log(
                 action: ActivityAction::HAPUS_BULK_JADWAL_UJIAN,
-                description: "Hapus bulk {$totalDeleted} jadwal ujian (" . count($seenGroups) . " kelompok)",
+                description: "Hapus bulk {$totalDeleted} jadwal ujian (".count($seenGroups).' kelompok)',
                 properties: ['jumlah' => $totalDeleted, 'kelompok' => count($seenGroups), 'ids' => $ids->values()->all()],
             );
         }

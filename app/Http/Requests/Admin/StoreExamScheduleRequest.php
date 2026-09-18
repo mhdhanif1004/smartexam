@@ -32,6 +32,7 @@ class StoreExamScheduleRequest extends FormRequest
             'start_time' => ['required', 'date_format:H:i'],
             'duration_minutes' => ['required', 'integer', 'min:5', 'max:600'],
             'status' => ['required', Rule::in(array_keys(ExamSchedule::STATUSES))],
+            'is_random_question_order' => ['sometimes', 'boolean'],
         ];
     }
 

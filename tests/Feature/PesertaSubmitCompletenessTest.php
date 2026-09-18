@@ -138,8 +138,13 @@ class PesertaSubmitCompletenessTest extends TestCase
     {
         $response = $this->submit([]);
 
-        $response->assertStatus(422)
-            ->assertJsonPath('unanswered_numbers', [1, 2, 3]);
+        $response->assertStatus(422);
+
+        $unansweredIds = $response->json('unanswered_question_ids');
+        $this->assertCount(3, $unansweredIds);
+        $this->assertContains($this->q1->id, $unansweredIds);
+        $this->assertContains($this->q2->id, $unansweredIds);
+        $this->assertContains($this->q3->id, $unansweredIds);
 
         // Sesi belum berubah.
         $this->assertDatabaseHas('exam_sessions', [
@@ -172,7 +177,7 @@ class PesertaSubmitCompletenessTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('unanswered_numbers', [3]);
+            ->assertJsonPath('unanswered_question_ids', [$this->q3->id]);
 
         $this->assertDatabaseHas('exam_sessions', ['id' => $this->session->id, 'finished_at' => null]);
     }

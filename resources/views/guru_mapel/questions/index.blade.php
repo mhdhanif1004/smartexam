@@ -226,13 +226,13 @@
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Status</th>
                             <th scope="col"
-                                class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                class="sticky right-0 z-10 bg-gray-50 px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:bg-gray-800 dark:text-gray-400">
                                 Aksi</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-800 dark:bg-gray-900">
                         @forelse ($questions as $question)
-                        <tr class="transition hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                        <tr class="group transition hover:bg-gray-50 dark:hover:bg-gray-800/40">
                             <td class="px-4 py-4">
                                 <input type="checkbox" value="{{ $question->id }}"
                                     :checked="selected.includes({{ $question->id }})"
@@ -318,20 +318,15 @@
                             @php
                                 $deleteConfirmText = 'Yakin ingin menghapus soal: "' . Str::limit(strip_tags($question->question_text), 60) . '"?';
                             @endphp
-                            <td class="px-6 py-4 text-right">
-                                <div class="flex items-center justify-end gap-2">
-                                    <a href="{{ route('guru_mapel.questions.edit', $question) }}" ...>...</a>
-                                    <button type="button"
-                                        @click="deleteUrl = @js(route('guru_mapel.questions.destroy', $question)); deleteDescription = @js($deleteConfirmText); $dispatch('open-modal', 'confirm-delete')"
-                                        class="rounded-md p-2 text-gray-500 transition hover:bg-rose-50 hover:text-rose-600 dark:text-gray-400 dark:hover:bg-rose-500/10 dark:hover:text-rose-400">
-                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                            stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </td>
+                            <td class="sticky right-0 z-10 bg-white px-6 py-4 text-right group-hover:bg-gray-50 dark:bg-gray-900 dark:group-hover:bg-gray-800/40">
+                                    <div class="flex items-center justify-end gap-2">
+                                        <a href="{{ route('guru_mapel.questions.edit', $question) }}"
+                                            class="rounded-md bg-indigo-50 px-3 py-2.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20 sm:py-1.5">Edit</a>
+                                        <button type="button"
+                                            @click="deleteUrl = @js(route('guru_mapel.questions.destroy', $question)); deleteDescription = @js($deleteConfirmText); $dispatch('open-modal', 'confirm-delete')"
+                                            class="rounded-md bg-rose-50 px-3 py-2.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20 sm:py-1.5">Hapus</button>
+                                    </div>
+                                </td>
                         </tr>
                         @empty
                         <tr>

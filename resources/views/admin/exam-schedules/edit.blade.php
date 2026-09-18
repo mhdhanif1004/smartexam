@@ -82,6 +82,24 @@
                         </select>
                         <x-input-error :messages="$errors->get('status')" class="mt-2" />
                     </div>
+                    <div class="sm:col-span-2">
+                        <label class="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50 {{ ($hasStarted ?? false) ? 'opacity-70' : '' }}">
+                            <input type="checkbox" name="is_random_question_order" value="1" @checked(old('is_random_question_order', $examSchedule->is_random_question_order)) {{ ($hasStarted ?? false) ? 'disabled' : '' }} class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-800">
+                            @if ($hasStarted ?? false)
+                                <input type="hidden" name="is_random_question_order" value="{{ $examSchedule->is_random_question_order ? '1' : '0' }}">
+                            @endif
+                            <span>
+                                <span class="block text-sm font-semibold text-gray-700 dark:text-gray-200">Acak urutan soal untuk peserta</span>
+                                <span class="block text-xs text-gray-500 dark:text-gray-400">
+                                    Setiap peserta mendapat urutan soal berbeda, tetap konsisten selama sesi ujian.
+                                    @if ($hasStarted ?? false)
+                                        Pengaturan ini terkunci karena sesi sudah berjalan.
+                                    @endif
+                                </span>
+                            </span>
+                        </label>
+                        <x-input-error :messages="$errors->get('is_random_question_order')" class="mt-2" />
+                    </div>
                 </div>
             </div>
 

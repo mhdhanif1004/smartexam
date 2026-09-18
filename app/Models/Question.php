@@ -99,10 +99,70 @@ class Question extends Model
     }
 
     /**
+     * Ambil representasi teks sebuah opsi. Opsi tanpa gambar disimpan
+     * sebagai string murni; opsi bergambar disimpan sebagai
+     * array{text: string, image: ?string}.
+     */
+    public function optionText(mixed $option): string
+    {
+        if (is_string($option)) {
+            return $option;
+        }
+
+        return (string) ($option['text'] ?? '');
+    }
+
+    /**
+     * Kumpulkan seluruh path gambar di dalam options (per-opsi). Mencakup
+     * single/multiple (key huruf), matching (left+right), dan true_false
+     * (key 'true'/'false'). Digunakan untuk cleanup orphan file dan
+     * duplikasi fisik saat soal di-copy.
+     *
+     * @return list<string>
+     */
+    public function optionImages(): array
+    {
+        return self::optionImagesFromOptions($this->options, $this->type);
+    }
+
+    /**
+     * Variant statis dari optionImages() untuk array options mentah (mis.
+     * payload baru yang belum di-persist). Shape sama persis dengan model.
+     *
+     * @param  array<mixed>|null  $options
+     * @return list<string>
+     */
+    public static function optionImagesFromOptions(?array $options, string $type): array
+    {
+        $images = [];
+
+        $collect = function (mixed $option) use (&$images): void {
+            if (is_array($option) && isset($option['image']) && filled($option['image'])) {
+                $images[] = (string) $option['image'];
+            }
+        };
+
+        if ($type === Question::TYPE_MATCHING) {
+            foreach (($options ?? [])['left'] ?? [] as $option) {
+                $collect($option);
+            }
+            foreach (($options ?? [])['right'] ?? [] as $option) {
+                $collect($option);
+            }
+        } else {
+            foreach (($options ?? []) as $option) {
+                $collect($option);
+            }
+        }
+
+        return array_values(array_unique($images));
+    }
+
+    /**
      * Pasangan menjodohkan dari kolom options, dalam bentuk baris-baris
      * berpasangan agar mudah dipakai ulang oleh form Edit.
      *
-     * @return array<int, array{left: string, right: string}>
+     * @return array<int, array{left: string, left_image: ?string, right: string, right_image: ?string}>
      */
     public function matchingPairs(): array
     {
@@ -111,8 +171,10 @@ class Question extends Model
 
         return collect(range(0, max($left->count(), $right->count()) - 1))
             ->map(fn (int $index) => [
-                'left' => (string) ($left[$index] ?? ''),
-                'right' => (string) ($right[$index] ?? ''),
+                'left' => $this->optionText($left[$index] ?? ''),
+                'left_image' => is_array($left[$index] ?? null) ? ($left[$index]['image'] ?? null) : null,
+                'right' => $this->optionText($right[$index] ?? ''),
+                'right_image' => is_array($right[$index] ?? null) ? ($right[$index]['image'] ?? null) : null,
             ])
             ->filter(fn (array $pair) => $pair['left'] !== '' || $pair['right'] !== '')
             ->values()

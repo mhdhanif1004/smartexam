@@ -5,6 +5,7 @@
             'subject_id' => $firstSchedule?->subject_id,
             'classroom_id' => $firstSchedule?->classroom_id,
             'class_name' => $firstSchedule?->class_name,
+            'is_random_question_order' => (bool) $firstSchedule?->is_random_question_order,
             'exam_date' => $examPeriod->exam_date->format('Y-m-d'),
             'start_time' => \Illuminate\Support\Str::substr((string) $examPeriod->start_time, 0, 5),
             'duration_minutes' => $firstSchedule?->duration_minutes,
@@ -84,6 +85,24 @@
                             <input type="hidden" name="classroom_id" value="{{ $currentScores['classroom_id'] }}">
                         @endif
                         <x-input-error :messages="$errors->get('classroom_id')" class="mt-2" />
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50 {{ $hasStarted ? 'opacity-70' : '' }}">
+                            <input type="checkbox" name="is_random_question_order" value="1" @checked(old('is_random_question_order', $currentScores['is_random_question_order'])) {{ $hasStarted ? 'disabled' : '' }} class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-800">
+                            @if ($hasStarted)
+                                <input type="hidden" name="is_random_question_order" value="{{ $currentScores['is_random_question_order'] ? '1' : '0' }}">
+                            @endif
+                            <span>
+                                <span class="block text-sm font-semibold text-gray-700 dark:text-gray-200">Acak urutan soal untuk peserta</span>
+                                <span class="block text-xs text-gray-500 dark:text-gray-400">
+                                    Setiap peserta mendapat urutan soal berbeda, tetap konsisten selama sesi ujian.
+                                    @if ($hasStarted)
+                                        Pengaturan ini terkunci karena sesi sudah berjalan.
+                                    @endif
+                                </span>
+                            </span>
+                        </label>
+                        <x-input-error :messages="$errors->get('is_random_question_order')" class="mt-2" />
                     </div>
                 </div>
 

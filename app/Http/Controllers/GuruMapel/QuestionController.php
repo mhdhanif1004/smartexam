@@ -2,16 +2,17 @@
 
 namespace App\Http\Controllers\GuruMapel;
 
+use App\Enums\ActivityAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GuruMapel\StoreGuruMapelQuestionRequest;
 use App\Http\Requests\GuruMapel\UpdateGuruMapelQuestionRequest;
 use App\Models\Classroom;
 use App\Models\ExamAnswer;
 use App\Models\GuruMapel;
-use App\Enums\ActivityAction;
 use App\Models\Question;
 use App\Models\Subject;
 use App\Services\ActivityLogger;
+use App\Services\QuestionImageOptimizer;
 use App\Services\QuestionWeightService;
 use App\Traits\BuildsQuestionPayload;
 use App\Traits\ScopesGuruMapel;
@@ -25,6 +26,10 @@ class QuestionController extends Controller
 {
     use BuildsQuestionPayload;
     use ScopesGuruMapel;
+
+    public function __construct(
+        private readonly QuestionImageOptimizer $imageOptimizer,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -83,7 +88,7 @@ class QuestionController extends Controller
         $payload['created_by_user_id'] = $request->user()->id;
 
         if ($request->hasFile('image')) {
-            $payload['image_path'] = $request->file('image')->store('question-images', 'public');
+            $payload['image_path'] = $this->imageOptimizer->optimize($request->file('image'));
         }
 
         $question = Question::create($payload);
@@ -133,17 +138,27 @@ class QuestionController extends Controller
         // memindahkan soal ke mapel lain.
         $data['subject_id'] = $question->subject_id;
 
+        $oldOptionImages = $question->optionImages();
+
         $payload = $this->questionPayload($data);
 
         if ($request->hasFile('image')) {
             $this->deleteImageFile($question->image_path);
-            $payload['image_path'] = $request->file('image')->store('question-images', 'public');
+            $payload['image_path'] = $this->imageOptimizer->optimize($request->file('image'));
         } elseif (! empty($data['remove_image'])) {
             $this->deleteImageFile($question->image_path);
             $payload['image_path'] = null;
         }
 
         $question->update($payload);
+
+        // Cleanup orphan: hapus gambar opsi lama yang tidak lagi direferensikan
+        // di options baru (termasuk saat type-change / opsi dihapus / gambar diganti).
+        $newOptionImages = Question::optionImagesFromOptions($payload['options'], $payload['type']);
+        $toDelete = array_values(array_diff($oldOptionImages, $newOptionImages));
+        if ($toDelete !== []) {
+            Storage::disk('public')->delete($toDelete);
+        }
 
         // Saat edit, cakupan kelas direkalkulasi ulang dari assignment terbaru
         // guru untuk mapel soal ini (keputusan desain).
@@ -178,7 +193,7 @@ class QuestionController extends Controller
         $snapshotId = $question->id;
         $snapshotText = Str::limit((string) $question->question_text, 60);
         $snapshotSubjectId = $question->subject_id;
-        $this->deleteImageFile($question->image_path);
+        $this->deleteQuestionMedia($question);
         $question->delete();
 
         ActivityLogger::log(
@@ -227,7 +242,7 @@ class QuestionController extends Controller
         $deletable = $questions->reject(fn ($question) => $answeredIds->contains($question->id));
 
         foreach ($deletable as $question) {
-            $this->deleteImageFile($question->image_path);
+            $this->deleteQuestionMedia($question);
             $question->delete();
         }
 
@@ -302,6 +317,23 @@ class QuestionController extends Controller
     {
         if (filled($path)) {
             Storage::disk('public')->delete($path);
+        }
+    }
+
+    /**
+     * Hapus semua media milik satu soal: gambar utama (image_path) + seluruh
+     * gambar per-opsi di options. Dipanggil saat soal dihapus.
+     */
+    private function deleteQuestionMedia(Question $question): void
+    {
+        $paths = $question->optionImages();
+
+        if (filled($question->image_path)) {
+            $paths[] = $question->image_path;
+        }
+
+        if ($paths !== []) {
+            Storage::disk('public')->delete(array_values(array_unique($paths)));
         }
     }
 }

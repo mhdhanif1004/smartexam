@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AcademicYearController;
+use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\AttendanceController as AdminAttendanceController;
 use App\Http\Controllers\Admin\CardSettingsController;
 use App\Http\Controllers\Admin\ClassroomController;
@@ -11,7 +12,6 @@ use App\Http\Controllers\Admin\ExamTypeController;
 use App\Http\Controllers\Admin\GuruMapelController;
 use App\Http\Controllers\Admin\GuruMapelImportExportController;
 use App\Http\Controllers\Admin\KepalaSekolahController;
-use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\LoginCardController;
 use App\Http\Controllers\Admin\PlainPasswordController;
 use App\Http\Controllers\Admin\QuestionController;

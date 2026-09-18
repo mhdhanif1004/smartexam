@@ -40,12 +40,14 @@ class ExamSchedule extends Model
         'end_time',
         'duration_minutes',
         'status',
+        'is_random_question_order',
     ];
 
     protected function casts(): array
     {
         return [
             'exam_date' => 'date',
+            'is_random_question_order' => 'boolean',
         ];
     }
 

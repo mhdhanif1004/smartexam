@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSupervisorRequest;
 use App\Http\Requests\Admin\UpdateSupervisorRequest;
-use App\Enums\ActivityAction;
 use App\Models\Room;
 use App\Models\Supervisor;
 use App\Models\User;

@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Classroom;
+use App\Models\ExamPeriod;
 use App\Models\ExamSchedule;
+use App\Models\ExamSession;
 use App\Models\ExamType;
 use App\Models\GuruMapel;
 use App\Models\Subject;
@@ -109,6 +111,79 @@ class GuruMapelExamScheduleTest extends TestCase
 
         $response->assertForbidden();
         $this->assertDatabaseCount('exam_periods', 0);
+    }
+
+    public function test_guru_create_saves_random_question_order_toggle(): void
+    {
+        $this->actingAs($this->guru->user)
+            ->post(route('guru_mapel.exam-schedules.store'), $this->storePayload([
+                'is_random_question_order' => '1',
+            ]))
+            ->assertRedirect()->assertSessionHas('success');
+
+        $this->assertDatabaseHas('exam_schedules', [
+            'classroom_id' => $this->classroom->id,
+            'is_random_question_order' => true,
+        ]);
+    }
+
+    public function test_guru_cannot_change_random_question_order_after_session_started(): void
+    {
+        $this->actingAs($this->guru->user)
+            ->post(route('guru_mapel.exam-schedules.store'), $this->storePayload())
+            ->assertRedirect();
+
+        $period = ExamPeriod::query()->first();
+        $schedule = $period->schedules()->first();
+
+        ExamSession::factory()->create([
+            'exam_schedule_id' => $schedule->id,
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($this->guru->user)
+            ->put(route('guru_mapel.exam-schedules.update', $period), $this->storePayload([
+                'is_random_question_order' => '1',
+            ]))
+            ->assertSessionHasErrors('exam_type_id');
+
+        $this->assertFalse((bool) $schedule->fresh()->is_random_question_order);
+    }
+
+    public function test_guru_toggle_random_order_only_does_not_require_attendance_reset(): void
+    {
+        $this->actingAs($this->guru->user)
+            ->post(route('guru_mapel.exam-schedules.store'), $this->storePayload(['is_random_question_order' => '0']))
+            ->assertRedirect();
+
+        $period = ExamPeriod::query()->first();
+        $schedule = $period->schedules()->first();
+
+        // Absensi sudah dikonfirmasi, sesi belum dimulai.
+        ExamSession::factory()->create([
+            'exam_schedule_id' => $schedule->id,
+            'status' => ExamSession::STATUS_NOT_STARTED,
+            'started_at' => null,
+            'attendance_confirmed' => true,
+            'attendance_status' => ExamSession::ATTENDANCE_PRESENT,
+        ]);
+
+        // Hanya toggle acak urutan yang berubah — TANPA confirm_attendance_reset.
+        $this->actingAs($this->guru->user)
+            ->put(route('guru_mapel.exam-schedules.update', $period), $this->storePayload([
+                'is_random_question_order' => '1',
+            ]))
+            ->assertRedirect()->assertSessionHas('success');
+
+        $this->assertTrue((bool) $schedule->fresh()->is_random_question_order);
+
+        // Absensi yang sudah dikonfirmasi TIDAK ikut direset.
+        $this->assertDatabaseHas('exam_sessions', [
+            'exam_schedule_id' => $schedule->id,
+            'started_at' => null,
+            'attendance_confirmed' => true,
+            'attendance_status' => ExamSession::ATTENDANCE_PRESENT,
+        ]);
     }
 
     public function test_conflicting_time_for_same_classroom_rejected(): void

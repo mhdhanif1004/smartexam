@@ -82,4 +82,39 @@ class QuestionFactory extends Factory
             ->mapWithKeys(fn (string $key) => [$key => fake()->sentence(3)])
             ->all();
     }
+
+    /**
+     * State: satu opsi tertentu bergambar (objek {text, image}) sementara
+     * opsi lain tetap string murni — skenario mixed-shape realistis.
+     * Hanya berlaku unuk tipe choice/matching/true_false.
+     *
+     * @param  string  $key  huruf (A-E), index (matching: "0","1"), atau "true"/"false"
+     */
+    public function withOptionImage(string $key, string $imagePath = 'question-images/fixture.webp'): static
+    {
+        return $this->state(function (array $attributes) use ($key, $imagePath) {
+            $options = $attributes['options'] ?? [];
+            $type = $attributes['type'] ?? null;
+
+            if ($type === Question::TYPE_MATCHING) {
+                $side = str_starts_with($key, 'l') ? 'left' : 'right';
+                $index = (int) substr($key, 1);
+                $sideItems = $options[$side] ?? [];
+                $options[$side][$index] = [
+                    'text' => (string) ($sideItems[$index] ?? ''),
+                    'image' => $imagePath,
+                ];
+            } elseif ($type === Question::TYPE_TRUE_FALSE) {
+                $label = $key === 'true' ? 'Benar' : 'Salah';
+                $options[$key] = ['text' => $label, 'image' => $imagePath];
+            } else {
+                $options[$key] = [
+                    'text' => (string) ($options[$key] ?? ''),
+                    'image' => $imagePath,
+                ];
+            }
+
+            return ['options' => $options];
+        });
+    }
 }

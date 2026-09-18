@@ -85,6 +85,7 @@ class ExamScheduleController extends Controller
             'exam_date' => ['required', 'date'],
             'start_time' => ['required', 'date_format:H:i'],
             'duration_minutes' => ['required', 'integer', 'min:5', 'max:600'],
+            'is_random_question_order' => ['nullable', 'boolean'],
         ]);
 
         // Server-side gate (bukan cuma UI hide): guru hanya boleh kombinasi
@@ -127,7 +128,7 @@ class ExamScheduleController extends Controller
 
         $gradeLevel = ExamPeriod::extractGradeLevel($classroom->name);
 
-        DB::transaction(function () use ($validated, $classroom, $subject, $end, $start, $gradeLevel) {
+        DB::transaction(function () use ($request, $validated, $classroom, $subject, $end, $start, $gradeLevel) {
             $period = ExamPeriod::create([
                 'name' => $subject->name.' — '.$classroom->name,
                 'name_prefix' => $subject->name.' — '.$classroom->name,
@@ -150,6 +151,7 @@ class ExamScheduleController extends Controller
                 'end_time' => $end->format('H:i:s'),
                 'duration_minutes' => (int) $validated['duration_minutes'],
                 'status' => ExamSchedule::STATUS_SCHEDULED,
+                'is_random_question_order' => $request->boolean('is_random_question_order'),
             ]);
         });
 
@@ -191,19 +193,25 @@ class ExamScheduleController extends Controller
             'exam_date' => ['required', 'date'],
             'start_time' => ['required', 'date_format:H:i'],
             'duration_minutes' => ['required', 'integer', 'min:5', 'max:600'],
+            'is_random_question_order' => ['nullable', 'boolean'],
             'confirm_attendance_reset' => ['nullable', 'boolean'],
         ]);
 
         // SERVER-SIDE GATES — tidak bergantung form (paksa via request pun tetap ke-reject).
 
         // 1) Field struktural terkunci kalau sesi sudah pernah dimulai siswa.
-        $structuralChanged = (int) $validated['exam_type_id'] !== (int) $examPeriod->exam_type_id
-            || (int) $validated['subject_id'] !== (int) $examPeriod->schedules()->first()?->subject_id
-            || (int) $validated['classroom_id'] !== (int) $examPeriod->schedules()->first()?->classroom_id;
+        $currentSchedule = $examPeriod->schedules()->first();
 
-        if ($hasStarted && $structuralChanged) {
+        $randomOrderChanged = $request->boolean('is_random_question_order')
+            !== (bool) $currentSchedule?->is_random_question_order;
+
+        $structuralChanged = (int) $validated['exam_type_id'] !== (int) $examPeriod->exam_type_id
+            || (int) $validated['subject_id'] !== (int) $currentSchedule?->subject_id
+            || (int) $validated['classroom_id'] !== (int) $currentSchedule?->classroom_id;
+
+        if ($hasStarted && ($structuralChanged || $randomOrderChanged)) {
             return back()->withInput()->withErrors([
-                'exam_type_id' => 'Sesi ujian sudah dimulai siswa. Jenis ujian, mapel, dan kelas tidak bisa diubah lagi.',
+                'exam_type_id' => 'Sesi ujian sudah dimulai siswa. Jenis ujian, mapel, kelas, dan pengaturan urutan soal tidak bisa diubah lagi.',
             ]);
         }
 
@@ -255,7 +263,7 @@ class ExamScheduleController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($examPeriod, $schedule, $validated, $classroom, $subject, $end, $start, $hasConfirmedAttendance, $structuralChanged) {
+        DB::transaction(function () use ($request, $examPeriod, $schedule, $validated, $classroom, $subject, $end, $start, $hasConfirmedAttendance, $structuralChanged) {
             $examPeriod->update([
                 'name' => $subject->name.' — '.$classroom->name,
                 'name_prefix' => $subject->name.' — '.$classroom->name,
@@ -274,6 +282,7 @@ class ExamScheduleController extends Controller
                 'start_time' => $start->format('H:i:s'),
                 'end_time' => $end->format('H:i:s'),
                 'duration_minutes' => (int) $validated['duration_minutes'],
+                'is_random_question_order' => $request->boolean('is_random_question_order'),
             ]);
 
             // Reset absensi terkait bila struktur berubah setelah ada konfirmasi
