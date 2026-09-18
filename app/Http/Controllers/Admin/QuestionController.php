@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\StoreQuestionRequest;
 use App\Http\Requests\Admin\UpdateQuestionRequest;
 use App\Models\Classroom;
 use App\Models\ExamAnswer;
+use App\Models\ExamType;
 use App\Models\GuruMapel;
 use App\Models\Question;
 use App\Models\Subject;
@@ -69,6 +70,8 @@ class QuestionController extends Controller
 
         $classrooms = Classroom::query()->orderBy('name')->get();
 
+        $examTypeNames = ExamType::query()->pluck('name', 'id')->all();
+
         // Distinct kelas target per subject (1 query, tanpa N+1).
         $subjectClassrooms = DB::table('question_classroom')
             ->join('questions', 'questions.id', '=', 'question_classroom.question_id')
@@ -98,9 +101,9 @@ class QuestionController extends Controller
         if ($hasFilter) {
             foreach ($subjects as $subject) {
                 $questions = $this->questionsForSubject($request, $subject->id);
-                $grouped = $this->groupQuestionsByClassroom($questions);
+                $hierarchy = $this->groupQuestionsForHierarchy($questions, $examTypeNames);
                 $preloadedGroupHtml[$subject->id] = view('admin.questions.partials.question-groups', [
-                    'groups' => $grouped,
+                    'groups' => $hierarchy,
                     'subject' => $subject,
                     'search' => (string) $request->string('search')->trim(),
                     'weightChecks' => $weightChecks,
@@ -122,6 +125,7 @@ class QuestionController extends Controller
             'subjectClassrooms',
             'weightChecks',
             'classroomIdToName',
+            'examTypeNames',
         ));
     }
 
@@ -131,7 +135,8 @@ class QuestionController extends Controller
     public function bySubject(Request $request, Subject $subject): JsonResponse
     {
         $questions = $this->questionsForSubject($request, $subject->id);
-        $grouped = $this->groupQuestionsByClassroom($questions);
+        $examTypeNames = ExamType::query()->pluck('name', 'id')->all();
+        $hierarchy = $this->groupQuestionsForHierarchy($questions, $examTypeNames);
 
         $weightService = new QuestionWeightService;
         $weightChecks = [];
@@ -141,7 +146,7 @@ class QuestionController extends Controller
         $classroomIdToName = Classroom::query()->pluck('name', 'id')->all();
 
         $html = view('admin.questions.partials.question-groups', [
-            'groups' => $grouped,
+            'groups' => $hierarchy,
             'subject' => $subject,
             'search' => (string) $request->string('search')->trim(),
             'weightChecks' => [$subject->id => $weightChecks],
@@ -181,10 +186,88 @@ class QuestionController extends Controller
      */
     private function questionsForSubject(Request $request, int $subjectId): Collection
     {
-        $query = Question::query()->with('subject', 'classrooms')->where('subject_id', $subjectId);
+        $query = Question::query()
+            ->with('subject', 'classrooms', 'guruMapel.user')
+            ->where('subject_id', $subjectId);
         $this->applyContentFilters($request, $query);
 
         return $query->orderByDesc('id')->get();
+    }
+
+    /**
+     * Kelompokkan soal untuk hierarki Bank Soal 5 level:
+     * Guru pemilik (teacher_guru_mapel_id) → Jenis Ujian (exam_type_id) →
+     * Kelas target (question_classroom) → Soal.
+     *
+     * Soal tanpa owner masuk bucket "Belum Ada Guru"; soal tanpa exam_type
+     * masuk bucket "Belum Ditentukan" di dalam gurunya. Kepemilikan & jenis
+     * HANYA label organisasi — tidak memengaruhi targeting kelas (pivot
+     * question_classroom tetap sumber kebenaran saat ujian).
+     *
+     * @param  Collection<int, Question>  $questions
+     * @param  array<int, string>  $examTypeNames
+     * @return array<int, array{guru_id: ?int, guru_name: string, types: array<int, array{exam_type_id: ?int, type_name: string, count: int, classrooms: array}>}>
+     */
+    private function groupQuestionsForHierarchy(Collection $questions, array $examTypeNames): array
+    {
+        $hierarchy = [];
+
+        $groupedByGuru = $questions->groupBy(fn (Question $q) => $q->teacher_guru_mapel_id ?? 'unguarded');
+
+        // Guru ber-owner dulu, bucket tanpa guru paling akhir.
+        $guruKeys = $groupedByGuru->keys()->sort(function (mixed $a, mixed $b) {
+            $aLast = $a === 'unguarded';
+            $bLast = $b === 'unguarded';
+
+            return $aLast === $bLast ? (is_int($a) && is_int($b) ? $a <=> $b : 0) : ($aLast ? 1 : -1);
+        })->values();
+
+        foreach ($guruKeys as $guruKey) {
+            $guruQuestions = $groupedByGuru[$guruKey];
+            $guru = $guruQuestions->first()->guruMapel;
+            $guruName = $guruKey === 'unguarded'
+                ? 'Belum Ada Guru'
+                : ($guru?->user?->name ?? "Guru #{$guruKey}");
+
+            $types = [];
+            $groupedByType = $guruQuestions->groupBy(fn (Question $q) => $q->exam_type_id ?? 'undefined');
+
+            // Jenis terurut alfabetis nama; bucket "undefined" (belum ditentukan) terakhir.
+            $typeKeys = $groupedByType->keys()->sort(function (mixed $a, mixed $b) use ($examTypeNames) {
+                $aLast = $a === 'undefined';
+                $bLast = $b === 'undefined';
+
+                if ($aLast !== $bLast) {
+                    return $aLast ? 1 : -1;
+                }
+
+                $nameA = strtolower($examTypeNames[$a] ?? "#{$a}");
+                $nameB = strtolower($examTypeNames[$b] ?? "#{$b}");
+
+                return $nameA <=> $nameB;
+            })->values();
+
+            foreach ($typeKeys as $typeKey) {
+                $typeQuestions = $groupedByType[$typeKey];
+
+                $types[] = [
+                    'exam_type_id' => $typeKey === 'undefined' ? null : (int) $typeKey,
+                    'type_name' => $typeKey === 'undefined'
+                        ? 'Belum Ditentukan'
+                        : ($examTypeNames[$typeKey] ?? "Jenis #{$typeKey}"),
+                    'count' => $typeQuestions->count(),
+                    'classrooms' => $this->groupQuestionsByClassroom($typeQuestions),
+                ];
+            }
+
+            $hierarchy[] = [
+                'guru_id' => $guruKey === 'unguarded' ? null : (int) $guruKey,
+                'guru_name' => $guruName,
+                'types' => $types,
+            ];
+        }
+
+        return $hierarchy;
     }
 
     /**
@@ -219,10 +302,11 @@ class QuestionController extends Controller
         $types = Question::TYPES;
         $letters = Question::OPTION_LETTERS;
         $classrooms = Classroom::query()->orderBy('name')->get();
+        $examTypes = ExamType::query()->orderBy('sort_order')->get();
         [$gurus, $guruClassroomsBySubject] = $this->guruScopeData();
 
         return view('admin.questions.create', compact(
-            'subjects', 'types', 'letters', 'classrooms', 'gurus', 'guruClassroomsBySubject'
+            'subjects', 'types', 'letters', 'classrooms', 'examTypes', 'gurus', 'guruClassroomsBySubject'
         ));
     }
 
@@ -230,9 +314,7 @@ class QuestionController extends Controller
     {
         $payload = $this->questionPayload($request->validated());
 
-        if ($request->filled('creator_user_id')) {
-            $payload['created_by_user_id'] = (int) $request->input('creator_user_id');
-        }
+        [$payload['teacher_guru_mapel_id'], $payload['exam_type_id'], $payload['created_by_user_id']] = $this->ownerPayload($request);
 
         if ($request->hasFile('image')) {
             $payload['image_path'] = $this->imageOptimizer->optimize($request->file('image'));
@@ -246,7 +328,7 @@ class QuestionController extends Controller
             action: ActivityAction::TAMBAH_SOAL,
             subject: $question,
             description: 'Menambahkan soal baru: '.Str::limit((string) $question->question_text, 60),
-            properties: ['question_id' => $question->id, 'subject_id' => $question->subject_id, 'type' => $question->type, 'score_weight' => $question->score_weight, 'classroom_ids' => $classroomIds],
+            properties: ['question_id' => $question->id, 'subject_id' => $question->subject_id, 'type' => $question->type, 'score_weight' => $question->score_weight, 'classroom_ids' => $classroomIds, 'teacher_guru_mapel_id' => $question->teacher_guru_mapel_id, 'exam_type_id' => $question->exam_type_id],
         );
 
         $warning = $this->weightWarningForPairs((int) $question->subject_id, $classroomIds);
@@ -264,10 +346,11 @@ class QuestionController extends Controller
         $types = Question::TYPES;
         $letters = Question::OPTION_LETTERS;
         $classrooms = Classroom::query()->orderBy('name')->get();
+        $examTypes = ExamType::query()->orderBy('sort_order')->get();
         [$gurus, $guruClassroomsBySubject] = $this->guruScopeData();
 
         return view('admin.questions.edit', compact(
-            'question', 'subjects', 'types', 'letters', 'classrooms', 'gurus', 'guruClassroomsBySubject'
+            'question', 'subjects', 'types', 'letters', 'classrooms', 'examTypes', 'gurus', 'guruClassroomsBySubject'
         ));
     }
 
@@ -281,9 +364,7 @@ class QuestionController extends Controller
 
         $payload = $this->questionPayload($data);
 
-        $payload['created_by_user_id'] = $request->filled('creator_user_id')
-            ? (int) $request->input('creator_user_id')
-            : null;
+        [$payload['teacher_guru_mapel_id'], $payload['exam_type_id'], $payload['created_by_user_id']] = $this->ownerPayload($request);
 
         if ($request->hasFile('image')) {
             $this->deleteImageFile($question->image_path);
@@ -361,6 +442,37 @@ class QuestionController extends Controller
         }
 
         return [$gurus, $guruClassroomsBySubject];
+    }
+
+    /**
+     * Bangun nilai kepemilikan + jenis ujian dari request admin:
+     *  - teacher_guru_mapel_id: pemilik Bank Soal (nullable).
+     *  - exam_type_id: kategori jenis ujian (nullable).
+     *  - created_by_user_id: disinkronkan dari guru pemilik bila pemilik
+     *    dipilih dan field legacy "atas nama guru" tidak diisi, agar soal
+     *    tetap muncul di halaman "Soal" guru tersebut (scopeOwnedBy).
+     *
+     * @return array{0: ?int, 1: ?int, 2: ?int}
+     */
+    private function ownerPayload(Request $request): array
+    {
+        $teacherGuruMapelId = $request->filled('teacher_guru_mapel_id')
+            ? (int) $request->input('teacher_guru_mapel_id')
+            : null;
+
+        $createdByUserId = $request->filled('creator_user_id')
+            ? (int) $request->input('creator_user_id')
+            : null;
+
+        if ($teacherGuruMapelId !== null && $createdByUserId === null) {
+            $createdByUserId = GuruMapel::query()->find($teacherGuruMapelId)?->user_id;
+        }
+
+        return [
+            $teacherGuruMapelId,
+            $request->filled('exam_type_id') ? (int) $request->input('exam_type_id') : null,
+            $createdByUserId,
+        ];
     }
 
     public function destroy(Question $question): RedirectResponse

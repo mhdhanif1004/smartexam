@@ -28,6 +28,8 @@ class UpdateQuestionRequest extends FormRequest
 
         return [
             'subject_id' => ['required', 'integer', Rule::exists('subjects', 'id')],
+            'teacher_guru_mapel_id' => ['nullable', 'integer', Rule::exists('guru_mapels', 'id')],
+            'exam_type_id' => ['nullable', 'integer', Rule::exists('exam_types', 'id')],
             'creator_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
             'type' => ['required', Rule::in(array_keys(Question::TYPES))],
             'question_text' => ['required', 'string'],

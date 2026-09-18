@@ -151,7 +151,7 @@
                                             <input type="radio" :name="'q' + q.id" :value="letter" @change="selectValue(q, letter)" :checked="answerFor(q) === letter" class="mt-0.5 h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
                                             <span class="flex flex-col gap-1">
                                                 <span class="text-sm text-gray-800 dark:text-gray-200" x-text="letter + '. ' + optionText(option)"></span>
-                                                <img x-show="optionImage(option)" :src="'/storage/' + optionImage(option)" class="mt-1 max-h-48 w-48 rounded-lg border border-gray-200 object-contain" loading="lazy" alt="Gambar opsi">
+                                                <img x-show="optionImage(option)" :src="'/storage/' + optionImage(option)" class="mt-1 max-h-48 w-48 cursor-zoom-in rounded-lg border border-gray-200 object-contain" loading="lazy" alt="Gambar opsi" title="Perbesar gambar" @click="zoomImage = $event.currentTarget.src">
                                             </span>
                                         </label>
                                     </template>
@@ -164,7 +164,7 @@
                                             <input type="checkbox" :value="letter" @change="toggleOption(q, letter)" :checked="(answerFor(q) || []).includes(letter)" class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
                                             <span class="flex flex-col gap-1">
                                                 <span class="text-sm text-gray-800 dark:text-gray-200" x-text="letter + '. ' + optionText(option)"></span>
-                                                <img x-show="optionImage(option)" :src="'/storage/' + optionImage(option)" class="mt-1 max-h-48 w-48 rounded-lg border border-gray-200 object-contain" loading="lazy" alt="Gambar opsi">
+                                                <img x-show="optionImage(option)" :src="'/storage/' + optionImage(option)" class="mt-1 max-h-48 w-48 cursor-zoom-in rounded-lg border border-gray-200 object-contain" loading="lazy" alt="Gambar opsi" title="Perbesar gambar" @click="zoomImage = $event.currentTarget.src">
                                             </span>
                                         </label>
                                     </template>
@@ -176,7 +176,7 @@
                                             <input type="radio" :name="'q' + q.id" :value="option" @change="selectValue(q, option)" :checked="answerFor(q) === (option === 'true')" class="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800">
                                             <span class="flex flex-col gap-1">
                                                 <span class="text-sm font-medium text-gray-800 dark:text-gray-200" x-text="option === 'true' ? optionText(q.options?.['true'] ?? 'Benar') : optionText(q.options?.['false'] ?? 'Salah')"></span>
-                                                <img x-show="option === 'true' ? optionImage(q.options?.['true']) : optionImage(q.options?.['false'])" :src="'/storage/' + (option === 'true' ? optionImage(q.options?.['true']) : optionImage(q.options?.['false']))" class="mt-1 max-h-48 w-48 rounded-lg border border-gray-200 object-contain" loading="lazy" alt="Gambar opsi">
+                                                <img x-show="option === 'true' ? optionImage(q.options?.['true']) : optionImage(q.options?.['false'])" :src="'/storage/' + (option === 'true' ? optionImage(q.options?.['true']) : optionImage(q.options?.['false']))" class="mt-1 max-h-48 w-48 cursor-zoom-in rounded-lg border border-gray-200 object-contain" loading="lazy" alt="Gambar opsi" title="Perbesar gambar" @click="zoomImage = $event.currentTarget.src">
                                             </span>
                                         </label>
                                     </template>
@@ -190,7 +190,7 @@
                                                 <span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-700 dark:bg-gray-700/60 dark:text-gray-300" x-text="letter(index)"></span>
                                                 <span class="flex flex-col gap-1">
                                                     <span class="text-sm text-gray-800 dark:text-gray-200" x-text="optionText(option)"></span>
-                                                    <img x-show="optionImage(option)" :src="'/storage/' + optionImage(option)" class="mt-1 max-h-48 w-48 rounded-lg border border-gray-200 object-contain" loading="lazy" alt="Gambar opsi kiri">
+                                                    <img x-show="optionImage(option)" :src="'/storage/' + optionImage(option)" class="mt-1 max-h-48 w-48 cursor-zoom-in rounded-lg border border-gray-200 object-contain" loading="lazy" alt="Gambar opsi kiri" title="Perbesar gambar" @click="zoomImage = $event.currentTarget.src">
                                                 </span>
                                             </div>
                                             <select @change="setMatching(q, letter(index), $event.target.value)" :value="(answerFor(q) || {})[letter(index)] || ''" class="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">

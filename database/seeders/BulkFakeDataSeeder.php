@@ -44,13 +44,13 @@ class BulkFakeDataSeeder extends Seeder
                 'email' => null,
                 'username' => $this->uniqueUsername($usedUsernames),
                 'password' => $sharedHash,
-                'plain_password' => 'password',
                 'role' => User::ROLE_PESERTA,
                 'is_active' => true,
                 'email_verified_at' => $now,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
+            $user->forceFill(['plain_password' => 'password'])->save();
 
             Student::create([
                 'user_id' => $user->id,
@@ -69,13 +69,13 @@ class BulkFakeDataSeeder extends Seeder
                 'email' => $this->uniqueEmail($usedEmails, $faker),
                 'username' => null,
                 'password' => $sharedHash,
-                'plain_password' => 'password',
                 'role' => User::ROLE_PENGAWAS,
                 'is_active' => true,
                 'email_verified_at' => $now,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
+            $user->forceFill(['plain_password' => 'password'])->save();
 
             Supervisor::create([
                 'user_id' => $user->id,

@@ -51,6 +51,7 @@ class RootRedirectTest extends TestCase
         $login = $this->post('/login', [
             'email' => $admin->email,
             'password' => 'password',
+            'remember' => true,
         ]);
 
         $recaller = collect($login->headers->getCookies())->first(

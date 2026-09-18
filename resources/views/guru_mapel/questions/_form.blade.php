@@ -63,6 +63,17 @@
                 <x-input-error :messages="$errors->get('type')" class="mt-2" />
             </div>
             <div class="sm:col-span-2">
+                <x-input-label for="exam_type_id" :value="__('Jenis Ujian (opsional)')" />
+                <select id="exam_type_id" name="exam_type_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                    <option value="">-- Belum Ditentukan --</option>
+                    @foreach ($examTypes as $examType)
+                        <option value="{{ $examType->id }}" @selected(old('exam_type_id', $question?->exam_type_id) == $examType->id)>{{ $examType->name }}</option>
+                    @endforeach
+                </select>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Label kategori soal (Harian/UTS/UAS). Tidak memengaruhi bobot atau penjadwalan ujian.</p>
+                <x-input-error :messages="$errors->get('exam_type_id')" class="mt-2" />
+            </div>
+            <div class="sm:col-span-2">
                 <x-input-label for="question_text" :value="__('Pertanyaan')" />
                 <textarea id="question_text" name="question_text" rows="3" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" placeholder="Tulis pertanyaan...">{{ old('question_text', $question?->question_text) }}</textarea>
                 <x-input-error :messages="$errors->get('question_text')" class="mt-2" />
@@ -100,8 +111,8 @@
                 </label>
             </div>
             <div class="flex-1">
-                <img x-show="img.hasExisting && !img.preview" :src="img.existingUrl" class="max-h-48 w-full rounded-lg border border-gray-200 object-contain dark:border-gray-700" alt="Gambar saat ini" />
-                <img x-show="img.preview" :src="img.preview" class="max-h-48 w-full rounded-lg border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau gambar baru" />
+                <img x-show="img.hasExisting && !img.preview" :src="img.existingUrl" class="max-h-48 w-full cursor-zoom-in rounded-lg border border-gray-200 object-contain dark:border-gray-700" alt="Gambar saat ini" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)" />
+                <img x-show="img.preview" :src="img.preview" class="max-h-48 w-full cursor-zoom-in rounded-lg border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau gambar baru" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)" />
             </div>
         </div>
     </div>
@@ -123,13 +134,13 @@
                         <input type="hidden" name="existing_single_options_image[{{ $letter }}]" value="{{ $existingOptionImages[$letter]['path'] ?? '' }}">
                         <span class="text-xs text-gray-400 dark:text-gray-500">Gambar opsi</span>
                         @if (($existingOptionImages[$letter]['has'] ?? false))
-                            <img src="{{ $existingOptionImages[$letter]['url'] }}" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Opsi {{ $letter }} saat ini">
+                            <img src="{{ $existingOptionImages[$letter]['url'] }}" class="h-12 w-12 cursor-zoom-in rounded border border-gray-200 object-contain dark:border-gray-700" alt="Opsi {{ $letter }} saat ini" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)">
                             <label class="flex items-center gap-1 text-xs font-medium text-rose-700 dark:text-rose-300">
                                 <input type="checkbox" name="remove_single_options_image[{{ $letter }}]" value="1" class="h-3.5 w-3.5 rounded border-gray-300 text-rose-600 focus:ring-rose-500 dark:border-gray-600 dark:bg-gray-800">
                                 Hapus
                             </label>
                         @endif
-                        <img x-show="opt['single_{{ $letter }}']" :src="opt['single_{{ $letter }}']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau opsi {{ $letter }}" />
+                        <img x-show="opt['single_{{ $letter }}']" :src="opt['single_{{ $letter }}']" class="h-12 w-12 cursor-zoom-in rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau opsi {{ $letter }}" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)" />
                     </div>
                 @endforeach
             </div>
@@ -155,13 +166,13 @@
                         <input type="hidden" name="existing_multiple_options_image[{{ $letter }}]" value="{{ $existingOptionImages[$letter]['path'] ?? '' }}">
                         <span class="text-xs text-gray-400 dark:text-gray-500">Gambar opsi</span>
                         @if (($existingOptionImages[$letter]['has'] ?? false))
-                            <img src="{{ $existingOptionImages[$letter]['url'] }}" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Opsi {{ $letter }} saat ini">
+                            <img src="{{ $existingOptionImages[$letter]['url'] }}" class="h-12 w-12 cursor-zoom-in rounded border border-gray-200 object-contain dark:border-gray-700" alt="Opsi {{ $letter }} saat ini" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)">
                             <label class="flex items-center gap-1 text-xs font-medium text-rose-700 dark:text-rose-300">
                                 <input type="checkbox" name="remove_multiple_options_image[{{ $letter }}]" value="1" class="h-3.5 w-3.5 rounded border-gray-300 text-rose-600 focus:ring-rose-500 dark:border-gray-600 dark:bg-gray-800">
                                 Hapus
                             </label>
                         @endif
-                        <img x-show="opt['multi_{{ $letter }}']" :src="opt['multi_{{ $letter }}']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau opsi {{ $letter }}" />
+                        <img x-show="opt['multi_{{ $letter }}']" :src="opt['multi_{{ $letter }}']" class="h-12 w-12 cursor-zoom-in rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau opsi {{ $letter }}" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)" />
                     </div>
                 @endforeach
             </div>
@@ -193,26 +204,26 @@
                     <input type="hidden" name="existing_true_false_image[true]" value="{{ $tfTrue['path'] }}">
                     <span class="text-xs text-gray-400 dark:text-gray-500">Gambar "Benar"</span>
                     @if ($tfTrue['has'])
-                        <img src="{{ $tfTrue['url'] }}" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Gambar Benar saat ini">
+                        <img src="{{ $tfTrue['url'] }}" class="h-12 w-12 cursor-zoom-in rounded border border-gray-200 object-contain dark:border-gray-700" alt="Gambar Benar saat ini" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)">
                         <label class="flex items-center gap-1 text-xs font-medium text-rose-700 dark:text-rose-300">
                             <input type="checkbox" name="remove_true_false_image[true]" value="1" class="h-3.5 w-3.5 rounded border-gray-300 text-rose-600 focus:ring-rose-500 dark:border-gray-600 dark:bg-gray-800">
                             Hapus
                         </label>
                     @endif
-                    <img x-show="opt['tf_true']" :src="opt['tf_true']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau Benar" />
+                    <img x-show="opt['tf_true']" :src="opt['tf_true']" class="h-12 w-12 cursor-zoom-in rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau Benar" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)" />
                 </div>
                 <div class="flex items-center gap-3">
                     <input type="file" name="true_false_image[false]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'tf_false')" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20">
                     <input type="hidden" name="existing_true_false_image[false]" value="{{ $tfFalse['path'] }}">
                     <span class="text-xs text-gray-400 dark:text-gray-500">Gambar "Salah"</span>
                     @if ($tfFalse['has'])
-                        <img src="{{ $tfFalse['url'] }}" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Gambar Salah saat ini">
+                        <img src="{{ $tfFalse['url'] }}" class="h-12 w-12 cursor-zoom-in rounded border border-gray-200 object-contain dark:border-gray-700" alt="Gambar Salah saat ini" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)">
                         <label class="flex items-center gap-1 text-xs font-medium text-rose-700 dark:text-rose-300">
                             <input type="checkbox" name="remove_true_false_image[false]" value="1" class="h-3.5 w-3.5 rounded border-gray-300 text-rose-600 focus:ring-rose-500 dark:border-gray-600 dark:bg-gray-800">
                             Hapus
                         </label>
                     @endif
-                    <img x-show="opt['tf_false']" :src="opt['tf_false']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau Salah" />
+                    <img x-show="opt['tf_false']" :src="opt['tf_false']" class="h-12 w-12 cursor-zoom-in rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau Salah" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)" />
                 </div>
             </div>
             <x-input-error :messages="$errors->get('true_false_answer')" class="mt-2" />
@@ -239,8 +250,8 @@
                         <x-text-input type="text" name="matching_right[]" x-model="pair.right" class="block w-full" placeholder="Kolom kanan" />
                         <input type="file" name="matching_right_image[]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'mr_'+index)" class="w-32 text-xs text-gray-500 file:mr-2 file:rounded-md file:border-0 file:bg-indigo-50 file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10" />
                         <input type="hidden" :name="'existing_matching_right_image['+index+']'" :value="pair.right_image || ''" />
-                        <img x-show="pair.left_image && !opt['ml_'+index]" :src="'/storage/'+pair.left_image" class="h-8 w-8 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Kiri">
-                        <img x-show="pair.right_image && !opt['mr_'+index]" :src="'/storage/'+pair.right_image" class="h-8 w-8 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Kanan">
+                        <img x-show="pair.left_image && !opt['ml_'+index]" :src="'/storage/'+pair.left_image" class="h-8 w-8 cursor-zoom-in rounded border border-gray-200 object-contain dark:border-gray-700" alt="Kiri" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)">
+                        <img x-show="pair.right_image && !opt['mr_'+index]" :src="'/storage/'+pair.right_image" class="h-8 w-8 cursor-zoom-in rounded border border-gray-200 object-contain dark:border-gray-700" alt="Kanan" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)">
                         <button type="button" @click="pairs.splice(index, 1)" class="rounded-md p-2 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600 dark:text-gray-500 dark:hover:bg-rose-500/20 dark:hover:text-rose-400">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -277,3 +288,5 @@
         <x-primary-button>{{ $submitLabel ?? 'Simpan' }}</x-primary-button>
     </div>
 </form>
+
+<x-image-lightbox />

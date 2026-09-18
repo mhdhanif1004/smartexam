@@ -49,7 +49,7 @@ class AdminAdvancedTest extends TestCase
     public function test_login_card_preview_and_print_show_plain_password(): void
     {
         $student = Student::factory()->create();
-        $student->user->update(['plain_password' => 'rahasia123']);
+        $student->user->forceFill(['plain_password' => 'rahasia123'])->save();
 
         $this->actingAs($this->admin)
             ->post(route('admin.student-cards.preview'), ['student_ids' => [$student->id]])
@@ -74,7 +74,7 @@ class AdminAdvancedTest extends TestCase
     public function test_supervisor_login_card_preview_and_print_show_plain_password(): void
     {
         $supervisor = Supervisor::factory()->create();
-        $supervisor->user->update(['plain_password' => 'pengawas123']);
+        $supervisor->user->forceFill(['plain_password' => 'pengawas123'])->save();
 
         $this->actingAs($this->admin)
             ->post(route('admin.student-cards.preview'), ['type' => 'pengawas', 'supervisor_ids' => [$supervisor->id]])
@@ -92,7 +92,7 @@ class AdminAdvancedTest extends TestCase
     public function test_admin_can_fetch_plain_password_via_endpoint(): void
     {
         $student = Student::factory()->create();
-        $student->user->update(['plain_password' => 'rahasia123']);
+        $student->user->forceFill(['plain_password' => 'rahasia123'])->save();
 
         $this->actingAs($this->admin)
             ->get(route('admin.users.plain-password', $student->user))
@@ -112,7 +112,7 @@ class AdminAdvancedTest extends TestCase
     public function test_admin_can_fetch_plain_password_of_guru_mapel_via_endpoint(): void
     {
         $guru = GuruMapel::factory()->create();
-        $guru->user->update(['plain_password' => 'rahasia123']);
+        $guru->user->forceFill(['plain_password' => 'rahasia123'])->save();
 
         $this->actingAs($this->admin)
             ->get(route('admin.users.plain-password', $guru->user))

@@ -669,7 +669,7 @@
                     </div>
 
                     <div x-show="preview?.image_url" class="flex justify-center rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
-                        <img :src="preview?.image_url" :alt="'Gambar soal #' + preview?.id" class="max-h-72 w-full max-w-xl rounded-md object-contain" />
+                        <img :src="preview?.image_url" :alt="'Gambar soal #' + preview?.id" class="max-h-72 w-full max-w-xl cursor-zoom-in rounded-md object-contain" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)" />
                     </div>
 
                     <div class="space-y-2" x-show="preview?.type === 'single_choice' || preview?.type === 'multiple_choice'">
@@ -679,7 +679,7 @@
                                 <input type="checkbox" :checked="isCorrectAnswer(letter)" disabled class="h-4 w-4 rounded border-gray-300 text-indigo-600 dark:border-gray-600 dark:bg-gray-800">
                                 <span class="flex flex-col gap-1">
                                     <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="letter + '. ' + optionText(preview?.options?.[letter])"></span>
-                                    <img x-show="optionImage(preview?.options?.[letter])" :src="'/storage/' + optionImage(preview?.options?.[letter])" class="mt-1 max-h-40 w-40 rounded-lg border border-gray-200 object-contain" alt="Gambar opsi">
+                                    <img x-show="optionImage(preview?.options?.[letter])" :src="'/storage/' + optionImage(preview?.options?.[letter])" class="mt-1 max-h-40 w-40 cursor-zoom-in rounded-lg border border-gray-200 object-contain" alt="Gambar opsi" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)">
                                 </span>
                                 <span x-show="isCorrectAnswer(letter)" class="ml-auto text-xs font-semibold text-emerald-600 dark:text-emerald-400">Kunci</span>
                             </label>
@@ -693,7 +693,7 @@
                                 <input type="checkbox" :checked="Boolean(preview?.answer_key) === (value === 'true')" disabled class="h-4 w-4 rounded border-gray-300 text-indigo-600 dark:border-gray-600 dark:bg-gray-800">
                                 <span class="flex flex-col gap-1">
                                     <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="optionText(preview?.options?.[value]) || label"></span>
-                                    <img x-show="optionImage(preview?.options?.[value])" :src="'/storage/' + optionImage(preview?.options?.[value])" class="mt-1 max-h-40 w-40 rounded-lg border border-gray-200 object-contain" alt="Gambar opsi">
+                                    <img x-show="optionImage(preview?.options?.[value])" :src="'/storage/' + optionImage(preview?.options?.[value])" class="mt-1 max-h-40 w-40 cursor-zoom-in rounded-lg border border-gray-200 object-contain" alt="Gambar opsi" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)">
                                 </span>
                                 <span x-show="Boolean(preview?.answer_key) === (value === 'true')" class="ml-auto text-xs font-semibold text-emerald-600 dark:text-emerald-400">Kunci</span>
                             </label>
@@ -715,13 +715,13 @@
                                         <td class="px-4 py-2">
                                             <div class="flex flex-col gap-1">
                                                 <span class="text-sm text-gray-900 dark:text-gray-100" x-text="['A','B','C','D','E'][index] + '. ' + optionText(leftItem)"></span>
-                                                <img x-show="optionImage(leftItem)" :src="'/storage/' + optionImage(leftItem)" class="mt-1 max-h-32 w-32 rounded-lg border border-gray-200 object-contain" alt="Gambar opsi kiri">
+                                                <img x-show="optionImage(leftItem)" :src="'/storage/' + optionImage(leftItem)" class="mt-1 max-h-32 w-32 cursor-zoom-in rounded-lg border border-gray-200 object-contain" alt="Gambar opsi kiri" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)">
                                             </div>
                                         </td>
                                         <td class="px-4 py-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400" x-text="optionText((preview?.options?.right ?? [])[Number(preview?.answer_key?.[['A','B','C','D','E'][index]] ?? '1') - 1] ?? '-')"></td>
                                         <td class="px-4 py-2">
                                             <template x-for="(rightItem, rIndex) in preview?.options?.right ?? []" :key="rIndex">
-                                                <span class="flex items-start gap-2"><span class="text-xs text-gray-500 dark:text-gray-400" x-text="(rIndex + 1) + '.'"></span><span class="flex flex-col gap-1"><span class="text-sm text-gray-700 dark:text-gray-300" x-text="optionText(rightItem)"></span><img x-show="optionImage(rightItem)" :src="'/storage/' + optionImage(rightItem)" class="mt-1 max-h-24 w-24 rounded-lg border border-gray-200 object-contain" alt="Gambar opsi kanan"></span></span>
+                                                <span class="flex items-start gap-2"><span class="text-xs text-gray-500 dark:text-gray-400" x-text="(rIndex + 1) + '.'"></span><span class="flex flex-col gap-1"><span class="text-sm text-gray-700 dark:text-gray-300" x-text="optionText(rightItem)"></span><img x-show="optionImage(rightItem)" :src="'/storage/' + optionImage(rightItem)" class="mt-1 max-h-24 w-24 cursor-zoom-in rounded-lg border border-gray-200 object-contain" alt="Gambar opsi kanan" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)"></span></span>
                                             </template>
                                         </td>
                                     </tr>
@@ -1129,5 +1129,6 @@
             </div>
         </x-modal>
 
+        <x-image-lightbox />
     </div>
 </x-layouts.admin>

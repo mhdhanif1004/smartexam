@@ -59,11 +59,11 @@ class DatabaseSeeder extends Seeder
 
         Student::query()->with('user')->get()->each(function (Student $student) use ($generator) {
             $password = $generator->password();
-            $student->user->update([
+            $student->user->forceFill([
                 'username' => $generator->username(),
                 'password' => $password,
                 'plain_password' => $password,
-            ]);
+            ])->save();
         });
 
         Student::query()->with('user')->orderBy('nisn')->limit(3)->get()->each(function (Student $student) {
@@ -73,10 +73,10 @@ class DatabaseSeeder extends Seeder
         // Pengawas login memakai email (bukan username) + password acak.
         Supervisor::query()->with('user')->get()->each(function (Supervisor $supervisor) use ($generator) {
             $password = $generator->password();
-            $supervisor->user->update([
+            $supervisor->user->forceFill([
                 'password' => $password,
                 'plain_password' => $password,
-            ]);
+            ])->save();
         });
 
         Supervisor::query()->with('user')->orderBy('user_id')->limit(2)->get()->each(function (Supervisor $supervisor) {
@@ -133,10 +133,10 @@ class DatabaseSeeder extends Seeder
             ]);
 
             $password = app(CredentialGenerator::class)->password();
-            $user->update([
+            $user->forceFill([
                 'password' => $password,
                 'plain_password' => $password,
-            ]);
+            ])->save();
 
             $this->command?->info('  Contoh akun guru mapel: email='.$user->email.' password='.$user->plain_password);
         });

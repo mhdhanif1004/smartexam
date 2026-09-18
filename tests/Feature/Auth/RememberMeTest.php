@@ -18,6 +18,7 @@ class RememberMeTest extends TestCase
         $response = $this->post('/login', [
             'email' => $user->email,
             'password' => 'password',
+            'remember' => true,
         ]);
 
         $this->assertAuthenticatedAs($user);
@@ -31,8 +32,10 @@ class RememberMeTest extends TestCase
         $login = $this->post('/login', [
             'email' => $user->email,
             'password' => 'password',
+            'remember' => true,
         ]);
 
+        $this->assertAuthenticatedAs($user);
         $recaller = $this->recallerCookie($login);
         $this->assertNotNull($recaller);
 
@@ -55,8 +58,10 @@ class RememberMeTest extends TestCase
         $login = $this->post('/login', [
             'email' => $user->email,
             'password' => 'password',
+            'remember' => true,
         ]);
 
+        $this->assertAuthenticatedAs($user);
         $recaller = $this->recallerCookie($login);
         $this->assertNotNull($recaller);
 

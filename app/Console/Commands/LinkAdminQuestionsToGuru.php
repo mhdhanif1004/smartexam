@@ -8,41 +8,75 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 
 /**
- * Tautkan soal buatan admin (created_by_user_id null) ke guru mapel yang
- * mengampu mapel + SEMUA kelas target soal tersebut.
+ * Tautkan soal ke guru mapel pemilik (teacher_guru_mapel_id) berdasarkan
+ * penugasan mapel-kelas.
  *
- * Aturan keselamatan: soal HANYA di-link bila seluruh kelas targetnya
- * dipegang oleh SATU guru yang sama. Bila kelas target terpecah ke beberapa
- * guru berbeda (atau tidak ada guru yang mengampu seluruh kelas), soal
- * dibiarkan milik admin dan dicatat untuk ditinjau manual.
+ * Aturan pencocokan:
+ * - Assignment dgn classroom_id eksplisit hanya mencocokkan soal yang
+ *   menargetkan kelas itu.
+ * - Assignment yg hanya berisi mapel (classroom_id null) diperlakukan
+ *   sebagai WILDCARD: mencocokkan SEMUA soal mapel tsb, apa pun kelas
+ *   targetnya. Semantik ini khusus untuk fitur kepemilikan soal — query
+ *   lain (ampuClassroomIds, eksklusivitas kelas) tetap mengabaikan NULL.
+ * - Soal HANYA di-link bila seluruh kelas targetnya dipegang oleh SATU
+ *   guru yang sama (klaim guru berbeda pada kelas mana pun → ditinjau
+ *   manual). Soal tanpa match dibiarkan null (bucket "Belum Ada Guru").
+ *
+ * Selain match, command juga backfill teacher_guru_mapel_id dari
+ * created_by_user_id yang sudah terisi (soal legacy buatan guru), agar
+ * kolom kepemilikan baru konsisten.
  */
 class LinkAdminQuestionsToGuru extends Command
 {
     protected $signature = 'exam:link-admin-questions {--dry-run : tampilkan rencana tanpa mengubah data}';
 
-    protected $description = 'Tautkan soal buatan admin (created_by_user_id null) ke guru mapel yang mengampu seluruh kelas target soal. Idempotent: hanya memproses soal yang masih null.';
+    protected $description = 'Tautkan soal ke guru mapel pemilik (teacher_guru_mapel_id) via penugasan mapel-kelas; assignment tanpa kelas (classroom_id null) berlaku wildcard per mapel. Idempotent.';
 
     public function handle(): int
     {
         $questions = Question::query()
-            ->whereNull('created_by_user_id')
-            ->with('classrooms')
+            ->with('classrooms', 'creator.guruMapel')
             ->get();
 
-        // Assignment di-load sekali lalu di-group per subject (kelas target
-        // hanya dihitung dari baris dengan classroom_id eksplisit — konsisten
-        // dengan GuruMapel::ampuClassroomIds).
+        // Assignment di-load sekali lalu di-group per subject. Kelas eksplisit
+        // dan baris wildcard (classroom_id null) keduanya diambil.
         $assignments = TeacherSubjectClassAssignment::query()
             ->with('guruMapel')
             ->get()
             ->groupBy('subject_id');
 
         $linked = 0;
+        $backfilled = 0;
         $split = 0;
         $noMatch = 0;
+        $already = 0;
         $splitDetails = [];
 
         foreach ($questions as $question) {
+            if ($question->teacher_guru_mapel_id !== null) {
+                $already++;
+
+                continue;
+            }
+
+            // Backfill dari creator lama (kolom legacy), tanpa perlu match.
+            if ($question->created_by_user_id !== null) {
+                $legacyGuru = $question->creator?->guruMapel;
+
+                if ($legacyGuru !== null) {
+                    $backfilled++;
+                    $this->line("  [backfill] Soal #{$question->id} -> guru_mapel_id {$legacyGuru->id} (dari creator user_id {$question->created_by_user_id})");
+
+                    if (! $this->option('dry-run')) {
+                        $question->update(['teacher_guru_mapel_id' => $legacyGuru->id]);
+                    }
+
+                    continue;
+                }
+
+                // Creator tanpa profil guru mapel — perlakukan seperti tanpa owner.
+            }
+
             /** @var Collection<array-key, int> $classroomIds */
             $classroomIds = $question->classrooms->pluck('id');
 
@@ -52,16 +86,16 @@ class LinkAdminQuestionsToGuru extends Command
                 continue;
             }
 
-            // Guru (users.id) pemilik tiap kelas target pada mapel soal.
+            // Guru pemilik tiap kelas target pada mapel soal. Assignment dgn
+            // classroom_id null (wildcard) berlaku untuk semua kelas.
             $gurusByClass = $classroomIds->mapWithKeys(function (int $classroomId) use ($assignments, $question) {
-                $guruUserIds = ($assignments[$question->subject_id] ?? collect())
-                    ->where('classroom_id', $classroomId)
-                    ->map(fn ($assignment) => $assignment->guruMapel?->user_id)
-                    ->filter()
+                $guruIds = ($assignments[$question->subject_id] ?? collect())
+                    ->filter(fn (TeacherSubjectClassAssignment $assignment) => $assignment->classroom_id === null || $assignment->classroom_id === $classroomId)
+                    ->pluck('guru_mapel_id')
                     ->unique()
                     ->values();
 
-                return [$classroomId => $guruUserIds];
+                return [$classroomId => $guruIds];
             });
 
             // Ada kelas target tanpa pemilik sama sekali → tidak bisa di-link.
@@ -80,20 +114,25 @@ class LinkAdminQuestionsToGuru extends Command
                 continue;
             }
 
-            $ownerUserId = (int) $distinctGurus->first();
+            $ownerGuruMapelId = (int) $distinctGurus->first();
+            $ownerUserId = $assignments[$question->subject_id]
+                ->firstWhere('guru_mapel_id', $ownerGuruMapelId)?->guruMapel?->user_id;
             $linked++;
 
             if ($this->option('dry-run')) {
-                $this->line("  [rencana] Soal #{$question->id} → user_id {$ownerUserId} (kelas: ".implode(', ', $question->classrooms->pluck('name')->all()).')');
+                $this->line("  [rencana] Soal #{$question->id} -> guru_mapel_id {$ownerGuruMapelId} (kelas: ".implode(', ', $question->classrooms->pluck('name')->all()).')');
 
                 continue;
             }
 
-            $question->update(['created_by_user_id' => $ownerUserId]);
-            $this->line("  [ok] Soal #{$question->id} → user_id {$ownerUserId} (kelas: ".implode(', ', $question->classrooms->pluck('name')->all()).')');
+            $question->update([
+                'teacher_guru_mapel_id' => $ownerGuruMapelId,
+                'created_by_user_id' => $ownerUserId,
+            ]);
+            $this->line("  [ok] Soal #{$question->id} -> guru_mapel_id {$ownerGuruMapelId} (kelas: ".implode(', ', $question->classrooms->pluck('name')->all()).')');
         }
 
-        $this->info("Selesai: {$linked} soal ter-link, {$split} di-skip (kelas terpecah ke beberapa guru), {$noMatch} di-skip (tidak ada guru yang mengampu seluruh kelas target).");
+        $this->info("Selesai: {$linked} soal ter-link, {$backfilled} backfill dari creator, {$already} sudah terisi, {$split} di-skip (kelas terpecah ke beberapa guru), {$noMatch} di-skip (tidak ada guru yang mengampu seluruh kelas target).");
 
         foreach ($splitDetails as $detail) {
             $this->warn('  [tinjau manual] '.$detail);

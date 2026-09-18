@@ -37,6 +37,8 @@ class Question extends Model
 
     protected $fillable = [
         'subject_id',
+        'teacher_guru_mapel_id',
+        'exam_type_id',
         'created_by_user_id',
         'type',
         'question_text',
@@ -69,6 +71,27 @@ class Question extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    /**
+     * Guru mapel pemilik soal (kepemilikan Bank Soal). Null bila soal
+     * belum di-assign ke guru mana pun. HANYA label organisasi Bank Soal —
+     * TIDAK menggantikan pivot question_classroom sebagai sumber kebenaran
+     * targeting kelas saat ujian.
+     */
+    public function guruMapel(): BelongsTo
+    {
+        return $this->belongsTo(GuruMapel::class, 'teacher_guru_mapel_id');
+    }
+
+    /**
+     * Jenis ujian (Harian/UTS/UAS) label kategori soal. Null = belum
+     * ditentukan. Murni atribut kategori Bank Soal; bobot & penjadwalan
+     * tetap dihitung per exam_period/exam_schedule seperti sebelumnya.
+     */
+    public function examType(): BelongsTo
+    {
+        return $this->belongsTo(ExamType::class, 'exam_type_id');
     }
 
     /**

@@ -8,6 +8,7 @@ use App\Http\Requests\GuruMapel\StoreGuruMapelQuestionRequest;
 use App\Http\Requests\GuruMapel\UpdateGuruMapelQuestionRequest;
 use App\Models\Classroom;
 use App\Models\ExamAnswer;
+use App\Models\ExamType;
 use App\Models\GuruMapel;
 use App\Models\Question;
 use App\Models\Subject;
@@ -74,9 +75,10 @@ class QuestionController extends Controller
         $subjects = $this->ampuSubjects($guru);
         $types = Question::TYPES;
         $letters = Question::OPTION_LETTERS;
+        $examTypes = ExamType::query()->orderBy('sort_order')->get();
         $question = null;
 
-        return view('guru_mapel.questions.create', compact('subjects', 'types', 'letters', 'question'));
+        return view('guru_mapel.questions.create', compact('subjects', 'types', 'letters', 'examTypes', 'question'));
     }
 
     public function store(StoreGuruMapelQuestionRequest $request): RedirectResponse
@@ -86,6 +88,10 @@ class QuestionController extends Controller
 
         $payload = $this->questionPayload($data);
         $payload['created_by_user_id'] = $request->user()->id;
+        $payload['teacher_guru_mapel_id'] = $guru->id;
+        if ($request->filled('exam_type_id')) {
+            $payload['exam_type_id'] = (int) $request->input('exam_type_id');
+        }
 
         if ($request->hasFile('image')) {
             $payload['image_path'] = $this->imageOptimizer->optimize($request->file('image'));
@@ -122,9 +128,10 @@ class QuestionController extends Controller
         $subjects = $this->ampuSubjects($guru);
         $types = Question::TYPES;
         $letters = Question::OPTION_LETTERS;
+        $examTypes = ExamType::query()->orderBy('sort_order')->get();
         $question->load('classrooms');
 
-        return view('guru_mapel.questions.edit', compact('question', 'subjects', 'types', 'letters'));
+        return view('guru_mapel.questions.edit', compact('question', 'subjects', 'types', 'letters', 'examTypes'));
     }
 
     public function update(UpdateGuruMapelQuestionRequest $request, Question $question): RedirectResponse
@@ -141,6 +148,10 @@ class QuestionController extends Controller
         $oldOptionImages = $question->optionImages();
 
         $payload = $this->questionPayload($data);
+        $payload['teacher_guru_mapel_id'] = $guru->id;
+        $payload['exam_type_id'] = $request->filled('exam_type_id')
+            ? (int) $request->input('exam_type_id')
+            : null;
 
         if ($request->hasFile('image')) {
             $this->deleteImageFile($question->image_path);

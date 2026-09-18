@@ -41,6 +41,28 @@
                         </select>
                         <x-input-error :messages="$errors->get('type')" class="mt-2" />
                     </div>
+                    <div>
+                        <x-input-label for="teacher_guru_mapel_id" :value="__('Pemilik Guru Mapel (opsional)')" />
+                        <select id="teacher_guru_mapel_id" name="teacher_guru_mapel_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                            <option value="">-- Belum Ada Guru --</option>
+                            @foreach ($gurus as $guruItem)
+                                <option value="{{ $guruItem->id }}" @selected(old('teacher_guru_mapel_id') == $guruItem->id)>{{ $guruItem->user?->name }}</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Menentukan cabang "Guru" pada hierarki Bank Soal. Kosongkan untuk menyimpan di bucket "Belum Ada Guru".</p>
+                        <x-input-error :messages="$errors->get('teacher_guru_mapel_id')" class="mt-2" />
+                    </div>
+                    <div>
+                        <x-input-label for="exam_type_id" :value="__('Jenis Ujian (opsional)')" />
+                        <select id="exam_type_id" name="exam_type_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                            <option value="">-- Belum Ditentukan --</option>
+                            @foreach ($examTypes as $examType)
+                                <option value="{{ $examType->id }}" @selected(old('exam_type_id') == $examType->id)>{{ $examType->name }}</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Label kategori soal (Harian/UTS/UAS). Tidak memengaruhi bobot atau penjadwalan ujian.</p>
+                        <x-input-error :messages="$errors->get('exam_type_id')" class="mt-2" />
+                    </div>
                     <div class="sm:col-span-2">
                         <x-input-label for="creator_user_id" :value="__('Atas Nama Guru (opsional)')" />
                         <select id="creator_user_id" name="creator_user_id" x-model="guru" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
@@ -98,7 +120,7 @@
                         <x-input-error :messages="$errors->get('image')" class="mt-2" />
                     </div>
                     <div class="flex-1">
-                        <img x-show="img.preview" :src="img.preview" class="max-h-48 w-full rounded-lg border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau gambar" />
+                        <img x-show="img.preview" :src="img.preview" class="max-h-48 w-full cursor-zoom-in rounded-lg border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau gambar" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)" />
                     </div>
                 </div>
             </div>
@@ -118,7 +140,7 @@
                             <div class="ml-11 flex items-center gap-3">
                                 <input type="file" name="single_options_image[{{ $letter }}]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'single_{{ $letter }}')" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20">
                                 <span class="text-xs text-gray-400 dark:text-gray-500">Gambar opsi (opsional)</span>
-                                <img x-show="opt['single_{{ $letter }}']" :src="opt['single_{{ $letter }}']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau opsi {{ $letter }}" />
+                                <img x-show="opt['single_{{ $letter }}']" :src="opt['single_{{ $letter }}']" class="h-12 w-12 cursor-zoom-in rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau opsi {{ $letter }}" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)" />
                             </div>
                         @endforeach
                     </div>
@@ -142,7 +164,7 @@
                             <div class="ml-11 flex items-center gap-3">
                                 <input type="file" name="multiple_options_image[{{ $letter }}]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'multi_{{ $letter }}')" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20">
                                 <span class="text-xs text-gray-400 dark:text-gray-500">Gambar opsi (opsional)</span>
-                                <img x-show="opt['multi_{{ $letter }}']" :src="opt['multi_{{ $letter }}']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau opsi {{ $letter }}" />
+                                <img x-show="opt['multi_{{ $letter }}']" :src="opt['multi_{{ $letter }}']" class="h-12 w-12 cursor-zoom-in rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau opsi {{ $letter }}" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)" />
                             </div>
                         @endforeach
                     </div>
@@ -170,12 +192,12 @@
                         <div class="flex items-center gap-3">
                             <input type="file" name="true_false_image[true]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'tf_true')" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20">
                             <span class="text-xs text-gray-400 dark:text-gray-500">Gambar "Benar"</span>
-                            <img x-show="opt['tf_true']" :src="opt['tf_true']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau Benar" />
+                            <img x-show="opt['tf_true']" :src="opt['tf_true']" class="h-12 w-12 cursor-zoom-in rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau Benar" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)" />
                         </div>
                         <div class="flex items-center gap-3">
                             <input type="file" name="true_false_image[false]" accept="image/jpeg,image/png,image/webp" @change="optImg($event, 'tf_false')" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-400 dark:file:bg-indigo-500/10 dark:file:text-indigo-300 dark:hover:file:bg-indigo-500/20">
                             <span class="text-xs text-gray-400 dark:text-gray-500">Gambar "Salah"</span>
-                            <img x-show="opt['tf_false']" :src="opt['tf_false']" class="h-12 w-12 rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau Salah" />
+                            <img x-show="opt['tf_false']" :src="opt['tf_false']" class="h-12 w-12 cursor-zoom-in rounded border border-gray-200 object-contain dark:border-gray-700" alt="Pratinjau Salah" title="Perbesar gambar" @click="$dispatch('image-zoom', $event.currentTarget.src)" />
                         </div>
                     </div>
                     <x-input-error :messages="$errors->get('true_false_answer')" class="mt-2" />
@@ -234,4 +256,6 @@
             </div>
         </form>
     </div>
+
+    <x-image-lightbox />
 </x-layouts.admin>

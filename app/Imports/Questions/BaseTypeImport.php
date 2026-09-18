@@ -2,6 +2,7 @@
 
 namespace App\Imports\Questions;
 
+use App\Models\GuruMapel;
 use App\Models\Question;
 use App\Models\Subject;
 use Illuminate\Support\Collection;
@@ -260,10 +261,19 @@ abstract class BaseTypeImport implements ToCollection, WithEvents, WithHeadingRo
     {
         $result = ['created' => 0, 'updated' => 0, 'errors' => []];
 
+        // Map user_id → guru_mapel_id sekali (hindari N+1 per baris impor).
+        $guruMapelIdByUser = GuruMapel::query()
+            ->whereNotNull('user_id')
+            ->pluck('id', 'user_id')
+            ->all();
+
         foreach ($this->validRows as $validRow) {
             try {
                 $question = Question::create([
                     'subject_id' => $validRow['subject_id'],
+                    'teacher_guru_mapel_id' => $this->createdByUserId !== null
+                        ? ($guruMapelIdByUser[(int) $this->createdByUserId] ?? null)
+                        : null,
                     'type' => $validRow['type'],
                     'question_text' => $validRow['question_text'],
                     'options' => $validRow['options'],

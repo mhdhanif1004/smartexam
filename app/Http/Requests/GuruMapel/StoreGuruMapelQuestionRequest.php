@@ -36,6 +36,7 @@ class StoreGuruMapelQuestionRequest extends FormRequest
 
         return [
             'subject_id' => ['required', 'integer'],
+            'exam_type_id' => ['nullable', 'integer', Rule::exists('exam_types', 'id')],
             'type' => ['required', Rule::in(array_keys(Question::TYPES))],
             'question_text' => ['required', 'string'],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
